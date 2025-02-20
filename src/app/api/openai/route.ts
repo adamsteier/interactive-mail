@@ -5,62 +5,10 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-async function searchBusiness(businessName: string, targetArea: string, userLocation: string) {
-  const searchQuery = `${businessName} ${targetArea}`;
-  
-  try {
-    const response = await fetch('https://api.4o.nl/search/v0', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.FOURO_API_KEY}`,
-      },
-      body: JSON.stringify({
-        query: searchQuery,
-        filters: {
-          // First try exact location
-          location: targetArea,
-          // Then try user's location as fallback
-          fallbackLocation: userLocation,
-        },
-        limit: 5,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch from 4o');
-    }
-
-    const data = await response.json();
-    return data.results;
-  } catch (error) {
-    console.error('4o search error:', error);
-    return null;
-  }
-}
-
 export async function POST(req: Request) {
   try {
     const { targetArea, businessName, businessType, userLocation } = await req.json();
 
-    // First, try to find the business using 4o
-    const searchResults = await searchBusiness(businessName, targetArea, userLocation);
-
-    if (searchResults && searchResults.length > 0) {
-      // Found matching business(es)
-      const bestMatch = searchResults[0];
-      return NextResponse.json({
-        analysis: {
-          industry: bestMatch.industry,
-          description: bestMatch.description,
-          customerTypes: bestMatch.customerTypes || [],
-        },
-        searchResults,
-        source: '4o'
-      });
-    }
-
-    // If no results found, fall back to OpenAI for analysis
     const prompt = `I need to analyze a business and its target market:
       Business Name: ${businessName}
       Target Area: ${targetArea}
@@ -92,6 +40,7 @@ export async function POST(req: Request) {
         }
       ],
       temperature: 0.7,
+      response_format: { type: "json_object" }
     });
 
     const responseContent = completion.choices[0].message.content;
@@ -103,7 +52,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ 
       analysis,
-      searchResults: [],
       source: 'openai'
     });
   } catch (error) {

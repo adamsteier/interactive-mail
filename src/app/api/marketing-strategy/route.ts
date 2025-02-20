@@ -85,6 +85,7 @@ Please structure your response to be as granular as possible, breaking down each
       messages: [{ role: "user", content: prompt }],
       model: "gpt-4-0125-preview",
       temperature: 0.7,
+      response_format: { type: "json_object" }
     });
 
     const responseContent = completion.choices[0].message.content;
