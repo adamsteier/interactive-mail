@@ -102,7 +102,6 @@ export default function Home() {
           label={answer.label}
           value={answer.value}
           show={true}
-          startPosition={inputPosition}
         />
       ))}
       <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-4 py-8">
