@@ -9,19 +9,12 @@ interface BrowseAIBusiness {
   reviews: number;
 }
 
-type RouteParams = {
-  params: {
-    taskId: string;
-  };
-};
-
 export async function GET(
   request: NextRequest,
-  context: RouteParams
+  { params }: { params: { taskId: string } }
 ) {
   try {
-    const taskId = context.params.taskId;
-    const response = await fetch(`https://api.browse.ai/v2/tasks/${taskId}`, {
+    const response = await fetch(`https://api.browse.ai/v2/tasks/${params.taskId}`, {
       headers: {
         'Authorization': `Bearer ${process.env.BROWSE_AI_API_KEY}`
       }
