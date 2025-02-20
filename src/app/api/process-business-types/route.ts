@@ -27,7 +27,7 @@ export async function POST(req: Request) {
       messages: [
         {
           role: "system",
-          content: "You are a search query specialist. Create optimized Google Maps search URLs."
+          content: "You are a search query specialist. Create optimized Google Maps search URLs using the format: https://www.google.com/maps/search/[business-type]/@[lat],[lng],[zoom]z"
         },
         {
           role: "user",
@@ -37,15 +37,20 @@ ${businessTypes.map((type: BusinessType) => `${type.name} (${type.count} busines
 
 For each business type:
 1. Split the type if it contains multiple businesses (e.g., "Hotels and Hospitality" -> "hotels", "hospitality")
-2. Create a Google Maps search URL for each business type
-3. Return the results as JSON
+2. Create a Google Maps search URL for each business type using this exact format:
+   https://www.google.com/maps/search/architect/@53.6975,-113.8183,12z
+3. Use appropriate coordinates for ${location}
+4. Return the results as JSON
 
 Format:
 {
   "searchQueries": [
     {
       "businessType": "original business type",
-      "searchUrls": ["url1", "url2"]
+      "searchUrls": [
+        "https://www.google.com/maps/search/architect/@53.6975,-113.8183,12z",
+        "https://www.google.com/maps/search/residential-architect/@53.6975,-113.8183,12z"
+      ]
     }
   ]
 }`
