@@ -91,7 +91,7 @@ const MarketingResults = ({ strategy, onClose }: MarketingResultsProps) => {
                     transition-all duration-300 hover:bg-electric-teal/20 hover:shadow-glow-strong 
                     active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Get Data
+                  {selectedTargets.size === 0 ? 'Select some businesses to get data' : 'Get Data'}
                 </button>
               </div>
             )}
@@ -151,7 +151,7 @@ const MarketingResults = ({ strategy, onClose }: MarketingResultsProps) => {
                   text-electric-teal shadow-glow hover:bg-electric-teal/20 hover:shadow-glow-strong 
                   active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Get Data
+                {selectedTargets.size === 0 ? 'Select some businesses to get data' : 'Get Data'}
               </button>
             </div>
           </div>
