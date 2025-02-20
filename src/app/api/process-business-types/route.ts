@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
+interface BusinessType {
+  name: string;
+  count: number;
+}
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -11,40 +16,55 @@ interface MapSquare {
   businessType: string;
 }
 
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
-    const { businessTypes, location } = await request.json();
+    const { businessTypes, location } = await req.json();
     console.log('Processing:', { businessTypes, location });
 
     // Ask LLM to help process the business types and determine map squares
     const completion = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [{
-        role: "user",
-        content: `
-          I need to create Google Maps search URLs for the following business types in ${location}:
-          ${businessTypes.map(type => `${type.name} (${type.count} businesses)`).join('\n')}
+      model: "gpt-4-turbo-preview",
+      messages: [
+        {
+          role: "system",
+          content: "You are a search query specialist. Create optimized Google Maps search URLs."
+        },
+        {
+          role: "user",
+          content: `
+I need to create Google Maps search URLs for the following business types in ${location}:
+${businessTypes.map((type: BusinessType) => `${type.name} (${type.count} businesses)`).join('\n')}
 
-          For each business type:
-          1. Split the type if it contains multiple businesses (e.g., "Hotels and Hospitality" -> "hotels", "hospitality")
-          2. If count > 50, split into multiple map squares with appropriate zoom levels
-          3. Return center coordinates and zoom level for each square
+For each business type:
+1. Split the type if it contains multiple businesses (e.g., "Hotels and Hospitality" -> "hotels", "hospitality")
+2. Create a Google Maps search URL for each business type
+3. Return the results as JSON
 
-          Format the response as JSON with this structure:
-          {
-            "squares": [
-              {
-                "businessType": "string",
-                "center": { "lat": number, "lng": number },
-                "zoom": number
-              }
-            ]
-          }
-        `
-      }]
+Format:
+{
+  "searchQueries": [
+    {
+      "businessType": "original business type",
+      "searchUrls": ["url1", "url2"]
+    }
+  ]
+}`
+        }
+      ],
+      temperature: 0.7,
+      response_format: { type: "json_object" }
     });
 
-    const squares: MapSquare[] = JSON.parse(completion.choices[0].message?.content || '{}').squares;
+    const responseContent = completion.choices[0].message.content;
+    if (!responseContent) {
+      throw new Error('No response content from OpenAI');
+    }
+
+    const squares: MapSquare[] = JSON.parse(responseContent).searchQueries.map((query: { businessType: string; searchUrls: string[] }) => ({
+      businessType: query.businessType,
+      center: { lat: 0, lng: 0 },
+      zoom: 10
+    }));
 
     // Create Browse.ai tasks for each square
     const taskIds = [];
@@ -83,7 +103,6 @@ export async function POST(request: Request) {
       squares,
       taskIds
     });
-    
   } catch (error) {
     console.error('Error processing business types:', error);
     return NextResponse.json({ 
