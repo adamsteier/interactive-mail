@@ -2,15 +2,18 @@
 
 import { useEffect, useState } from 'react';
 
-const TypewriterPrompt = () => {
-  const [text, setText] = useState('');
-  const fullText = "Let's find you some new business. Tell me a little bit about your customers or who you're trying to reach.";
+interface TypewriterPromptProps {
+  text: string;
+}
+
+const TypewriterPrompt = ({ text }: TypewriterPromptProps) => {
+  const [displayText, setDisplayText] = useState('');
   
   useEffect(() => {
     let currentIndex = 0;
     const intervalId = setInterval(() => {
-      if (currentIndex <= fullText.length) {
-        setText(fullText.slice(0, currentIndex));
+      if (currentIndex <= text.length) {
+        setDisplayText(text.slice(0, currentIndex));
         currentIndex++;
       } else {
         clearInterval(intervalId);
@@ -18,13 +21,15 @@ const TypewriterPrompt = () => {
     }, 50);
 
     return () => clearInterval(intervalId);
-  }, []);
+  }, [text]);
 
   return (
-    <h1 className="mb-8 text-center text-3xl font-bold text-electric-teal">
-      {text}
-      <span className="animate-blink">|</span>
-    </h1>
+    <div className="mb-12 h-[180px] w-full md:h-[200px] lg:h-[220px]">
+      <h1 className="max-w-[500px] whitespace-pre-line text-left text-xl font-normal text-electric-teal md:text-2xl lg:text-3xl">
+        {displayText}
+        <span className="animate-blink">|</span>
+      </h1>
+    </div>
   );
 };
 
