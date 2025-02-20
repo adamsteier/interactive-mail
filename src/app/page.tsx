@@ -45,12 +45,6 @@ interface EditableInfo {
   description: string;
 }
 
-interface BrowseAIResponse {
-  success: boolean;
-  error?: string;
-  taskId?: string;
-}
-
 const LoadingSkeleton = () => (
   <div className="w-full rounded-lg border-2 border-electric-teal bg-charcoal/80 px-4 md:px-6 py-3 shadow-glow backdrop-blur-sm">
     <div className="text-sm text-electric-teal/80 mb-2">Industry</div>
@@ -229,24 +223,6 @@ export default function Home() {
 
       const data = await response.json();
       setMarketingStrategy(data.analysis);
-
-      // If there are direct mail leads, submit them to Browse.ai
-      if (data.analysis?.directMailLeads?.length > 0) {
-        const browseResponse = await fetch('/api/browse-ai', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            leads: data.analysis.directMailLeads
-          }),
-        });
-
-        const browseData: BrowseAIResponse = await browseResponse.json();
-        if (!browseData.success) {
-          console.error('Failed to submit leads to Browse.ai:', browseData.error);
-        }
-      }
     } catch (error) {
       console.error('Error:', error);
     } finally {
