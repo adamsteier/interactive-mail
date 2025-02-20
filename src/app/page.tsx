@@ -345,20 +345,11 @@ export default function Home() {
                   }
                 }}
                 className="relative z-50 rounded-lg border-2 border-electric-teal bg-charcoal px-8 py-4 
-                  text-lg font-medium text-electric-teal shadow-glow overflow-hidden
+                  text-lg font-medium text-electric-teal shadow-glow 
                   transition-all duration-300 hover:border-electric-teal/80 hover:shadow-glow-strong 
                   active:scale-95 animate-pulse-glow"
               >
-                {isLoadingStrategy ? (
-                  <>
-                    Analyzing your market...
-                    <div className="absolute bottom-0 left-0 h-1 w-full bg-charcoal">
-                      <div className="absolute h-full bg-neon-magenta animate-loading-progress" />
-                    </div>
-                  </>
-                ) : (
-                  'Looks good, now show me my leads'
-                )}
+                {isLoadingStrategy ? 'Analyzing your market...' : 'Looks good, now show me my leads'}
               </button>
               <button
                 onClick={() => setIsEditModalOpen(true)}
