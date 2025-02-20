@@ -3,8 +3,17 @@
 @tailwind utilities;
 
 :root {
+  /* Colors */
   --foreground-rgb: 255, 255, 255;
   --background-rgb: 26, 26, 26;
+
+  /* Spacing System */
+  --space-xs: 0.5rem;   /* 8px */
+  --space-sm: 1rem;     /* 16px */
+  --space-md: 1.5rem;   /* 24px */
+  --space-lg: 2rem;     /* 32px */
+  --space-xl: 3rem;     /* 48px */
+  --space-2xl: 4rem;    /* 64px */
 }
 
 body {
@@ -17,4 +26,23 @@ body {
     box-shadow: 0 0 10px #00F0FF,
                 0 0 20px rgba(0, 240, 255, 0.3);
   }
+}
+
+/* Brand Guidelines - Spacing */
+.brand-spacing {
+  /* Vertical Spacing */
+  --stack-xs: var(--space-xs);  /* Compact elements (icons in a row) */
+  --stack-sm: var(--space-sm);  /* Related elements (form fields) */
+  --stack-md: var(--space-md);  /* Section spacing */
+  --stack-lg: var(--space-lg);  /* Major section spacing */
+  --stack-xl: var(--space-xl);  /* Page level spacing */
+
+  /* Horizontal Spacing */
+  --inline-xs: var(--space-xs); /* Icon padding */
+  --inline-sm: var(--space-sm); /* Button padding */
+  --inline-md: var(--space-md); /* Content padding */
+  --inline-lg: var(--space-lg); /* Section padding */
+  
+  /* Container Padding */
+  --container-padding: var(--space-lg);
 }

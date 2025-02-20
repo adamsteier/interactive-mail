@@ -17,6 +17,20 @@ interface Answer {
   value: string;
 }
 
+interface BusinessAnalysis {
+  industry: string;
+  description: string;
+  customerTypes: string[];
+}
+
+interface DisplayInfo {
+  label: string;
+  value: string;
+  type: 'answer' | 'analysis';
+  position?: 'first' | 'inline' | 'below';
+  maxWidth?: string;
+}
+
 export default function Home() {
   const [userInput, setUserInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -24,10 +38,12 @@ export default function Home() {
   const [step, setStep] = useState(0);
   const [locationData, setLocationData] = useState<LocationData | null>(null);
   const [answers, setAnswers] = useState<Answer[]>([]);
+  const [businessAnalysis, setBusinessAnalysis] = useState<BusinessAnalysis | null>(null);
+  const [displayInfos, setDisplayInfos] = useState<DisplayInfo[]>([]);
 
   const labels = [
     "Target Area",
-    "Target Audience",
+    "Your Business Name",
     "Business Type"
   ];
 
@@ -49,6 +65,33 @@ export default function Home() {
     fetchLocation();
   }, []);
 
+  useEffect(() => {
+    // Update display infos whenever answers or business analysis change
+    const newDisplayInfos: DisplayInfo[] = [
+      ...answers.map((answer, index) => ({
+        ...answer,
+        type: 'answer' as const,
+        position: index === 0 ? 'first' as const : 'inline' as const
+      })),
+      ...(businessAnalysis ? [
+        {
+          label: "Industry",
+          value: businessAnalysis.industry,
+          type: 'analysis' as const,
+          position: 'inline' as const
+        },
+        {
+          label: "Business Description",
+          value: businessAnalysis.description,
+          type: 'analysis' as const,
+          position: 'below' as const,
+          maxWidth: '600px'
+        }
+      ] : [])
+    ];
+    setDisplayInfos(newDisplayInfos);
+  }, [answers, businessAnalysis]);
+
   const welcomeText = "Let's find you some new business. Tell me a little bit about your customers or who you're trying to reach.";
   
   const prompts = [
@@ -57,8 +100,8 @@ export default function Home() {
       placeholder: "Type City, Province, Area, Neighbourhood"
     },
     {
-      text: "Tell me about your ideal customers. Who are you trying to reach?",
-      placeholder: "Describe your target audience"
+      text: "What's the name of your business?",
+      placeholder: "Enter your business name"
     },
     {
       text: "What type of business are you in?",
@@ -69,21 +112,47 @@ export default function Home() {
   const handleSubmit = async (input: string) => {
     setIsProcessing(true);
     try {
-      // Store the answer
       const newAnswer: Answer = {
         label: labels[step],
         value: input
       };
       setAnswers(prev => [...prev, newAnswer]);
       
-      // Move to next step or finish
+      // Make API call after business name is entered (step 1)
+      if (step === 1) {
+        const allAnswers = [...answers, newAnswer];
+        const targetArea = allAnswers.find(a => a.label === "Target Area")?.value || "";
+        const businessName = allAnswers.find(a => a.label === "Your Business Name")?.value || "";
+
+        const response = await fetch('/api/openai', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            targetArea,
+            businessName,
+            businessType: "", // Empty at this point
+            userLocation: locationData?.city || 'Toronto',
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to get AI response');
+        }
+
+        const data = await response.json();
+        if (data.analysis) {
+          setBusinessAnalysis(data.analysis);
+        }
+      }
+
       if (step < prompts.length - 1) {
         setStep(step + 1);
         setUserInput('');
-      } else {
-        // Handle final submission
-        console.log('All answers collected');
       }
+    } catch (error) {
+      console.error('Error:', error);
     } finally {
       setIsProcessing(false);
     }
@@ -93,17 +162,30 @@ export default function Home() {
     setInputPosition(position);
   }, []);
 
+  const handleInfoBoxClick = (index: number) => {
+    setStep(index);
+    setUserInput(answers[index].value);
+  };
+
   return (
     <main className="relative min-h-screen w-full">
       <AnimatedBackground inputPosition={inputPosition} />
-      {answers.map(answer => (
-        <InfoBox
-          key={answer.label}
-          label={answer.label}
-          value={answer.value}
-          show={true}
-        />
-      ))}
+      <div className="fixed left-0 top-0 w-full">
+        <div className="relative mx-auto max-w-7xl px-4">
+          <div className="flex flex-col md:flex-row md:items-start md:gap-4">
+            {displayInfos.map((info, index) => (
+              <InfoBox
+                key={`${info.label}-${index}`}
+                label={info.label}
+                value={info.value}
+                show={true}
+                onClick={info.type === 'answer' ? () => handleInfoBoxClick(index) : undefined}
+                position={info.position}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
       <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-4 py-8">
         <div className="max-w-4xl">
           <TypewriterPrompt 
