@@ -26,6 +26,17 @@ interface ProcessingModalProps {
   onClose: () => void;
 }
 
+interface TaskResponse {
+  success: boolean;
+  taskIds: string[];
+  squares: MapSquare[];
+}
+
+interface TaskResult {
+  status: string;
+  data?: any; // You can make this more specific based on your needs
+}
+
 const ProcessingModal = ({ selectedBusinesses, targetArea, onComplete, onClose }: ProcessingModalProps) => {
   const [businessProgress, setBusinessProgress] = useState<BusinessProgress[]>(() =>
     selectedBusinesses.map(business => ({
@@ -38,20 +49,12 @@ const ProcessingModal = ({ selectedBusinesses, targetArea, onComplete, onClose }
 
   const [showResults, setShowResults] = useState(false);
 
-  const pollTaskStatus = async (taskId: string) => {
-    while (true) {
-      const response = await fetch(`/api/browse-ai/task/${taskId}`);
-      const data = await response.json();
-      
-      if (data.status === 'complete') {
-        return data.results;
-      } else if (data.status === 'error') {
-        throw new Error('Task failed');
-      }
-      
-      // Wait 5 seconds before checking again
-      await new Promise(resolve => setTimeout(resolve, 5000));
+  const pollTaskStatus = async (taskId: string): Promise<TaskResult> => {
+    const response = await fetch(`/api/browse-ai/task/${taskId}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch task status');
     }
+    return response.json();
   };
 
   useEffect(() => {
@@ -82,7 +85,11 @@ const ProcessingModal = ({ selectedBusinesses, targetArea, onComplete, onClose }
 
           if (!response.ok) throw new Error('Failed to process business');
           
-          const data = await response.json();
+          const data: TaskResponse = await response.json();
+
+          if (!data.success) {
+            throw new Error(data.error || 'Failed to process business types');
+          }
 
           // Update for task creation
           setBusinessProgress(prev => prev.map((b, idx) => 
@@ -95,7 +102,7 @@ const ProcessingModal = ({ selectedBusinesses, targetArea, onComplete, onClose }
 
           // Wait for all tasks to complete and gather results
           const results = await Promise.all(
-            data.taskIds.map(taskId => pollTaskStatus(taskId))
+            data.taskIds.map((taskId: string) => pollTaskStatus(taskId))
           );
 
           // Combine and deduplicate results
