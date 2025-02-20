@@ -31,6 +31,7 @@ Please identify specific databases and platforms that would be valuable. For eac
 - Explain why it's particularly suitable
 - Estimate the potential reach
 - Consider both broad platforms and niche/local databases
+- One example of a database is a real estate database where we can send mail to new listings
 
 Method 3: Mass Flyer Drop
 Only recommend if other methods aren't suitable.
