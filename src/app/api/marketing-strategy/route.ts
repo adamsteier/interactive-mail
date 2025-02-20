@@ -8,6 +8,10 @@ const openai = new OpenAI({
 export async function POST(req: Request) {
   try {
     const { targetArea, businessName, industry, description } = await req.json();
+    
+    // Debug log
+    console.log('Received request:', { targetArea, businessName, industry, description });
+    console.log('Using OpenAI API Key:', process.env.OPENAI_API_KEY ? 'Present' : 'Missing');
 
     const prompt = `I am going to provide you with details about a business, and I want you to determine the most effective advertising method for them using our three available strategies. Please be as specific and granular as possible in your recommendations.
 
@@ -96,7 +100,12 @@ Please structure your response to be as granular as possible, breaking down each
     return NextResponse.json({ analysis: JSON.parse(responseContent) });
 
   } catch (error) {
-    console.error('Error:', error);
+    // Enhanced error logging
+    console.error('Marketing strategy error:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    });
     return NextResponse.json({ error: 'Failed to analyze marketing strategy' }, { status: 500 });
   }
 } 
