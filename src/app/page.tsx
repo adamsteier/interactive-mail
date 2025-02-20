@@ -8,6 +8,7 @@ import InfoBox from '@/components/InfoBox';
 import LoadingBar from '@/components/LoadingBar';
 import EditModal from '@/components/EditModal';
 import MarketingResults from '@/components/MarketingResults';
+import { MarketingStrategy } from '@/types/marketing';
 
 interface LocationData {
   city: string;
@@ -42,24 +43,6 @@ interface EditableInfo {
   businessName: string;
   industry: string;
   description: string;
-}
-
-interface MarketingStrategy {
-  recommendedMethods: Array<'method1' | 'method2' | 'method3'>;
-  method1Analysis: {
-    businessType: string;
-    estimatedTargets: number;
-    reasoning: string;
-  };
-  method2Analysis: {
-    recommendedDatabase: string;
-    reasoning: string;
-  };
-  method3Analysis: {
-    reasoning: string;
-  };
-  primaryRecommendation: string;
-  estimatedReach: number;
 }
 
 const LoadingSkeleton = () => (
