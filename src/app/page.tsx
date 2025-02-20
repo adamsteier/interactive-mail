@@ -199,7 +199,7 @@ export default function Home() {
       { label: "Your Business Name", value: editedInfo.businessName },
     ]);
 
-    // Update business analysis
+    // Update the business analysis
     setBusinessAnalysis(prev => ({
       ...prev!,
       industry: editedInfo.industry,
