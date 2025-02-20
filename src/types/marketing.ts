@@ -11,14 +11,16 @@ export interface DatabaseTarget {
   estimatedReach: number;
 }
 
+export interface Method1Analysis {
+  overallReasoning: string;
+  businessTargets: BusinessTarget[];
+}
+
 export interface MarketingStrategy {
-  recommendedMethods: Array<'method1' | 'method2' | 'method3'>;
   primaryRecommendation: string;
   totalEstimatedReach: number;
-  method1Analysis: {
-    businessTargets: BusinessTarget[];
-    overallReasoning: string;
-  };
+  recommendedMethods: string[];
+  method1Analysis: Method1Analysis;
   method2Analysis: {
     databaseTargets: DatabaseTarget[];
     overallReasoning: string;
