@@ -11,3 +11,10 @@ body {
   color: rgb(var(--foreground-rgb));
   background: rgb(var(--background-rgb));
 }
+
+@layer components {
+  .shadow-glow {
+    box-shadow: 0 0 10px #00F0FF,
+                0 0 20px rgba(0, 240, 255, 0.3);
+  }
+}

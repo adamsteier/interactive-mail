@@ -4,11 +4,17 @@ import { useState, useEffect, useCallback } from 'react';
 import AnimatedBackground from '@/components/AnimatedBackground';
 import TypewriterPrompt from '@/components/TypewriterPrompt';
 import InputField from '@/components/InputField';
+import InfoBox from '@/components/InfoBox';
 
 interface LocationData {
   city: string;
   region: string;
   country: string;
+}
+
+interface Answer {
+  label: string;
+  value: string;
 }
 
 export default function Home() {
@@ -17,6 +23,13 @@ export default function Home() {
   const [inputPosition, setInputPosition] = useState<{ top: number; height: number }>();
   const [step, setStep] = useState(0);
   const [locationData, setLocationData] = useState<LocationData | null>(null);
+  const [answers, setAnswers] = useState<Answer[]>([]);
+
+  const labels = [
+    "Target Area",
+    "Target Audience",
+    "Business Type"
+  ];
 
   useEffect(() => {
     const fetchLocation = async () => {
@@ -57,7 +70,11 @@ export default function Home() {
     setIsProcessing(true);
     try {
       // Store the answer
-      console.log(`Step ${step} answer:`, input);
+      const newAnswer: Answer = {
+        label: labels[step],
+        value: input
+      };
+      setAnswers(prev => [...prev, newAnswer]);
       
       // Move to next step or finish
       if (step < prompts.length - 1) {
@@ -79,6 +96,15 @@ export default function Home() {
   return (
     <main className="relative min-h-screen w-full">
       <AnimatedBackground inputPosition={inputPosition} />
+      {answers.map(answer => (
+        <InfoBox
+          key={answer.label}
+          label={answer.label}
+          value={answer.value}
+          show={true}
+          startPosition={inputPosition}
+        />
+      ))}
       <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-4 py-8">
         <div className="max-w-4xl">
           <TypewriterPrompt 
