@@ -8,7 +8,10 @@ interface InfoBoxProps {
   show: boolean;
   onClick?: () => void;
   position?: 'first' | 'inline' | 'below';
-  maxWidth?: string;
+  subInfo?: {
+    industry: string;
+    description: string;
+  };
 }
 
 const InfoBox = ({ 
@@ -17,7 +20,7 @@ const InfoBox = ({
   show, 
   onClick, 
   position = 'first',
-  maxWidth
+  subInfo
 }: InfoBoxProps) => {
   const [isVisible, setIsVisible] = useState(false);
 
@@ -55,6 +58,14 @@ const InfoBox = ({
       >
         <div className="text-sm text-electric-teal/80 mb-1">{label}</div>
         <div className="text-lg font-medium text-electric-teal">{value}</div>
+        {subInfo && (
+          <div className="mt-3 border-t border-electric-teal/20 pt-3">
+            <div className="text-sm text-electric-teal/80">Industry</div>
+            <div className="text-base font-semibold text-electric-teal mb-3">{subInfo.industry}</div>
+            <div className="text-sm text-electric-teal/80">Business Description</div>
+            <div className="text-base text-electric-teal">{subInfo.description}</div>
+          </div>
+        )}
       </button>
     </div>
   );

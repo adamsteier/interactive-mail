@@ -28,7 +28,10 @@ interface DisplayInfo {
   value: string;
   type: 'answer' | 'analysis';
   position?: 'first' | 'inline' | 'below';
-  maxWidth?: string;
+  subInfo?: {
+    industry: string;
+    description: string;
+  };
 }
 
 export default function Home() {
@@ -71,23 +74,14 @@ export default function Home() {
       ...answers.map((answer, index) => ({
         ...answer,
         type: 'answer' as const,
-        position: index === 0 ? 'first' as const : 'inline' as const
-      })),
-      ...(businessAnalysis ? [
-        {
-          label: "Industry",
-          value: businessAnalysis.industry,
-          type: 'analysis' as const,
-          position: 'inline' as const
-        },
-        {
-          label: "Business Description",
-          value: businessAnalysis.description,
-          type: 'analysis' as const,
-          position: 'below' as const,
-          maxWidth: '600px'
-        }
-      ] : [])
+        position: index === 0 ? 'first' as const : 'inline' as const,
+        ...(answer.label === "Your Business Name" && businessAnalysis ? {
+          subInfo: {
+            industry: businessAnalysis.industry,
+            description: businessAnalysis.description
+          }
+        } : {})
+      }))
     ];
     setDisplayInfos(newDisplayInfos);
   }, [answers, businessAnalysis]);
@@ -181,6 +175,7 @@ export default function Home() {
                 show={true}
                 onClick={info.type === 'answer' ? () => handleInfoBoxClick(index) : undefined}
                 position={info.position}
+                subInfo={info.subInfo}
               />
             ))}
           </div>
