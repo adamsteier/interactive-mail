@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/marketing-strategy/*.ts": {
+      "maxDuration": 60
+    }
+  }
+} 
