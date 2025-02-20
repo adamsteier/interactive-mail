@@ -1,5 +1,14 @@
 import { NextResponse } from 'next/server';
 
+interface BrowseAIBusiness {
+  name: string;
+  address: string;
+  phone: string;
+  website: string;
+  rating: string;
+  reviews: number;
+}
+
 export async function GET(
   request: Request,
   { params }: { params: { taskId: string } }
@@ -18,7 +27,7 @@ export async function GET(
     }
 
     // Transform Browse.ai data into our format
-    const results = data.capturedLists?.businesses?.map((business: any) => ({
+    const results = data.capturedLists?.businesses?.map((business: BrowseAIBusiness) => ({
       name: business.name,
       address: business.address,
       phone: business.phone,

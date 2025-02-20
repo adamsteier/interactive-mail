@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
-import { Configuration, OpenAIApi } from 'openai';
+import OpenAI from 'openai';
 
-const configuration = new Configuration({
+const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
-const openai = new OpenAIApi(configuration);
 
 interface MapSquare {
   center: { lat: number; lng: number };
@@ -18,33 +17,34 @@ export async function POST(request: Request) {
     console.log('Processing:', { businessTypes, location });
 
     // Ask LLM to help process the business types and determine map squares
-    const prompt = `
-      I need to create Google Maps search URLs for the following business types in ${location}:
-      ${businessTypes.map(type => `${type.name} (${type.count} businesses)`).join('\n')}
-
-      For each business type:
-      1. Split the type if it contains multiple businesses (e.g., "Hotels and Hospitality" -> "hotels", "hospitality")
-      2. If count > 50, split into multiple map squares with appropriate zoom levels
-      3. Return center coordinates and zoom level for each square
-
-      Format the response as JSON with this structure:
-      {
-        "squares": [
-          {
-            "businessType": "string",
-            "center": { "lat": number, "lng": number },
-            "zoom": number
-          }
-        ]
-      }
-    `;
-
-    const completion = await openai.createChatCompletion({
+    const completion = await openai.chat.completions.create({
       model: "gpt-4",
-      messages: [{ role: "user", content: prompt }],
+      messages: [{
+        role: "user",
+        content: `
+          I need to create Google Maps search URLs for the following business types in ${location}:
+          ${businessTypes.map(type => `${type.name} (${type.count} businesses)`).join('\n')}
+
+          For each business type:
+          1. Split the type if it contains multiple businesses (e.g., "Hotels and Hospitality" -> "hotels", "hospitality")
+          2. If count > 50, split into multiple map squares with appropriate zoom levels
+          3. Return center coordinates and zoom level for each square
+
+          Format the response as JSON with this structure:
+          {
+            "squares": [
+              {
+                "businessType": "string",
+                "center": { "lat": number, "lng": number },
+                "zoom": number
+              }
+            ]
+          }
+        `
+      }]
     });
 
-    const squares: MapSquare[] = JSON.parse(completion.data.choices[0].message?.content || '{}').squares;
+    const squares: MapSquare[] = JSON.parse(completion.choices[0].message?.content || '{}').squares;
 
     // Create Browse.ai tasks for each square
     const taskIds = [];

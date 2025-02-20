@@ -114,12 +114,12 @@ const ProcessingModal = ({ selectedBusinesses, targetArea, onComplete, onClose }
             } : b
           ));
 
-        } catch (error) {
+        } catch (err) {
           setBusinessProgress(prev => prev.map((b, idx) => 
             idx === i ? {
               ...b,
               status: 'error',
-              message: 'Failed to process business data',
+              message: err instanceof Error ? err.message : 'Failed to process business data',
               progress: 0
             } : b
           ));
