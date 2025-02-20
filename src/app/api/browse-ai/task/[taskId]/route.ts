@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 interface BrowseAIBusiness {
   name: string;
@@ -10,11 +10,12 @@ interface BrowseAIBusiness {
 }
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { taskId: string } }
 ) {
   try {
-    const response = await fetch(`https://api.browse.ai/v2/tasks/${params.taskId}`, {
+    const taskId = params.taskId;
+    const response = await fetch(`https://api.browse.ai/v2/tasks/${taskId}`, {
       headers: {
         'Authorization': `Bearer ${process.env.BROWSE_AI_API_KEY}`
       }
