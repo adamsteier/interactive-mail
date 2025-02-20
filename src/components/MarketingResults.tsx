@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+// Remove useState since we're not using it anymore
+// import { useState } from 'react';
 import { MarketingStrategy, BusinessTarget, DatabaseTarget } from '@/types/marketing';
 
 interface MarketingResultsProps {
@@ -9,9 +10,6 @@ interface MarketingResultsProps {
 }
 
 const MarketingResults = ({ strategy, onClose }: MarketingResultsProps) => {
-  // Remove unused state since we're not using selectedMethod anymore
-  // const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
-
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-charcoal/80 backdrop-blur-sm p-4">
       <div className="relative w-full max-w-4xl rounded-lg border-2 border-electric-teal bg-charcoal shadow-glow my-8 max-h-[90vh] overflow-y-auto custom-scrollbar">

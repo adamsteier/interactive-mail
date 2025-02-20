@@ -39,10 +39,9 @@ async function searchBusiness(businessName: string, targetArea: string, userLoca
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
-    const body = await request.json();
-    const { targetArea, businessName, businessType, userLocation } = body;
+    const { targetArea, businessName, businessType, userLocation } = await req.json();
 
     // First, try to find the business using 4o
     const searchResults = await searchBusiness(businessName, targetArea, userLocation);
@@ -62,11 +61,13 @@ export async function POST(request: Request) {
     }
 
     // If no results found, fall back to OpenAI for analysis
-    const classificationPrompt = `
+    const prompt = `I need to analyze a business and its target market:
       Business Name: ${businessName}
-      Location: ${targetArea}
+      Target Area: ${targetArea}
+      Business Type: ${businessType}
+      User Location: ${userLocation}
 
-      Analyze this business name and provide:
+      Analyze this business and provide:
       1. The specific industry classification for this business
       2. A clear, factual description of what this business does (avoid words like "likely" or "probably")
       3. The primary customer types for this business
@@ -76,8 +77,7 @@ export async function POST(request: Request) {
         "industry": "specific industry name",
         "description": "clear, factual description",
         "customerTypes": ["type1", "type2", "type3"]
-      }
-    `;
+      }`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4-turbo-preview",
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
         },
         {
           role: "user",
-          content: classificationPrompt
+          content: prompt
         }
       ],
       temperature: 0.7,
