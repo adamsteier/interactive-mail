@@ -345,11 +345,18 @@ export default function Home() {
                   }
                 }}
                 className="relative z-50 rounded-lg border-2 border-electric-teal bg-charcoal px-8 py-4 
-                  text-lg font-medium text-electric-teal shadow-glow 
+                  text-lg font-medium text-electric-teal shadow-glow overflow-hidden
                   transition-all duration-300 hover:border-electric-teal/80 hover:shadow-glow-strong 
-                  active:scale-95 animate-pulse-glow"
+                  active:scale-95"
               >
-                {isLoadingStrategy ? 'Analyzing your market...' : 'Looks good, now show me my leads'}
+                {isLoadingStrategy && (
+                  <div className="absolute inset-0 overflow-hidden">
+                    <div className="absolute inset-y-0 -inset-x-full animate-loading-progress bg-neon-magenta/20" />
+                  </div>
+                )}
+                <span className="relative z-10">
+                  {isLoadingStrategy ? 'Analyzing your market...' : 'Looks good, now show me my leads'}
+                </span>
               </button>
               <button
                 onClick={() => setIsEditModalOpen(true)}

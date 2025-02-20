@@ -15,6 +15,7 @@ interface MarketingResultsProps {
 }
 
 const MarketingResults = ({ strategy, onClose }: MarketingResultsProps) => {
+  const [selectedTargets, setSelectedTargets] = useState<Set<string>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
   const [businessTypes, setBusinessTypes] = useState<BusinessType[]>(() => {
     // Extract business types from direct mail section if it exists
@@ -28,10 +29,45 @@ const MarketingResults = ({ strategy, onClose }: MarketingResultsProps) => {
     return [];
   });
 
-  const handleCheckboxChange = (index: number) => {
-    setBusinessTypes(prev => prev.map((type, i) => 
-      i === index ? { ...type, isSelected: !type.isSelected } : type
-    ));
+  const handleCheckboxChange = (targetType: string) => {
+    setSelectedTargets(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(targetType)) {
+        newSet.delete(targetType);
+      } else {
+        newSet.add(targetType);
+      }
+      return newSet;
+    });
+  };
+
+  const handleGetData = async () => {
+    setIsProcessing(true);
+    try {
+      const selectedBusinessTypes = strategy.method1Analysis.businessTargets
+        .filter(target => selectedTargets.has(target.type));
+
+      const response = await fetch('/api/process-business-types', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          businessTypes: selectedBusinessTypes,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to process business types');
+      }
+
+      // Handle successful response
+      console.log('Data fetched successfully');
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const startCampaign = async () => {
@@ -86,7 +122,7 @@ const MarketingResults = ({ strategy, onClose }: MarketingResultsProps) => {
           </div>
 
           <div className="space-y-8 mb-8">
-            {/* Direct Mail to Businesses */}
+            {/* Direct Mail to Businesses with checkboxes */}
             {strategy.recommendedMethods.includes('method1') && (
               <div className="space-y-4">
                 <h3 className="text-xl font-medium text-electric-teal border-b border-electric-teal/20 pb-2">
@@ -95,12 +131,22 @@ const MarketingResults = ({ strategy, onClose }: MarketingResultsProps) => {
                 <p className="text-electric-teal/80 mb-4">{strategy.method1Analysis.overallReasoning}</p>
                 
                 <div className="space-y-4">
-                  {strategy.method1Analysis.businessTargets.map((target: BusinessTarget, index: number) => (
+                  {strategy.method1Analysis.businessTargets.map((target: BusinessTarget) => (
                     <div 
-                      key={index}
+                      key={target.type}
                       className="rounded-lg border border-electric-teal/30 p-4 hover:bg-electric-teal/5 transition-colors"
                     >
-                      <h4 className="text-lg font-medium text-electric-teal mb-2">{target.type}</h4>
+                      <div className="flex items-center gap-3 mb-2">
+                        <input
+                          type="checkbox"
+                          id={target.type}
+                          checked={selectedTargets.has(target.type)}
+                          onChange={() => handleCheckboxChange(target.type)}
+                          className="w-4 h-4 rounded border-electric-teal text-electric-teal 
+                            focus:ring-electric-teal focus:ring-offset-charcoal bg-charcoal"
+                        />
+                        <h4 className="text-lg font-medium text-electric-teal">{target.type}</h4>
+                      </div>
                       <p className="text-electric-teal/60 mb-2">
                         Estimated number of businesses: {target.estimatedCount.toLocaleString()}
                       </p>
@@ -108,6 +154,18 @@ const MarketingResults = ({ strategy, onClose }: MarketingResultsProps) => {
                     </div>
                   ))}
                 </div>
+
+                {/* Get Data button */}
+                <button
+                  onClick={handleGetData}
+                  disabled={selectedTargets.size === 0 || isProcessing}
+                  className="w-full mt-4 rounded-lg border-2 border-electric-teal bg-electric-teal/10 
+                    px-6 py-3 text-base font-medium text-electric-teal shadow-glow 
+                    transition-all duration-300 hover:bg-electric-teal/20 hover:shadow-glow-strong 
+                    active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isProcessing ? 'Getting Data...' : 'Get Data'}
+                </button>
               </div>
             )}
 
@@ -160,13 +218,13 @@ const MarketingResults = ({ strategy, onClose }: MarketingResultsProps) => {
                 Close
               </button>
               <button
-                onClick={startCampaign}
-                disabled={!businessTypes.some(type => type.isSelected) || isProcessing}
-                className="rounded border-2 border-electric-teal bg-electric-teal/10 px-6 py-2 text-electric-teal shadow-glow 
-                  hover:bg-electric-teal/20 hover:shadow-glow-strong active:scale-95
-                  disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleGetData}
+                disabled={selectedTargets.size === 0 || isProcessing}
+                className="rounded border-2 border-electric-teal bg-electric-teal/10 px-6 py-2 
+                  text-electric-teal shadow-glow hover:bg-electric-teal/20 hover:shadow-glow-strong 
+                  active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isProcessing ? 'Processing...' : 'Start Campaign'}
+                {isProcessing ? 'Getting Data...' : 'Get Data'}
               </button>
             </div>
           </div>
