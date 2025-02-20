@@ -84,7 +84,6 @@ Please structure your response to be as granular as possible, breaking down each
     const completion = await openai.chat.completions.create({
       messages: [{ role: "user", content: prompt }],
       model: "gpt-4-0125-preview",
-      response_format: { type: "json_object" },
       temperature: 0.7,
     });
 
