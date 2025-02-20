@@ -26,15 +26,29 @@ interface ProcessingModalProps {
   onClose: () => void;
 }
 
+interface MapSquare {
+  center: { lat: number; lng: number };
+  zoom: number;
+  businessType: string;
+}
+
 interface TaskResponse {
   success: boolean;
   taskIds: string[];
   squares: MapSquare[];
+  error?: string;
 }
 
 interface TaskResult {
   status: string;
-  data?: any; // You can make this more specific based on your needs
+  data?: {
+    name: string;
+    address: string;
+    phone?: string;
+    website?: string;
+    rating?: string;
+    reviews?: number;
+  };
 }
 
 const ProcessingModal = ({ selectedBusinesses, targetArea, onComplete, onClose }: ProcessingModalProps) => {
@@ -105,16 +119,21 @@ const ProcessingModal = ({ selectedBusinesses, targetArea, onComplete, onClose }
             data.taskIds.map((taskId: string) => pollTaskStatus(taskId))
           );
 
-          // Combine and deduplicate results
-          const combinedResults = results.flat().filter((result, index, self) =>
-            index === self.findIndex(r => r.address === result.address)
-          );
+          // Properly type and transform the results
+          const combinedResults: BusinessResult[] = results
+            .map(result => result.data)
+            .filter((data): data is BusinessResult => {
+              return data !== undefined && 'name' in data && 'address' in data;
+            })
+            .filter((result, index, self) =>
+              index === self.findIndex(r => r.address === result.address)
+            );
 
           // Final update with results
           setBusinessProgress(prev => prev.map((b, idx) => 
             idx === i ? {
               ...b,
-              status: 'complete',
+              status: 'complete' as const,
               message: `Found ${combinedResults.length} businesses`,
               progress: 100,
               results: combinedResults
