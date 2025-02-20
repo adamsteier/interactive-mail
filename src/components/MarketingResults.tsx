@@ -3,12 +3,6 @@
 import { useState } from 'react';
 import { MarketingStrategy, BusinessTarget, DatabaseTarget } from '@/types/marketing';
 
-interface BusinessType {
-  name: string;
-  count: number;
-  isSelected: boolean;
-}
-
 interface MarketingResultsProps {
   strategy: MarketingStrategy;
   onClose: () => void;
@@ -17,17 +11,6 @@ interface MarketingResultsProps {
 const MarketingResults = ({ strategy, onClose }: MarketingResultsProps) => {
   const [selectedTargets, setSelectedTargets] = useState<Set<string>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
-  const [businessTypes, setBusinessTypes] = useState<BusinessType[]>(() => {
-    // Extract business types from direct mail section if it exists
-    if (strategy.method1?.directMailBusinesses) {
-      return strategy.method1.directMailBusinesses.map(business => ({
-        name: business.type,
-        count: business.estimatedCount,
-        isSelected: false
-      }));
-    }
-    return [];
-  });
 
   const handleCheckboxChange = (targetType: string) => {
     setSelectedTargets(prev => {
@@ -65,37 +48,6 @@ const MarketingResults = ({ strategy, onClose }: MarketingResultsProps) => {
       console.log('Data fetched successfully');
     } catch (error) {
       console.error('Error fetching data:', error);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const startCampaign = async () => {
-    setIsProcessing(true);
-    try {
-      const selectedTypes = businessTypes.filter(type => type.isSelected);
-      
-      const response = await fetch('/api/process-business-types', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          businessTypes: selectedTypes,
-          location: strategy.targetArea
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to process business types');
-      }
-
-      const data = await response.json();
-      // Handle the response - each business type will have its map squares
-      console.log('Campaign started:', data);
-      
-    } catch (error) {
-      console.error('Error starting campaign:', error);
     } finally {
       setIsProcessing(false);
     }
