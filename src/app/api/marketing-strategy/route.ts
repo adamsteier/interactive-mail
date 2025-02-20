@@ -1,5 +1,6 @@
 import { OpenAI } from 'openai';
 import { NextResponse } from 'next/server';
+import { MarketingStrategy } from '@/types/marketing';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -93,7 +94,10 @@ Please structure your response to be as granular as possible, breaking down each
       throw new Error('No response content from OpenAI');
     }
 
-    return NextResponse.json({ analysis: JSON.parse(responseContent) });
+    const marketingStrategy: MarketingStrategy = JSON.parse(responseContent);
+    marketingStrategy.targetArea = targetArea;
+
+    return NextResponse.json({ analysis: marketingStrategy });
 
   } catch (error) {
     console.error('Error:', error);

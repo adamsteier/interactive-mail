@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MarketingStrategy, BusinessTarget, DatabaseTarget } from '@/types/marketing';
+import { MarketingStrategy, DatabaseTarget } from '@/types/marketing';
 import ProcessingModal from './ProcessingModal';
 
 interface BusinessType {

@@ -20,6 +20,7 @@ export interface MarketingStrategy {
   primaryRecommendation: string;
   totalEstimatedReach: number;
   recommendedMethods: string[];
+  targetArea: string;
   method1Analysis: Method1Analysis;
   method2Analysis: {
     databaseTargets: DatabaseTarget[];
