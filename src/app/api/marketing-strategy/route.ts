@@ -87,8 +87,12 @@ Please structure your response to be as granular as possible, breaking down each
       temperature: 0.7,
     });
 
-    const response = completion.choices[0].message.content;
-    return NextResponse.json({ analysis: JSON.parse(response) });
+    const responseContent = completion.choices[0].message.content;
+    if (!responseContent) {
+      throw new Error('No response content from OpenAI');
+    }
+
+    return NextResponse.json({ analysis: JSON.parse(responseContent) });
 
   } catch (error) {
     console.error('Error:', error);

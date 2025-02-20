@@ -96,7 +96,12 @@ export async function POST(req: Request) {
       response_format: { type: "json_object" }
     });
 
-    const analysis = JSON.parse(completion.choices[0].message.content);
+    const responseContent = completion.choices[0].message.content;
+    if (!responseContent) {
+      throw new Error('No response content from OpenAI');
+    }
+
+    const analysis = JSON.parse(responseContent);
 
     return NextResponse.json({ 
       analysis,
