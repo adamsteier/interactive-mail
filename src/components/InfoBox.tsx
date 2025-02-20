@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import LoadingBar from './LoadingBar';
 
 interface InfoBoxProps {
   label: string;
@@ -12,6 +13,7 @@ interface InfoBoxProps {
     industry: string;
     description: string;
   };
+  isLoading?: boolean;
 }
 
 const InfoBox = ({ 
@@ -20,7 +22,8 @@ const InfoBox = ({
   show, 
   onClick, 
   position = 'first',
-  subInfo
+  subInfo,
+  isLoading = false,
 }: InfoBoxProps) => {
   const [isVisible, setIsVisible] = useState(false);
 
@@ -34,37 +37,53 @@ const InfoBox = ({
 
   // Define position classes based on screen size
   const positionClasses = {
-    first: 'left-4 md:left-8',
-    inline: 'left-4 md:left-[280px] lg:left-[320px]',
-    below: 'left-4 md:left-8 top-24 md:top-32'
+    first: 'left-0',
+    inline: 'left-0 md:left-auto',
+    below: 'left-0'
   }[position];
 
   return (
     <div 
-      className={`fixed top-8 z-20 transform transition-all duration-700 ease-out
+      className={`transform transition-all duration-700 ease-out
+        ${position === 'below' ? 'w-full' : 'w-auto'}
         ${positionClasses}
         ${!isVisible 
           ? '-translate-x-full opacity-0' 
           : 'translate-x-0 opacity-100 animate-info-box-glow'
         }
-        ${position === 'below' ? 'w-[calc(100%-2rem)] md:w-[600px]' : ''}
       `}
     >
       <button
         onClick={onClick}
-        className={`w-full cursor-pointer rounded-lg border-2 border-electric-teal bg-charcoal/80 px-4 md:px-6 py-3 shadow-glow backdrop-blur-sm 
-          transition-all duration-300 hover:bg-electric-teal/10 hover:shadow-glow-strong active:scale-95
+        className={`w-full text-left group relative rounded-lg border-2 border-electric-teal bg-charcoal/80 px-4 md:px-6 py-3 shadow-glow backdrop-blur-sm 
+          ${onClick ? 'cursor-pointer hover:bg-electric-teal/10 hover:shadow-glow-strong' : ''}
+          transition-all duration-300
           ${position === 'below' ? 'text-left' : ''}`}
       >
-        <div className="text-sm text-electric-teal/80 mb-1">{label}</div>
-        <div className="text-lg font-medium text-electric-teal">{value}</div>
-        {subInfo && (
-          <div className="mt-3 border-t border-electric-teal/20 pt-3">
-            <div className="text-sm text-electric-teal/80">Industry</div>
-            <div className="text-base font-semibold text-electric-teal mb-3">{subInfo.industry}</div>
-            <div className="text-sm text-electric-teal/80">Business Description</div>
-            <div className="text-base text-electric-teal">{subInfo.description}</div>
-          </div>
+        {subInfo ? (
+          <>
+            <div className="text-sm text-electric-teal/80 mb-2">Industry</div>
+            {isLoading ? (
+              <LoadingBar height="28px" />
+            ) : (
+              <div className="text-lg font-semibold text-electric-teal mb-4">{subInfo.industry}</div>
+            )}
+            <div className="text-sm text-electric-teal/80 mb-2">Business Description</div>
+            {isLoading ? (
+              <LoadingBar height="24px" />
+            ) : (
+              <div className="text-base text-electric-teal">{subInfo.description}</div>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="text-sm text-electric-teal/80 mb-1">{label}</div>
+            {isLoading ? (
+              <LoadingBar height="28px" />
+            ) : (
+              <div className="text-lg font-medium text-electric-teal">{value}</div>
+            )}
+          </>
         )}
       </button>
     </div>

@@ -22,6 +22,8 @@ const config: Config = {
       animation: {
         'blink': 'blink 1s step-end infinite',
         'info-box-glow': 'info-box-glow 1s ease-out forwards',
+        'loading-progress': 'loading 2s ease-in-out infinite',
+        'pulse-glow': 'pulse-glow 2s infinite',
       },
       keyframes: {
         blink: {
@@ -38,6 +40,20 @@ const config: Config = {
             borderColor: '#00F0FF',
           },
         },
+        loading: {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(100%)' }
+        },
+        'pulse-glow': {
+          '0%, 100%': { 
+            transform: 'scale(1)',
+            boxShadow: '0 0 10px rgba(0, 240, 255, 0.3)'
+          },
+          '50%': { 
+            transform: 'scale(1.05)',
+            boxShadow: '0 0 20px rgba(0, 240, 255, 0.5)'
+          }
+        }
       },
     },
   },

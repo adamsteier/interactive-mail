@@ -5,6 +5,9 @@ import AnimatedBackground from '@/components/AnimatedBackground';
 import TypewriterPrompt from '@/components/TypewriterPrompt';
 import InputField from '@/components/InputField';
 import InfoBox from '@/components/InfoBox';
+import LoadingBar from '@/components/LoadingBar';
+import EditModal from '@/components/EditModal';
+import MarketingResults from '@/components/MarketingResults';
 
 interface LocationData {
   city: string;
@@ -34,6 +37,40 @@ interface DisplayInfo {
   };
 }
 
+interface EditableInfo {
+  targetArea: string;
+  businessName: string;
+  industry: string;
+  description: string;
+}
+
+interface MarketingStrategy {
+  recommendedMethods: Array<'method1' | 'method2' | 'method3'>;
+  method1Analysis: {
+    businessType: string;
+    estimatedTargets: number;
+    reasoning: string;
+  };
+  method2Analysis: {
+    recommendedDatabase: string;
+    reasoning: string;
+  };
+  method3Analysis: {
+    reasoning: string;
+  };
+  primaryRecommendation: string;
+  estimatedReach: number;
+}
+
+const LoadingSkeleton = () => (
+  <div className="w-full rounded-lg border-2 border-electric-teal bg-charcoal/80 px-4 md:px-6 py-3 shadow-glow backdrop-blur-sm">
+    <div className="text-sm text-electric-teal/80 mb-2">Industry</div>
+    <LoadingBar height="28px" />
+    <div className="text-sm text-electric-teal/80 mb-2 mt-4">Business Description</div>
+    <LoadingBar height="48px" />
+  </div>
+);
+
 export default function Home() {
   const [userInput, setUserInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -43,6 +80,10 @@ export default function Home() {
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [businessAnalysis, setBusinessAnalysis] = useState<BusinessAnalysis | null>(null);
   const [displayInfos, setDisplayInfos] = useState<DisplayInfo[]>([]);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [marketingStrategy, setMarketingStrategy] = useState<MarketingStrategy | null>(null);
+  const [isLoadingStrategy, setIsLoadingStrategy] = useState(false);
+  const [showResults, setShowResults] = useState(false);
 
   const labels = [
     "Target Area",
@@ -74,14 +115,20 @@ export default function Home() {
       ...answers.map((answer, index) => ({
         ...answer,
         type: 'answer' as const,
-        position: index === 0 ? 'first' as const : 'inline' as const,
-        ...(answer.label === "Your Business Name" && businessAnalysis ? {
+        position: index === 0 ? 'first' as const : 'inline' as const
+      })),
+      ...(businessAnalysis ? [
+        {
+          label: "Industry & Description",
+          value: businessAnalysis.industry,
+          type: 'analysis' as const,
+          position: 'below' as const,
           subInfo: {
             industry: businessAnalysis.industry,
             description: businessAnalysis.description
           }
-        } : {})
-      }))
+        }
+      ] : [])
     ];
     setDisplayInfos(newDisplayInfos);
   }, [answers, businessAnalysis]);
@@ -156,47 +203,178 @@ export default function Home() {
     setInputPosition(position);
   }, []);
 
-  const handleInfoBoxClick = (index: number) => {
-    setStep(index);
-    setUserInput(answers[index].value);
+  const handleSaveEdits = (editedInfo: EditableInfo) => {
+    // Update answers
+    setAnswers([
+      { label: "Target Area", value: editedInfo.targetArea },
+      { label: "Your Business Name", value: editedInfo.businessName },
+    ]);
+
+    // Update business analysis
+    setBusinessAnalysis(prev => ({
+      ...prev!,
+      industry: editedInfo.industry,
+      description: editedInfo.description,
+    }));
   };
+
+  const fetchMarketingStrategy = useCallback(async () => {
+    setIsLoadingStrategy(true);
+    try {
+      const response = await fetch('/api/marketing-strategy', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          targetArea: answers.find(a => a.label === "Target Area")?.value,
+          businessName: answers.find(a => a.label === "Your Business Name")?.value,
+          industry: businessAnalysis?.industry,
+          description: businessAnalysis?.description,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get marketing strategy');
+      }
+
+      const data = await response.json();
+      setMarketingStrategy(data.analysis);
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setIsLoadingStrategy(false);
+    }
+  }, [answers, businessAnalysis]);
+
+  useEffect(() => {
+    if (businessAnalysis && answers.length >= 2) {
+      fetchMarketingStrategy();
+    }
+  }, [businessAnalysis, answers, fetchMarketingStrategy]);
 
   return (
     <main className="relative min-h-screen w-full">
       <AnimatedBackground inputPosition={inputPosition} />
       <div className="fixed left-0 top-0 w-full">
-        <div className="relative mx-auto max-w-7xl px-4">
-          <div className="flex flex-col md:flex-row md:items-start md:gap-4">
-            {displayInfos.map((info, index) => (
-              <InfoBox
-                key={`${info.label}-${index}`}
-                label={info.label}
-                value={info.value}
-                show={true}
-                onClick={info.type === 'answer' ? () => handleInfoBoxClick(index) : undefined}
-                position={info.position}
-                subInfo={info.subInfo}
-              />
-            ))}
+        <div className="relative mx-auto max-w-2xl px-4 pt-8">
+          <div className="flex flex-col gap-4">
+            {/* Top row for Target Area and Business Name */}
+            <div className="flex flex-col md:flex-row md:gap-4">
+              {displayInfos
+                .filter(info => info.type === 'answer')
+                .map((info, index) => (
+                  <InfoBox
+                    key={`${info.label}-${index}`}
+                    label={info.label}
+                    value={info.value}
+                    show={true}
+                    onClick={() => {
+                      setStep(index);
+                      setUserInput(info.value);
+                    }}
+                    position={index === 0 ? 'first' as const : 'inline' as const}
+                  />
+                ))}
+            </div>
+            
+            {/* Show loading skeleton or analysis */}
+            {(isProcessing && step === 1) ? (
+              <LoadingSkeleton />
+            ) : (
+              displayInfos
+                .filter(info => info.type === 'analysis')
+                .map((info, index) => (
+                  <InfoBox
+                    key={`${info.label}-${index}`}
+                    label={info.label}
+                    value={info.value}
+                    show={true}
+                    position="below"
+                    subInfo={info.subInfo}
+                    onClick={() => {
+                      setStep(1);
+                      setUserInput(answers[1].value);
+                    }}
+                  />
+                ))
+            )}
           </div>
         </div>
       </div>
-      <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-4 py-8">
-        <div className="max-w-4xl">
-          <TypewriterPrompt 
-            text={prompts[step].text}
-            key={step}
-          />
-          <InputField 
-            value={userInput}
-            onChange={setUserInput}
-            onSubmit={handleSubmit}
-            disabled={isProcessing}
-            onPositionChange={handlePositionChange}
-            placeholder={prompts[step].placeholder}
+
+      {/* Show input and prompt only before business name is submitted */}
+      {step <= 1 && !isProcessing && (
+        <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-4 py-8">
+          <div className="max-w-4xl">
+            <TypewriterPrompt 
+              text={prompts[step].text}
+              key={step}
+            />
+            <InputField 
+              value={userInput}
+              onChange={setUserInput}
+              onSubmit={handleSubmit}
+              disabled={isProcessing}
+              onPositionChange={handlePositionChange}
+              placeholder={prompts[step].placeholder}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Show verification message and buttons after business name */}
+      {step > 1 && (
+        <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-4">
+          <div className="flex flex-col items-center gap-8 mt-32">
+            <div className="text-xl font-normal text-electric-teal">
+              Please verify your information.
+            </div>
+            <div className="flex flex-col items-center gap-4">
+              <button
+                onClick={() => {
+                  if (marketingStrategy) {
+                    setShowResults(true);
+                  }
+                }}
+                className="relative z-50 rounded-lg border-2 border-electric-teal bg-charcoal px-8 py-4 
+                  text-lg font-medium text-electric-teal shadow-glow 
+                  transition-all duration-300 hover:border-electric-teal/80 hover:shadow-glow-strong 
+                  active:scale-95 animate-pulse-glow"
+              >
+                {isLoadingStrategy ? 'Analyzing your market...' : 'Looks good, now show me my leads'}
+              </button>
+              <button
+                onClick={() => setIsEditModalOpen(true)}
+                className="rounded-lg border-2 border-electric-teal bg-electric-teal/10 px-6 py-3 
+                  text-base font-medium text-electric-teal shadow-glow 
+                  transition-all duration-300 hover:bg-electric-teal/20 hover:shadow-glow-strong 
+                  active:scale-95"
+              >
+                Edit my info
+              </button>
+            </div>
+          </div>
+          <EditModal
+            isOpen={isEditModalOpen}
+            onClose={() => setIsEditModalOpen(false)}
+            onSave={handleSaveEdits}
+            info={{
+              targetArea: answers.find(a => a.label === "Target Area")?.value || "",
+              businessName: answers.find(a => a.label === "Your Business Name")?.value || "",
+              industry: businessAnalysis?.industry || "",
+              description: businessAnalysis?.description || "",
+            }}
           />
         </div>
-      </div>
+      )}
+
+      {showResults && marketingStrategy && (
+        <MarketingResults 
+          strategy={marketingStrategy} 
+          onClose={() => setShowResults(false)}
+        />
+      )}
     </main>
   );
 }
