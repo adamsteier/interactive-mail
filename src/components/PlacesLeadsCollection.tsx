@@ -99,11 +99,8 @@ const PlacesLeadsCollection = ({ places, onClose, isLoading, progress, totalGrid
                 <th className="p-2 w-[12%]">Type</th>
                 <th className="p-2 w-[20%]">Address</th>
                 <th className="p-2 w-[8%]">Status</th>
-                <th className="p-2 w-[15%]">Hours</th>
-                <th className="p-2 w-[10%]">Phone</th>
-                <th className="p-2 w-[8%]">Rating</th>
-                <th className="p-2 w-[7%]">Relevance</th>
-                <th className="p-2 w-[5%]">Website</th>
+                <th className="p-2 w-[15%]">Rating</th>
+                <th className="p-2 w-[10%]">Relevance</th>
               </tr>
             </thead>
             <tbody>
@@ -117,16 +114,10 @@ const PlacesLeadsCollection = ({ places, onClose, isLoading, progress, totalGrid
                 >
                   <td className="p-2 truncate">{place.name}</td>
                   <td className="p-2 truncate">{place.types[0]}</td>
-                  <td className="p-2 whitespace-pre-line">{place.formatted_address}</td>
-                  <td className="p-2 truncate">{place.business_status}</td>
+                  <td className="p-2 whitespace-pre-line">{place.vicinity || ''}</td>
+                  <td className="p-2 truncate">{place.business_status || ''}</td>
                   <td className="p-2">
-                    <div className="max-h-20 overflow-y-auto">
-                      {place.opening_hours?.weekday_text?.join('\n')}
-                    </div>
-                  </td>
-                  <td className="p-2 truncate">{place.formatted_phone_number}</td>
-                  <td className="p-2">
-                    {place.rating} {place.user_ratings_total && `(${place.user_ratings_total})`}
+                    {place.rating ? `${place.rating} (${place.user_ratings_total})` : ''}
                   </td>
                   <td className="p-2">
                     <div className="flex items-center">
@@ -137,18 +128,6 @@ const PlacesLeadsCollection = ({ places, onClose, isLoading, progress, totalGrid
                       }`} />
                       {place.relevanceScore}
                     </div>
-                  </td>
-                  <td className="p-2">
-                    {place.website && (
-                      <a
-                        href={place.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-electric-teal hover:text-electric-teal/80"
-                      >
-                        Visit
-                      </a>
-                    )}
                   </td>
                 </motion.tr>
               ))}

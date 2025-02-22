@@ -11,7 +11,7 @@ interface PlaceSearchResult {
   };
   types: string[];
   business_status?: string;
-  formatted_address?: string;
+  vicinity?: string;
   rating?: number;
   user_ratings_total?: number;
 }
