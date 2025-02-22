@@ -14,4 +14,11 @@ export interface GooglePlace {
   types: string[];
   businessType: string;
   relevanceScore: number;
+  vicinity?: string;
+  geometry: {
+    location: {
+      lat: number;
+      lng: number;
+    };
+  };
 } 
