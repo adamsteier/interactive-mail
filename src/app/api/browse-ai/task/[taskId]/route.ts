@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 
 export async function GET(
-  req: Request,
+  request: NextRequest,
   { params }: { params: { taskId: string } }
 ) {
   try {

@@ -14,14 +14,20 @@ export async function POST(req: Request) {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to create Browse.ai task');
+      const errorData = await response.json().catch(() => ({}));
+      console.error('Browse.ai API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorData
+      });
+      throw new Error(`Failed to create Browse.ai task: ${response.statusText}`);
     }
 
     return NextResponse.json(await response.json());
   } catch (error) {
     console.error('Browse.ai error:', error);
     return NextResponse.json(
-      { error: 'Failed to create Browse.ai task' },
+      { error: error instanceof Error ? error.message : 'Failed to create Browse.ai task' },
       { status: 500 }
     );
   }
