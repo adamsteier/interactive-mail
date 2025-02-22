@@ -278,7 +278,8 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
           if (response.ok) {
             const data = await response.json();
-            console.log(`Found ${data.places.length} new places at point ${i + 1}`);
+            console.log('API Response:', data);
+            console.log(`Found ${data.places?.length || 0} new places at point ${i + 1}`);
             
             // Add businessType to each place
             const placesWithType = data.places.map((place: GooglePlace) => ({
@@ -301,6 +302,8 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
               ...current[0],
               places: allPlacesAcrossTypes
             }]);
+          } else {
+            console.error('API Error:', await response.text());
           }
         }
       }

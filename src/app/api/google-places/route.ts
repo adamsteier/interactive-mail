@@ -26,9 +26,19 @@ export async function POST(req: Request) {
   try {
     const { location, radius, keyword } = await req.json();
     
-    // First page
+    // Log the request parameters
+    console.log('Google Places API Request:', {
+      location,
+      radius,
+      keyword,
+      apiKey: process.env.GOOGLE_MAPS_API_KEY ? 'Present' : 'Missing'
+    });
+
     let url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${radius}&keyword=${encodeURIComponent(keyword)}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
     
+    // Log the full URL (remove API key for security)
+    console.log('Request URL:', url.replace(process.env.GOOGLE_MAPS_API_KEY || '', '[API_KEY]'));
+
     let allPlaces: PlaceSearchResult[] = [];
     let nextPageToken: string | undefined;
     
