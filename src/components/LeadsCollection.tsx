@@ -1,12 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { BusinessTarget } from '@/types/marketing';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface LeadsCollectionProps {
-  selectedBusinessTypes: BusinessTarget[];
-  allBusinessTypes: BusinessTarget[];
   taskIds: string[];
   onClose: () => void;
 }
@@ -48,9 +45,24 @@ const processLeadsFromResponse = (result: BrowseAIResult): Lead[] => {
   const processed = result.capturedLists['Search Results'].map((item: SearchResultItem) => {
     const info = item.Information || '';
     const infoLines = info.split('\n');
-    const businessType = infoLines[0] || '';
+    let businessType = infoLines[0] || '';
     const address = infoLines[1] || '';
     const phone = info.match(/[+]1 \d{3}[-]\d{3}[-]\d{4}|[(]\d{3}[)] \d{3}[-]\d{4}/)?.[0] || '';
+
+    // Clean up business type
+    businessType = businessType
+      .replace(/^· /, '')
+      .replace(/ · $/, '')
+      .trim();
+
+    // If business type is empty or unclear, try to infer from the name
+    if (!businessType || businessType === '') {
+      if (item.Title?.toLowerCase().includes('accounting') || item.Title?.toLowerCase().includes('cpa')) {
+        businessType = 'Accounting Firm';
+      } else if (item.Title?.toLowerCase().includes('marketing') || item.Title?.toLowerCase().includes('digital')) {
+        businessType = 'Marketing Agency';
+      }
+    }
 
     const lead = {
       name: item.Title || '',
@@ -59,7 +71,7 @@ const processLeadsFromResponse = (result: BrowseAIResult): Lead[] => {
       website: item.Link || '',
       rating: item.Rating || '',
       reviews: item.Review ? parseInt(item.Review) : undefined,
-      businessType: businessType.replace(/ · $/, '').trim()
+      businessType: businessType
     };
     
     console.log('Processed lead:', lead);
@@ -70,10 +82,9 @@ const processLeadsFromResponse = (result: BrowseAIResult): Lead[] => {
   return processed;
 };
 
-const LeadsCollection = ({ selectedBusinessTypes, allBusinessTypes, taskIds, onClose }: LeadsCollectionProps) => {
+const LeadsCollection = ({ taskIds, onClose }: LeadsCollectionProps) => {
   const [progress, setProgress] = useState(0);
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [activeBusinessType, setActiveBusinessType] = useState<string>(selectedBusinessTypes[0]?.type);
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
   const [loadingMessage, setLoadingMessage] = useState<string>('Starting search...');
   const [isPolling, setIsPolling] = useState(true);
@@ -169,27 +180,13 @@ const LeadsCollection = ({ selectedBusinessTypes, allBusinessTypes, taskIds, onC
     };
   }, [taskIds, completedTasks, isPolling, leads.length]);
 
-  // Add debug logging for business types
-  useEffect(() => {
-    console.log('Selected business types:', selectedBusinessTypes);
-    console.log('Active business type:', activeBusinessType);
-  }, [selectedBusinessTypes, activeBusinessType]);
-
   // Add debug logging for leads updates
   useEffect(() => {
     console.log('Total leads:', leads.length);
-    const filteredLeads = leads.filter(lead => {
-      const leadType = lead.businessType.toLowerCase().trim();
-      const activeType = activeBusinessType.toLowerCase().trim();
-      const matches = leadType.includes(activeType) || activeType.includes(leadType);
-      console.log('Lead type:', leadType, 'Active type:', activeType, 'Matches:', matches);
-      return matches;
-    });
-    console.log('Filtered leads:', filteredLeads.length);
-  }, [leads, activeBusinessType]);
+  }, [leads.length]);
 
   // Add debug output for leads
-  console.log('Current leads:', leads.length, 'Active type:', activeBusinessType);
+  console.log('Current leads:', leads.length);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-charcoal">
@@ -214,74 +211,46 @@ const LeadsCollection = ({ selectedBusinessTypes, allBusinessTypes, taskIds, onC
         </div>
       </div>
 
-      {/* Business Type Selector */}
-      <div className="flex gap-2 p-4 mt-4">
-        {allBusinessTypes.map(business => (
-          <button
-            key={business.type}
-            onClick={() => setActiveBusinessType(business.type)}
-            className={`px-4 py-2 rounded-lg transition-all duration-300 ${
-              selectedBusinessTypes.some(b => b.type === business.type)
-                ? business.type === activeBusinessType
-                  ? 'bg-electric-teal text-charcoal'
-                  : 'bg-electric-teal/20 text-electric-teal'
-                : 'bg-charcoal/20 text-electric-teal/40 cursor-not-allowed'
-            }`}
-            disabled={!selectedBusinessTypes.some(b => b.type === business.type)}
-          >
-            {business.type}
-          </button>
-        ))}
-      </div>
-
       {/* Leads Display */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-4 mt-12">
         <AnimatePresence mode="popLayout">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {leads
-              .filter(lead => {
-                const leadType = lead.businessType.toLowerCase().trim();
-                const activeType = activeBusinessType.toLowerCase().trim();
-                const matches = leadType.includes(activeType) || activeType.includes(leadType);
-                console.log(`Filtering lead: "${leadType}" against "${activeType}" = ${matches}`);
-                return matches;
-              })
-              .map((lead, index) => (
-                <motion.div 
-                  key={`${lead.name}-${lead.address}-${index}`}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ duration: 0.3, delay: index * 0.05 }} // Add stagger effect
-                  className="p-4 rounded-lg border border-electric-teal/30 bg-charcoal/50 hover:scale-105 hover:border-electric-teal/50 transition-all"
-                >
-                  <h3 className="text-electric-teal font-medium truncate">{lead.name}</h3>
-                  <p className="text-electric-teal/80 text-sm truncate">{lead.address}</p>
-                  {lead.phone && (
-                    <p className="text-electric-teal/60 text-sm truncate">
-                      {lead.phone}
-                    </p>
-                  )}
-                  {lead.website && (
-                    <a 
-                      href={lead.website}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-electric-teal/60 text-sm hover:text-electric-teal block truncate"
-                    >
-                      {lead.website}
-                    </a>
-                  )}
-                  {lead.rating && (
-                    <p className="text-electric-teal/60 text-sm flex items-center gap-1">
-                      <span>Rating: {lead.rating}</span>
-                      {lead.reviews && (
-                        <span className="text-electric-teal/40">({lead.reviews} reviews)</span>
-                      )}
-                    </p>
-                  )}
-                </motion.div>
-              ))}
+            {leads.map((lead, index) => (
+              <motion.div 
+                key={`${lead.name}-${lead.address}-${index}`}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ duration: 0.3, delay: index * 0.05 }}
+                className="p-4 rounded-lg border border-electric-teal/30 bg-charcoal/50 hover:scale-105 hover:border-electric-teal/50 transition-all"
+              >
+                <h3 className="text-electric-teal font-medium truncate">{lead.name}</h3>
+                <p className="text-electric-teal/80 text-sm truncate">{lead.address}</p>
+                {lead.phone && (
+                  <p className="text-electric-teal/60 text-sm truncate">
+                    {lead.phone}
+                  </p>
+                )}
+                {lead.website && (
+                  <a 
+                    href={lead.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-electric-teal/60 text-sm hover:text-electric-teal block truncate"
+                  >
+                    {lead.website}
+                  </a>
+                )}
+                {lead.rating && (
+                  <p className="text-electric-teal/60 text-sm flex items-center gap-1">
+                    <span>Rating: {lead.rating}</span>
+                    {lead.reviews && (
+                      <span className="text-electric-teal/40">({lead.reviews} reviews)</span>
+                    )}
+                  </p>
+                )}
+              </motion.div>
+            ))}
           </div>
         </AnimatePresence>
       </div>

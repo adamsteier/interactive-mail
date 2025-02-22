@@ -11,6 +11,35 @@ interface MarketingResultsProps {
   onClose: () => void;
 }
 
+const generateSearchQuery = (businessType: string, boundingBox: BusinessAnalysis['boundingBox']) => {
+  // Calculate grid points for better coverage
+  const gridSize = 3; // 3x3 grid
+  const latStep = (boundingBox.northeast.lat - boundingBox.southwest.lat) / (gridSize - 1);
+  const lngStep = (boundingBox.northeast.lng - boundingBox.southwest.lng) / (gridSize - 1);
+
+  const searchUrls: string[] = [];
+
+  // Generate search URLs for each grid point
+  for (let i = 0; i < gridSize; i++) {
+    for (let j = 0; j < gridSize; j++) {
+      const lat = boundingBox.southwest.lat + (i * latStep);
+      const lng = boundingBox.southwest.lng + (j * lngStep);
+      
+      // Encode the business type for URL
+      const encodedType = encodeURIComponent(businessType);
+      
+      // Create Google Maps search URL
+      const searchUrl = `https://www.google.com/maps/search/${encodedType}/@${lat},${lng},12z`;
+      searchUrls.push(searchUrl);
+    }
+  }
+
+  return {
+    businessType,
+    searchUrls
+  };
+};
+
 const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsProps) => {
   const [selectedTargets, setSelectedTargets] = useState<Set<string>>(new Set());
   const [showLeadsCollection, setShowLeadsCollection] = useState(false);
@@ -30,50 +59,21 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
   const handleGetData = async () => {
     try {
-      // Get the full business target objects for selected types
-      const selectedBusinessTypes = strategy.method1Analysis.businessTargets
-        .filter(target => selectedTargets.has(target.type))
-        .map(target => ({
-          name: target.type,
-          count: target.estimatedCount
-        }));
-
-      console.log('Selected business types:', selectedBusinessTypes);
-
-      const response = await fetch('/api/process-business-types', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          businessTypes: selectedBusinessTypes,
-          boundingBox
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to process business types');
-      }
-
-      const data = await response.json();
-      console.log('Search Queries received:', JSON.stringify(data.searchQueries, null, 2));
-      
-      // Create temporary array to collect task IDs
       const newTaskIds: string[] = [];
+      
+      // Create tasks for each selected business type
+      for (const businessType of selectedTargets) {
+        const query = generateSearchQuery(businessType, boundingBox);
+        console.log(`\nProcessing ${businessType}:`);
+        console.log('Search URLs:', query.searchUrls);
 
-      for (const query of data.searchQueries) {
-        console.log(`\nProcessing business type: ${query.businessType}`);
-        console.log(`Number of URLs for this business: ${query.searchUrls.length}`);
-        
+        // Create tasks for each search URL
         for (let i = 0; i < query.searchUrls.length; i++) {
           const searchUrl = query.searchUrls[i];
-          console.log(`\nCreating task ${i + 1} of ${query.searchUrls.length} for ${query.businessType}`);
-          console.log(`URL: ${searchUrl}`);
-          
           try {
             const browseResponse = await fetch('/api/browse-ai', {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 inputParameters: {
                   google_map_url: searchUrl,
@@ -83,31 +83,23 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
             });
 
             if (!browseResponse.ok) {
-              const errorText = await browseResponse.text();
-              console.error('Browse AI error response:', errorText);
-              throw new Error(`Failed to create Browse.ai task: ${errorText}`);
+              throw new Error(`Failed to create Browse.ai task: ${await browseResponse.text()}`);
             }
 
             const browseData = await browseResponse.json();
             console.log('Task created successfully:', browseData.result.id);
-            newTaskIds.push(browseData.result.id);  // Add to temporary array
+            newTaskIds.push(browseData.result.id);
           } catch (error) {
             console.error('Failed to create task for URL:', searchUrl, error);
           }
         }
       }
 
-      console.log(`\nFinal summary:`);
-      console.log(`Total tasks created: ${newTaskIds.length}`);
-      console.log(`Task IDs:`, newTaskIds);
-
-      // Set the state with all collected task IDs
+      console.log('Total tasks created:', newTaskIds.length);
       setTaskIds(newTaskIds);
       setShowLeadsCollection(true);
-
     } catch (error) {
       console.error('Error:', error);
-      // Handle error...
     }
   };
 
@@ -244,9 +236,6 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
         </div>
       ) : (
         <LeadsCollection
-          selectedBusinessTypes={strategy.method1Analysis.businessTargets
-            .filter(target => selectedTargets.has(target.type))}
-          allBusinessTypes={strategy.method1Analysis.businessTargets}
           taskIds={taskIds}
           onClose={() => {
             setShowLeadsCollection(false);
