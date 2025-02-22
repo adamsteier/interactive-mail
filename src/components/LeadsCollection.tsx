@@ -44,34 +44,16 @@ const processLeadsFromResponse = (result: BrowseAIResult): Lead[] => {
   
   const processed = result.capturedLists['Search Results'].map((item: SearchResultItem) => {
     const info = item.Information || '';
-    const infoLines = info.split('\n');
-    let businessType = infoLines[0] || '';
-    const address = infoLines[1] || '';
-    const phone = info.match(/[+]1 \d{3}[-]\d{3}[-]\d{4}|[(]\d{3}[)] \d{3}[-]\d{4}/)?.[0] || '';
-
-    // Clean up business type
-    businessType = businessType
-      .replace(/^· /, '')
-      .replace(/ · $/, '')
-      .trim();
-
-    // If business type is empty or unclear, try to infer from the name
-    if (!businessType || businessType === '') {
-      if (item.Title?.toLowerCase().includes('accounting') || item.Title?.toLowerCase().includes('cpa')) {
-        businessType = 'Accounting Firm';
-      } else if (item.Title?.toLowerCase().includes('marketing') || item.Title?.toLowerCase().includes('digital')) {
-        businessType = 'Marketing Agency';
-      }
-    }
-
+    
+    // Keep the full information string for display
     const lead = {
       name: item.Title || '',
-      address: address.replace(/^· /, '').trim(),
-      phone: phone,
+      address: info, // Keep the full information string
+      phone: info.match(/[+]1 \d{3}[-]\d{3}[-]\d{4}|[(]\d{3}[)] \d{3}[-]\d{4}/)?.[0] || '',
       website: item.Link || '',
       rating: item.Rating || '',
       reviews: item.Review ? parseInt(item.Review) : undefined,
-      businessType: businessType
+      businessType: info.split('\n')[0] || '' // First line is business type
     };
     
     console.log('Processed lead:', lead);
@@ -276,24 +258,21 @@ const LeadsCollection = ({ taskIds, onClose }: LeadsCollectionProps) => {
                 className="p-4 rounded-lg border border-electric-teal/30 bg-charcoal/50 hover:scale-105 hover:border-electric-teal/50 transition-all"
               >
                 <h3 className="text-electric-teal font-medium truncate">{lead.name}</h3>
-                <p className="text-electric-teal/80 text-sm truncate">{lead.address}</p>
-                {lead.phone && (
-                  <p className="text-electric-teal/60 text-sm truncate">
-                    {lead.phone}
-                  </p>
-                )}
+                <p className="text-electric-teal/80 text-sm whitespace-pre-line">
+                  {lead.address}
+                </p>
                 {lead.website && (
                   <a 
                     href={lead.website}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-electric-teal/60 text-sm hover:text-electric-teal block truncate"
+                    className="text-electric-teal/60 text-sm hover:text-electric-teal block truncate mt-2"
                   >
                     {lead.website}
                   </a>
                 )}
                 {lead.rating && (
-                  <p className="text-electric-teal/60 text-sm flex items-center gap-1">
+                  <p className="text-electric-teal/60 text-sm flex items-center gap-1 mt-2">
                     <span>Rating: {lead.rating}</span>
                     {lead.reviews && (
                       <span className="text-electric-teal/40">({lead.reviews} reviews)</span>

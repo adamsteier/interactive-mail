@@ -61,10 +61,16 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
     try {
       const newTaskIds: string[] = [];
       
+      // Get the full business target objects for selected types
+      const selectedBusinessTypes = strategy.method1Analysis.businessTargets
+        .filter(target => selectedTargets.has(target.type));
+
+      console.log('Selected business types:', selectedBusinessTypes);
+      
       // Create tasks for each selected business type
-      for (const businessType of selectedTargets) {
-        const query = generateSearchQuery(businessType, boundingBox);
-        console.log(`\nProcessing ${businessType}:`);
+      for (const target of selectedBusinessTypes) {
+        const query = generateSearchQuery(target.type, boundingBox);
+        console.log(`\nProcessing ${target.type}:`);
         console.log('Search URLs:', query.searchUrls);
 
         // Create tasks for each search URL
