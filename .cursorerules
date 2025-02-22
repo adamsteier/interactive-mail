@@ -1,4 +1,4 @@
-Rule: Next.js 15+ Dynamic Route Parameters
+This is built using Next.js 15
 
 In Next.js 15+ route handlers ([param]/route.ts), params must be handled as Promises:
 

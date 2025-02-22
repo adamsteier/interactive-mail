@@ -112,25 +112,6 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
     }
   };
 
-  const pollTaskStatus = async (taskId: string): Promise<BrowseAiTaskResult> => {
-    while (true) {
-      const response = await fetch(`/api/browse-ai/task/${taskId}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch task status');
-      }
-
-      const data = await response.json();
-      if (data.result.status === 'completed') {
-        return data.result;
-      } else if (data.result.status === 'failed') {
-        throw new Error('Task failed');
-      }
-
-      // Wait 5 seconds before checking again
-      await new Promise(resolve => setTimeout(resolve, 5000));
-    }
-  };
-
   return (
     <>
       {!showLeadsCollection ? (
