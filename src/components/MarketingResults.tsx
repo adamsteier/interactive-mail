@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { MarketingStrategy, BusinessTarget, DatabaseTarget } from '@/types/marketing';
 import { BusinessAnalysis } from '@/types/businessAnalysis';
-import { BrowseAiTaskResult } from '@/types/browseAi';
 import LeadsCollection from '@/components/LeadsCollection';
 
 interface MarketingResultsProps {
