@@ -71,34 +71,36 @@ const calculateRadius = (boundingBox: BusinessAnalysis['boundingBox']) => {
   return R * c; // Returns radius in meters
 };
 
-const generateSearchGrid = (businessType: string, boundingBox: BusinessAnalysis['boundingBox'], estimatedReach: number = 100) => {
+const generateHexagonalGrid = (businessType: string, boundingBox: BusinessAnalysis['boundingBox'], estimatedReach: number = 100) => {
   // Calculate area dimensions in meters
   const totalRadius = calculateRadius(boundingBox);
   const areaWidth = totalRadius * 2;
   
-  // Use smaller radius for better coverage
-  const optimalSearchRadius = Math.min(5000, totalRadius / 2); // 5km max radius
+  // Use 5km as base radius, but scale up for larger areas
+  const baseRadius = 5000; // 5km base
+  const searchRadius = Math.min(
+    Math.max(baseRadius, areaWidth / 10),
+    25000 // Cap at 25km
+  );
+
+  // Calculate hex grid dimensions
+  // For hexagons, optimal spacing is 2 * radius * cos(30°) ≈ 1.732 * radius
+  const hexSpacing = searchRadius * 1.732;
   
-  // Calculate minimum points needed based on estimated reach (assume ~20 results per point)
-  const pointsNeededForReach = Math.ceil(estimatedReach / 20);
-  
-  // Calculate grid points needed with minimal overlap (1.1 instead of 1.5)
-  const gridSize = Math.max(
-    Math.max(
-      Math.ceil(areaWidth / (optimalSearchRadius * 1.1)),
-      Math.ceil(Math.sqrt(pointsNeededForReach))
-    ),
-    2 // Minimum 2x2 grid
+  // Calculate number of hexagons needed
+  const latCount = Math.min(
+    Math.ceil((boundingBox.northeast.lat - boundingBox.southwest.lat) / (hexSpacing / 111111)), // Convert meters to degrees (approx)
+    4 // Cap at 4 rows
+  );
+  const lngCount = Math.min(
+    Math.ceil((boundingBox.northeast.lng - boundingBox.southwest.lng) / (hexSpacing / (111111 * Math.cos(boundingBox.southwest.lat * Math.PI / 180)))),
+    4 // Cap at 4 columns
   );
 
   console.log(`Area width: ${areaWidth}m`);
-  console.log(`Search radius: ${optimalSearchRadius}m`);
-  console.log(`Points needed for reach: ${pointsNeededForReach}`);
-  console.log(`Grid size: ${gridSize}x${gridSize}`);
-
-  // Calculate step size to ensure even coverage
-  const latStep = (boundingBox.northeast.lat - boundingBox.southwest.lat) / (gridSize - 1);
-  const lngStep = (boundingBox.northeast.lng - boundingBox.southwest.lng) / (gridSize - 1);
+  console.log(`Search radius: ${searchRadius}m`);
+  console.log(`Estimated businesses: ${estimatedReach}`);
+  console.log(`Hex grid: ${latCount}x${lngCount} (${latCount * lngCount} points)`);
 
   const searchPoints: Array<{
     lat: number;
@@ -106,16 +108,25 @@ const generateSearchGrid = (businessType: string, boundingBox: BusinessAnalysis[
     radius: number;
   }> = [];
 
-  // Generate grid points with minimal overlap
-  for (let i = 0; i < gridSize; i++) {
-    for (let j = 0; j < gridSize; j++) {
-      const lat = boundingBox.southwest.lat + (i * latStep);
-      const lng = boundingBox.southwest.lng + (j * lngStep);
-      searchPoints.push({ 
-        lat, 
-        lng,
-        radius: optimalSearchRadius
-      });
+  // Generate hexagonal grid points
+  for (let row = 0; row < latCount; row++) {
+    for (let col = 0; col < lngCount; col++) {
+      // Calculate center of hexagon
+      // Offset every other row by half a hex
+      const latOffset = row * (hexSpacing / 111111);
+      const lngOffset = col * (hexSpacing / (111111 * Math.cos(boundingBox.southwest.lat * Math.PI / 180)));
+      
+      const lat = boundingBox.southwest.lat + latOffset;
+      const lng = boundingBox.southwest.lng + lngOffset + (row % 2 ? hexSpacing / (2 * 111111) : 0);
+
+      // Only add point if it's within bounds
+      if (lat <= boundingBox.northeast.lat && lng <= boundingBox.northeast.lng) {
+        searchPoints.push({
+          lat,
+          lng,
+          radius: searchRadius
+        });
+      }
     }
   }
 
@@ -224,10 +235,10 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
         console.log(`Processing ${businessType} with estimated reach: ${businessTypeConfig.estimatedReach}`);
 
-        const gridConfig = generateSearchGrid(
+        const gridConfig = generateHexagonalGrid(
           businessType, 
           boundingBox,
-          businessTypeConfig.estimatedReach ?? 100 // Fallback to 100 if undefined
+          businessTypeConfig.estimatedReach ?? 100
         );
 
         console.log(`Starting grid search for ${businessType}`);
