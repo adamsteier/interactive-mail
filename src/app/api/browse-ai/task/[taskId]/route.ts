@@ -1,18 +1,13 @@
-import { NextRequest } from 'next/server';
-import { type NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 
-type Props = {
-  params: {
-    taskId: string;
-  };
-};
+type Params = Promise<{ taskId: string }>;
 
 export async function GET(
-  _request: NextRequest,
-  props: Props
-): Promise<NextResponse> {
+  request: NextRequest,
+  { params }: { params: Params }
+) {
   try {
-    const { taskId } = props.params;
+    const { taskId } = await params;
     
     const response = await fetch(
       `https://api.browse.ai/v2/robots/${process.env.BROWSE_AI_ROBOT_ID}/tasks/${taskId}`, 
@@ -25,23 +20,13 @@ export async function GET(
     );
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('Browse.ai API error:', {
-        status: response.status,
-        statusText: response.statusText,
-        errorData
-      });
-      return Response.json(
-        { error: 'Failed to fetch task status' },
-        { status: 500 }
-      );
+      throw new Error('Failed to fetch task status');
     }
 
-    const data = await response.json();
-    return Response.json(data);
+    return NextResponse.json(await response.json());
   } catch (error) {
     console.error('Browse.ai task status error:', error);
-    return Response.json(
+    return NextResponse.json(
       { error: 'Failed to fetch task status' },
       { status: 500 }
     );
