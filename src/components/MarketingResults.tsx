@@ -52,42 +52,51 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       }
 
       const data = await response.json();
-      console.log('Grid search queries:', data.searchQueries);
+      console.log('Search Queries received:', JSON.stringify(data.searchQueries, null, 2));
       
       // For each search URL, create a Browse.ai task
       const taskIds = [];
       for (const query of data.searchQueries) {
-        console.log(`Creating tasks for business type: ${query.businessType}`);
-        console.log(`Number of grid cells: ${query.searchUrls.length}`);
+        console.log(`\nProcessing business type: ${query.businessType}`);
+        console.log(`Number of URLs for this business: ${query.searchUrls.length}`);
         
-        for (const searchUrl of query.searchUrls) {
-          console.log(`Creating task for URL: ${searchUrl}`);
-          const browseResponse = await fetch('/api/browse-ai', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              inputParameters: {
-                google_map_url: searchUrl,
-                max_results: 100
-              }
-            })
-          });
+        for (let i = 0; i < query.searchUrls.length; i++) {
+          const searchUrl = query.searchUrls[i];
+          console.log(`\nCreating task ${i + 1} of ${query.searchUrls.length} for ${query.businessType}`);
+          console.log(`URL: ${searchUrl}`);
+          
+          try {
+            const browseResponse = await fetch('/api/browse-ai', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                inputParameters: {
+                  google_map_url: searchUrl,
+                  max_results: 100
+                }
+              })
+            });
 
-          if (!browseResponse.ok) {
-            const errorText = await browseResponse.text();
-            console.error('Browse AI error response:', errorText);
-            throw new Error(`Failed to create Browse.ai task: ${errorText}`);
+            if (!browseResponse.ok) {
+              const errorText = await browseResponse.text();
+              console.error('Browse AI error response:', errorText);
+              throw new Error(`Failed to create Browse.ai task: ${errorText}`);
+            }
+
+            const browseData = await browseResponse.json();
+            console.log('Task created successfully:', browseData.result.id);
+            taskIds.push(browseData.result.task.id);
+          } catch (error) {
+            console.error('Failed to create task for URL:', searchUrl, error);
           }
-
-          const browseData = await browseResponse.json();
-          console.log('Browse AI task created:', browseData);
-          taskIds.push(browseData.result.task.id);
         }
       }
 
+      console.log(`\nFinal summary:`);
       console.log(`Total tasks created: ${taskIds.length}`);
+      console.log(`Task IDs:`, taskIds);
 
       // Start polling for results
       const results = await Promise.all(
