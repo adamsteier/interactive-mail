@@ -28,15 +28,19 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
   const handleGetData = async () => {
     try {
-      // First get the grid cells from our process-business-types endpoint
+      // Get the full business target objects for selected types
+      const selectedBusinessTypes = strategy.method1Analysis.businessTargets
+        .filter(target => selectedTargets.has(target.type))
+        .map(target => ({
+          name: target.type,  // Use the full business type name
+          count: target.estimatedCount
+        }));
+
       const response = await fetch('/api/process-business-types', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          businessTypes: Array.from(selectedTargets).map(type => ({
-            name: type,
-            count: strategy.method1Analysis.businessTargets.find(t => t.type === type)?.estimatedCount || 0
-          })),
+          businessTypes: selectedBusinessTypes,
           boundingBox
         })
       });

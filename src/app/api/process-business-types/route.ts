@@ -11,7 +11,7 @@ export async function POST(req: Request) {
       // Calculate grid cells for this business type
       const cells = calculateSearchGrid(boundingBox, business.count);
       
-      // Create search URLs for each cell
+      // Create search URLs for each cell with the specific business type
       const searchUrls = cells.map(cell => 
         `https://www.google.com/maps/search/${encodeURIComponent(business.name)}/@${cell.center.lat},${cell.center.lng},${cell.zoom}z`
       );
