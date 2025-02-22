@@ -76,11 +76,11 @@ const generateHexagonalGrid = (businessType: string, boundingBox: BusinessAnalys
   const totalRadius = calculateRadius(boundingBox);
   const areaWidth = totalRadius * 2;
   
-  // Use 5km as base radius, but scale up for larger areas
-  const baseRadius = 5000; // 5km base
+  // Use 500m as base radius for urban areas, but scale up for larger areas
+  const baseRadius = 500; // 500m base for dense urban areas
   const searchRadius = Math.min(
-    Math.max(baseRadius, areaWidth / 10),
-    25000 // Cap at 25km
+    Math.max(baseRadius, areaWidth / 20), // Scale up more gradually
+    25000 // Cap at 25km for large areas
   );
 
   // Calculate hex grid dimensions
