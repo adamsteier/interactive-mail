@@ -72,35 +72,31 @@ const calculateRadius = (boundingBox: BusinessAnalysis['boundingBox']) => {
 };
 
 const generateSearchGrid = (businessType: string, boundingBox: BusinessAnalysis['boundingBox'], estimatedReach: number = 100) => {
-  // Ensure estimatedReach is a number
-  const safeEstimatedReach = typeof estimatedReach === 'number' && !isNaN(estimatedReach) 
-    ? estimatedReach 
-    : 100;
-
   // Calculate area dimensions in meters
   const totalRadius = calculateRadius(boundingBox);
   const areaWidth = totalRadius * 2;
   
-  // Google Places optimal search radius is around 50km
-  const optimalSearchRadius = Math.min(50000, totalRadius); // 50km or less
+  // Use smaller radius for better coverage
+  const optimalSearchRadius = Math.min(5000, totalRadius / 2); // 5km max radius
   
-  // Calculate minimum grid points needed based on both area and estimated reach
-  const areaBasedPoints = Math.ceil(areaWidth / (optimalSearchRadius * 1.5)); // 1.5 for overlap
-  const reachBasedPoints = Math.ceil(safeEstimatedReach / 20); // Assume ~20 results per point
+  // Calculate minimum points needed based on estimated reach (assume ~20 results per point)
+  const pointsNeededForReach = Math.ceil(estimatedReach / 20);
   
-  // Use the larger of the two calculations to ensure coverage
+  // Calculate grid points needed with minimal overlap (1.1 instead of 1.5)
   const gridSize = Math.max(
-    Math.max(areaBasedPoints, Math.ceil(Math.sqrt(reachBasedPoints))),
+    Math.max(
+      Math.ceil(areaWidth / (optimalSearchRadius * 1.1)),
+      Math.ceil(Math.sqrt(pointsNeededForReach))
+    ),
     2 // Minimum 2x2 grid
   );
 
   console.log(`Area width: ${areaWidth}m`);
-  console.log(`Estimated reach: ${safeEstimatedReach} businesses`);
-  console.log(`Area-based grid points: ${areaBasedPoints}`);
-  console.log(`Reach-based grid points: ${reachBasedPoints}`);
-  console.log(`Final grid size: ${gridSize}x${gridSize}`);
-  console.log(`Optimal search radius: ${optimalSearchRadius}m`);
+  console.log(`Search radius: ${optimalSearchRadius}m`);
+  console.log(`Points needed for reach: ${pointsNeededForReach}`);
+  console.log(`Grid size: ${gridSize}x${gridSize}`);
 
+  // Calculate step size to ensure even coverage
   const latStep = (boundingBox.northeast.lat - boundingBox.southwest.lat) / (gridSize - 1);
   const lngStep = (boundingBox.northeast.lng - boundingBox.southwest.lng) / (gridSize - 1);
 
@@ -110,7 +106,7 @@ const generateSearchGrid = (businessType: string, boundingBox: BusinessAnalysis[
     radius: number;
   }> = [];
 
-  // Generate grid points with their optimal radius
+  // Generate grid points with minimal overlap
   for (let i = 0; i < gridSize; i++) {
     for (let j = 0; j < gridSize; j++) {
       const lat = boundingBox.southwest.lat + (i * latStep);
