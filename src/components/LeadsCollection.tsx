@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface LeadsCollectionProps {
@@ -85,9 +85,11 @@ const processLeadsFromResponse = (result: BrowseAIResult): Lead[] => {
 const LeadsCollection = ({ taskIds, onClose }: LeadsCollectionProps) => {
   const [progress, setProgress] = useState(0);
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
+  const [activeFilter, setActiveFilter] = useState<string>('all');
+  const [businessTypes, setBusinessTypes] = useState<Map<string, number>>(new Map());
   const [loadingMessage, setLoadingMessage] = useState<string>('Starting search...');
   const [isPolling, setIsPolling] = useState(true);
+  const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
   
   const leadsCountRef = useRef(0);
 
@@ -97,13 +99,18 @@ const LeadsCollection = ({ taskIds, onClose }: LeadsCollectionProps) => {
 
     const pollTasks = async () => {
       const totalTasks = taskIds.length;
-      let completedInThisRun = 0;
+      
+      // Check if all tasks are already completed
+      if (completedTasks.size === totalTasks) {
+        setIsPolling(false);
+        setLoadingMessage(`Search complete! Found ${leadsCountRef.current} leads`);
+        return;
+      }
       
       console.log('Polling tasks:', taskIds, 'Completed:', completedTasks.size, 'Total:', totalTasks);
       
       for (const taskId of taskIds) {
         if (completedTasks.has(taskId)) {
-          completedInThisRun++;
           console.log('Task already completed:', taskId);
           continue;
         }
@@ -121,7 +128,6 @@ const LeadsCollection = ({ taskIds, onClose }: LeadsCollectionProps) => {
           console.log('Task response:', data);
 
           if (data.result?.status === 'successful' || data.result?.status === 'completed') {
-            completedInThisRun++;
             console.log('Task completed:', taskId);
             const newLeads = processLeadsFromResponse(data.result);
             console.log('New leads found:', newLeads.length);
@@ -139,7 +145,6 @@ const LeadsCollection = ({ taskIds, onClose }: LeadsCollectionProps) => {
             
             setCompletedTasks(prev => new Set([...prev, taskId]));
           } else if (data.result?.status === 'failed') {
-            completedInThisRun++;
             console.error(`Task ${taskId} failed:`, data.result?.userFriendlyError || 'No error message');
             setCompletedTasks(prev => new Set([...prev, taskId]));
           } else {
@@ -151,15 +156,16 @@ const LeadsCollection = ({ taskIds, onClose }: LeadsCollectionProps) => {
       }
 
       // Update progress based on completed tasks
-      const progress = (completedInThisRun / totalTasks) * 100;
+      const progress = (completedTasks.size / totalTasks) * 100;
       setProgress(progress);
       
-      if (completedInThisRun === totalTasks) {
+      // Check if all tasks are completed after this run
+      if (completedTasks.size === totalTasks) {
         console.log('All tasks completed');
         setIsPolling(false);
         setLoadingMessage(`Search complete! Found ${leadsCountRef.current} leads`);
       } else {
-        setLoadingMessage(`Found ${leadsCountRef.current} leads (${completedInThisRun}/${totalTasks} areas searched)`);
+        setLoadingMessage(`Found ${leadsCountRef.current} leads (${completedTasks.size}/${totalTasks} areas searched)`);
         if (isPolling) {
           console.log('Scheduling next poll in 10 seconds');
           timeoutId = setTimeout(pollTasks, 10000);
@@ -188,6 +194,22 @@ const LeadsCollection = ({ taskIds, onClose }: LeadsCollectionProps) => {
   // Add debug output for leads
   console.log('Current leads:', leads.length);
 
+  // Update business type counts when leads change
+  useEffect(() => {
+    const typeCounts = new Map<string, number>();
+    leads.forEach(lead => {
+      const type = lead.businessType;
+      typeCounts.set(type, (typeCounts.get(type) || 0) + 1);
+    });
+    setBusinessTypes(typeCounts);
+  }, [leads]);
+
+  // Filter leads based on active filter
+  const filteredLeads = useMemo(() => {
+    if (activeFilter === 'all') return leads;
+    return leads.filter(lead => lead.businessType === activeFilter);
+  }, [leads, activeFilter]);
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-charcoal">
       {/* Progress Bar and Loading Message */}
@@ -211,11 +233,40 @@ const LeadsCollection = ({ taskIds, onClose }: LeadsCollectionProps) => {
         </div>
       </div>
 
+      {/* Business Type Filters */}
+      <div className="flex gap-2 p-4 mt-12 flex-wrap">
+        <button
+          onClick={() => setActiveFilter('all')}
+          className={`px-4 py-2 rounded-lg transition-all duration-300 ${
+            activeFilter === 'all'
+              ? 'bg-electric-teal text-charcoal'
+              : 'bg-electric-teal/20 text-electric-teal hover:bg-electric-teal/30'
+          }`}
+        >
+          All Leads ({leads.length})
+        </button>
+        {Array.from(businessTypes).map(([type, count]) => (
+          <motion.button
+            key={type}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            onClick={() => setActiveFilter(type)}
+            className={`px-4 py-2 rounded-lg transition-all duration-300 ${
+              type === activeFilter
+                ? 'bg-electric-teal text-charcoal'
+                : 'bg-electric-teal/20 text-electric-teal hover:bg-electric-teal/30'
+            }`}
+          >
+            {type} ({count})
+          </motion.button>
+        ))}
+      </div>
+
       {/* Leads Display */}
-      <div className="flex-1 overflow-y-auto p-4 mt-12">
+      <div className="flex-1 overflow-y-auto p-4">
         <AnimatePresence mode="popLayout">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {leads.map((lead, index) => (
+            {filteredLeads.map((lead, index) => (
               <motion.div 
                 key={`${lead.name}-${lead.address}-${index}`}
                 initial={{ opacity: 0, scale: 0.9 }}
