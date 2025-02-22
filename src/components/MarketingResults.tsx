@@ -57,9 +57,11 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       // For each search URL, create a Browse.ai task
       const taskIds = [];
       for (const query of data.searchQueries) {
-        console.log(`Creating tasks for ${query.businessType}`);
+        console.log(`Creating tasks for business type: ${query.businessType}`);
+        console.log(`Number of grid cells: ${query.searchUrls.length}`);
+        
         for (const searchUrl of query.searchUrls) {
-          console.log('Creating task with URL:', searchUrl);
+          console.log(`Creating task for URL: ${searchUrl}`);
           const browseResponse = await fetch('/api/browse-ai', {
             method: 'POST',
             headers: {
@@ -74,14 +76,18 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
           });
 
           if (!browseResponse.ok) {
-            throw new Error('Failed to create Browse.ai task');
+            const errorText = await browseResponse.text();
+            console.error('Browse AI error response:', errorText);
+            throw new Error(`Failed to create Browse.ai task: ${errorText}`);
           }
 
           const browseData = await browseResponse.json();
-          console.log('Browse.ai response:', browseData);
+          console.log('Browse AI task created:', browseData);
           taskIds.push(browseData.result.task.id);
         }
       }
+
+      console.log(`Total tasks created: ${taskIds.length}`);
 
       // Start polling for results
       const results = await Promise.all(
