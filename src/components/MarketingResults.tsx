@@ -67,7 +67,8 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
             },
             body: JSON.stringify({
               inputParameters: {
-                originUrl: searchUrl
+                google_map_url: searchUrl,
+                max_results: 100
               }
             })
           });

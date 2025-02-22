@@ -26,6 +26,7 @@ export async function POST(req: Request) {
 
         response.on('end', () => {
           const body = Buffer.concat(chunks).toString();
+          console.log('Browse AI response:', body);  // Log the response
           if (response.statusCode !== 200) {
             reject(new Error(`Failed to create Browse.ai task: ${body}`));
           } else {
