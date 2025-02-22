@@ -79,16 +79,22 @@ const generateSearchGrid = (businessType: string, boundingBox: BusinessAnalysis[
   // Google Places optimal search radius is around 50km
   const optimalSearchRadius = Math.min(50000, totalRadius); // 50km or less
   
-  // Calculate how many grid points we need to cover the area
-  // with overlapping circles of optimal radius
+  // Calculate minimum grid points needed based on both area and estimated reach
+  const areaBasedPoints = Math.ceil(areaWidth / (optimalSearchRadius * 1.5)); // 1.5 for overlap
+  const reachBasedPoints = Math.ceil(estimatedReach / 20); // Assume ~20 results per point
+  
+  // Use the larger of the two calculations to ensure coverage
   const gridSize = Math.max(
-    Math.ceil(areaWidth / (optimalSearchRadius * 1.5)), // 1.5 for overlap
+    Math.max(areaBasedPoints, Math.ceil(Math.sqrt(reachBasedPoints))),
     2 // Minimum 2x2 grid
   );
 
   console.log(`Area width: ${areaWidth}m`);
+  console.log(`Estimated reach: ${estimatedReach} businesses`);
+  console.log(`Area-based grid points: ${areaBasedPoints}`);
+  console.log(`Reach-based grid points: ${reachBasedPoints}`);
+  console.log(`Final grid size: ${gridSize}x${gridSize}`);
   console.log(`Optimal search radius: ${optimalSearchRadius}m`);
-  console.log(`Grid size: ${gridSize}x${gridSize}`);
 
   const latStep = (boundingBox.northeast.lat - boundingBox.southwest.lat) / (gridSize - 1);
   const lngStep = (boundingBox.northeast.lng - boundingBox.southwest.lng) / (gridSize - 1);
