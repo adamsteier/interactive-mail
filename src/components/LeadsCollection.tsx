@@ -10,12 +10,16 @@ interface LeadsCollectionProps {
 
 interface Lead {
   name: string;
+  businessType: string; // The business type we searched for
+  rawBusinessType: string; // The business type from the result
   address: string;
+  status: string;
+  hours: string;
   phone?: string;
   website?: string;
   rating?: string;
   reviews?: number;
-  businessType: string;
+  fullInfo: string; // Keep the full info for reference
 }
 
 interface SearchResultItem {
@@ -39,7 +43,7 @@ interface TaskInfo {
   businessType: string;
 }
 
-const processLeadsFromResponse = (result: BrowseAIResult): Lead[] => {
+const processLeadsFromResponse = (result: BrowseAIResult, taskBusinessType: string): Lead[] => {
   if (!result.capturedLists || !result.capturedLists['Search Results']) {
     console.log('No search results found in response');
     return [];
@@ -49,16 +53,30 @@ const processLeadsFromResponse = (result: BrowseAIResult): Lead[] => {
   
   const processed = result.capturedLists['Search Results'].map((item: SearchResultItem) => {
     const info = item.Information || '';
+    const infoLines = info.split('\n');
     
-    // Keep the full information string for display
+    // Parse first line which contains business type and address
+    const [typeAndAddress = '', ...otherLines] = infoLines;
+    const [rawType = '', rawAddress = ''] = typeAndAddress.split(' · ').map(s => s.trim());
+    
+    // Parse second line which contains status, hours, and phone
+    const statusLine = otherLines.join(' ');
+    const status = statusLine.match(/^(Open|Closed)[^·]*/)?.[0]?.trim() || '';
+    const hours = statusLine.match(/·([^·]+)·/)?.[1]?.trim() || '';
+    const phone = statusLine.match(/[+]1 \d{3}[-]\d{3}[-]\d{4}|[(]\d{3}[)] \d{3}[-]\d{4}/)?.[0] || '';
+
     const lead = {
       name: item.Title || '',
-      address: info, // Keep the full information string
-      phone: info.match(/[+]1 \d{3}[-]\d{3}[-]\d{4}|[(]\d{3}[)] \d{3}[-]\d{4}/)?.[0] || '',
+      businessType: taskBusinessType, // Use the business type from the task
+      rawBusinessType: rawType, // Store the raw business type from the result
+      address: rawAddress || typeAndAddress, // Use full line if no address parsed
+      status,
+      hours,
+      phone,
       website: item.Link || '',
       rating: item.Rating || '',
       reviews: item.Review ? parseInt(item.Review) : undefined,
-      businessType: info.split('\n')[0] || '' // First line is business type
+      fullInfo: info // Keep the full info for reference
     };
     
     console.log('Processed lead:', lead);
@@ -106,17 +124,11 @@ const LeadsCollection = ({ taskInfos, onClose }: LeadsCollectionProps) => {
           const data = await response.json();
 
           if (data.result?.status === 'successful' || data.result?.status === 'completed') {
-            const newLeads = processLeadsFromResponse(data.result);
+            const newLeads = processLeadsFromResponse(data.result, taskInfo.businessType);
             
-            // Set the business type from the task info
-            const processedLeads = newLeads.map(lead => ({
-              ...lead,
-              businessType: taskInfo.businessType
-            }));
-
             setLeads(current => {
               const existingAddresses = new Set(current.map(lead => lead.address));
-              const uniqueNewLeads = processedLeads.filter(lead => !existingAddresses.has(lead.address));
+              const uniqueNewLeads = newLeads.filter(lead => !existingAddresses.has(lead.address));
               return [...current, ...uniqueNewLeads];
             });
             
@@ -234,14 +246,15 @@ const LeadsCollection = ({ taskInfos, onClose }: LeadsCollectionProps) => {
           <table className="w-full min-w-[1024px] border-collapse">
             <thead className="sticky top-0 bg-charcoal z-10">
               <tr className="text-electric-teal/60 text-left">
-                <th className="p-2 w-[20%]">Business Name</th>
-                <th className="p-2 w-[15%]">Type</th>
-                <th className="p-2 w-[25%]">Address</th>
+                <th className="p-2 w-[15%]">Business Name</th>
+                <th className="p-2 w-[12%]">Listed As</th>
+                <th className="p-2 w-[12%]">Category</th>
+                <th className="p-2 w-[20%]">Address</th>
+                <th className="p-2 w-[8%]">Status</th>
+                <th className="p-2 w-[12%]">Hours</th>
                 <th className="p-2 w-[10%]">Phone</th>
-                <th className="p-2 w-[5%]">Rating</th>
-                <th className="p-2 w-[5%]">Reviews</th>
-                <th className="p-2 w-[10%]">Status</th>
-                <th className="p-2 w-[10%]">Website</th>
+                <th className="p-2 w-[6%]">Rating</th>
+                <th className="p-2 w-[5%]">Website</th>
               </tr>
             </thead>
             <tbody>
@@ -254,17 +267,18 @@ const LeadsCollection = ({ taskInfos, onClose }: LeadsCollectionProps) => {
                   className="border-b border-electric-teal/10 text-electric-teal/80 hover:bg-electric-teal/5"
                 >
                   <td className="p-2 truncate">{lead.name}</td>
+                  <td className="p-2 truncate">{lead.rawBusinessType}</td>
                   <td className="p-2 truncate">{lead.businessType}</td>
                   <td className="p-2">
                     <div className="max-h-20 overflow-y-auto whitespace-pre-line">
                       {lead.address}
                     </div>
                   </td>
+                  <td className="p-2 truncate">{lead.status}</td>
+                  <td className="p-2 truncate">{lead.hours}</td>
                   <td className="p-2 truncate">{lead.phone}</td>
-                  <td className="p-2">{lead.rating}</td>
-                  <td className="p-2">{lead.reviews}</td>
-                  <td className="p-2 truncate">
-                    {lead.address.match(/Open|Closed[^·]*/)?.[0] || ''}
+                  <td className="p-2">
+                    {lead.rating} {lead.reviews && `(${lead.reviews})`}
                   </td>
                   <td className="p-2">
                     {lead.website && (
