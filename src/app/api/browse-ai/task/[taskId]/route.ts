@@ -1,29 +1,40 @@
-import { NextResponse, NextRequest } from 'next/server';
-
-type Params = Promise<{ taskId: string }>;
+import { NextResponse } from 'next/server';
+import https from 'https';
 
 export async function GET(
-  request: NextRequest,
-  { params }: { params: Params }
+  request: Request,
+  { params }: { params: { taskId: string } }
 ) {
   try {
-    const { taskId } = await params;
-    
-    const response = await fetch(
-      `https://api.browse.ai/v2/robots/${process.env.BROWSE_AI_ROBOT_ID}/tasks/${taskId}`, 
-      {
+    // Create a promise-based version of the request
+    const makeRequest = () => new Promise((resolve, reject) => {
+      const options = {
+        method: 'GET',
+        hostname: 'api.browse.ai',
+        path: `/v2/robots/${process.env.BROWSE_AI_ROBOT_ID}/tasks/${params.taskId}`,
         headers: {
-          'Authorization': `Bearer ${process.env.BROWSE_AI_API_KEY}`,
-          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.BROWSE_AI_API_KEY}`
         }
-      }
-    );
+      };
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch task status');
-    }
+      const req = https.request(options, (response) => {
+        const chunks: Buffer[] = [];
 
-    return NextResponse.json(await response.json());
+        response.on('data', (chunk) => chunks.push(chunk));
+
+        response.on('end', () => {
+          const body = Buffer.concat(chunks).toString();
+          resolve(JSON.parse(body));
+        });
+      });
+
+      req.on('error', (error) => reject(error));
+      req.end();
+    });
+
+    const result = await makeRequest();
+    return NextResponse.json(result);
+
   } catch (error) {
     console.error('Browse.ai task status error:', error);
     return NextResponse.json(

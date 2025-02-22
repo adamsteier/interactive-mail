@@ -20,42 +20,71 @@ interface Lead {
   businessType: string;
 }
 
-interface BrowseAIBusiness {
+interface Screenshot {
+  id: string;
   name: string;
-  address: string;
+  src: string;
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+}
+
+interface CapturedItem {
+  name: string;
+  address?: string;
+  location?: string;
   phone?: string;
   website?: string;
   rating?: string;
-  reviews?: string;
+  reviews?: string | number;
 }
 
 interface BrowseAIResponse {
+  statusCode: number;
+  messageCode: string;
   result: {
+    id: string;
     status: string;
-    capturedLists: {
-      businesses: BrowseAIBusiness[];
-    };
     inputParameters: {
       google_map_url: string;
     };
+    capturedTexts: Record<string, string>;
+    capturedScreenshots: Record<string, Screenshot>;
+    capturedLists: Record<string, CapturedItem[]>;
+    createdAt: number;
+    startedAt: number;
+    finishedAt: number;
+    userFriendlyError: string | null;
   };
 }
 
 const processLeadsFromResponse = (result: BrowseAIResponse['result']): Lead[] => {
+  console.log('Processing response:', result);
+
   const leads: Lead[] = [];
   
-  if (result.capturedLists && result.capturedLists.businesses) {
-    leads.push(...result.capturedLists.businesses.map((business: BrowseAIBusiness) => ({
-      name: business.name || '',
-      address: business.address || '',
-      phone: business.phone,
-      website: business.website,
-      rating: business.rating,
-      reviews: business.reviews ? parseInt(business.reviews) : undefined,
-      businessType: result.inputParameters.google_map_url.split('/search/')[1].split('@')[0]
-    })));
+  if (result.capturedLists) {
+    console.log('Captured lists:', result.capturedLists);
+    
+    Object.values(result.capturedLists).forEach(items => {
+      if (Array.isArray(items)) {
+        items.forEach(item => {
+          leads.push({
+            name: item.name || 'Unknown',
+            address: item.address || item.location || '',
+            phone: item.phone,
+            website: item.website,
+            rating: item.rating,
+            reviews: typeof item.reviews === 'string' ? parseInt(item.reviews) : item.reviews,
+            businessType: decodeURIComponent(result.inputParameters.google_map_url.split('/search/')[1].split('@')[0])
+          });
+        });
+      }
+    });
   }
 
+  console.log('Processed leads:', leads);
   return leads;
 };
 
