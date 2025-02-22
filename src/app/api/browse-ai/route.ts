@@ -5,20 +5,13 @@ export async function POST(req: Request) {
     const body = await req.json();
     console.log('Creating Browse AI task with body:', body);
 
-    // Restructure the request body to match Browse AI's expected format
-    const browseAiBody = {
-      variables: {
-        originUrl: body.inputParameters.originUrl
-      }
-    };
-
     const response = await fetch(`https://api.browse.ai/v2/robots/${process.env.BROWSE_AI_ROBOT_ID}/tasks`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.BROWSE_AI_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(browseAiBody)
+      body: JSON.stringify(body)
     });
 
     if (!response.ok) {
