@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    console.log('Creating Browse AI task with body:', body);
+    const { inputParameters } = await req.json();
+    
+    console.log('Creating Browse AI task with body:', { inputParameters });
 
     const response = await fetch(`https://api.browse.ai/v2/robots/${process.env.BROWSE_AI_ROBOT_ID}/tasks`, {
       method: 'POST',
@@ -11,7 +12,10 @@ export async function POST(req: Request) {
         'Authorization': `Bearer ${process.env.BROWSE_AI_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify({
+        inputParameters,
+        json: true
+      })
     });
 
     if (!response.ok) {
