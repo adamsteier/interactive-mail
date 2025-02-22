@@ -165,7 +165,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
           body: JSON.stringify({
             location: center,
             radius,
-            type: businessType.toLowerCase()
+            keyword: businessType // Send the exact business type
           })
         });
 

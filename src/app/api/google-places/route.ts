@@ -6,7 +6,7 @@ interface SearchParams {
     lng: number;
   };
   radius: number;
-  type: string;
+  keyword: string;
 }
 
 interface PlaceSearchResult {
@@ -48,11 +48,11 @@ interface PlaceDetailsResponse {
 
 export async function POST(request: Request) {
   try {
-    const { location, radius, type } = await request.json() as SearchParams;
+    const { location, radius, keyword } = await request.json() as SearchParams;
     
-    // Build the Places API URL
+    // Build the Places API URL using keyword instead of type
     const baseUrl = 'https://maps.googleapis.com/maps/api/place';
-    const searchUrl = `${baseUrl}/nearbysearch/json?location=${location.lat},${location.lng}&radius=${radius}&type=${type}&key=${process.env.GOOGLE_PLACES_API_KEY}`;
+    const searchUrl = `${baseUrl}/nearbysearch/json?location=${location.lat},${location.lng}&radius=${radius}&keyword=${encodeURIComponent(keyword)}&key=${process.env.GOOGLE_PLACES_API_KEY}`;
 
     const response = await fetch(searchUrl);
     const data = await response.json() as PlaceSearchResponse;
