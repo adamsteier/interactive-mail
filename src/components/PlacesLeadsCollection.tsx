@@ -2,26 +2,11 @@
 
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { GooglePlace } from '@/types/places';
 
 interface PlacesLeadsCollectionProps {
   places: GooglePlace[];
   onClose: () => void;
-}
-
-interface GooglePlace {
-  name: string;
-  formatted_address: string;
-  formatted_phone_number?: string;
-  website?: string;
-  rating?: number;
-  user_ratings_total?: number;
-  business_status: string;
-  opening_hours?: {
-    open_now: boolean;
-    weekday_text?: string[];
-  };
-  types: string[];
-  businessType: string;
 }
 
 const PlacesLeadsCollection = ({ places, onClose }: PlacesLeadsCollectionProps) => {
@@ -97,11 +82,12 @@ const PlacesLeadsCollection = ({ places, onClose }: PlacesLeadsCollectionProps) 
               <tr className="text-electric-teal/60 text-left">
                 <th className="p-2 w-[15%]">Business Name</th>
                 <th className="p-2 w-[12%]">Type</th>
-                <th className="p-2 w-[25%]">Address</th>
+                <th className="p-2 w-[20%]">Address</th>
                 <th className="p-2 w-[8%]">Status</th>
                 <th className="p-2 w-[15%]">Hours</th>
                 <th className="p-2 w-[10%]">Phone</th>
-                <th className="p-2 w-[10%]">Rating</th>
+                <th className="p-2 w-[8%]">Rating</th>
+                <th className="p-2 w-[7%]">Relevance</th>
                 <th className="p-2 w-[5%]">Website</th>
               </tr>
             </thead>
@@ -126,6 +112,16 @@ const PlacesLeadsCollection = ({ places, onClose }: PlacesLeadsCollectionProps) 
                   <td className="p-2 truncate">{place.formatted_phone_number}</td>
                   <td className="p-2">
                     {place.rating} {place.user_ratings_total && `(${place.user_ratings_total})`}
+                  </td>
+                  <td className="p-2">
+                    <div className="flex items-center">
+                      <div className={`h-2 w-2 rounded-full mr-2 ${
+                        place.relevanceScore >= 15 ? 'bg-green-500' :
+                        place.relevanceScore >= 10 ? 'bg-yellow-500' :
+                        'bg-orange-500'
+                      }`} />
+                      {place.relevanceScore}
+                    </div>
                   </td>
                   <td className="p-2">
                     {place.website && (

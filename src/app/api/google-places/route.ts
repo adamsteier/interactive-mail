@@ -47,11 +47,46 @@ interface PlaceDetailsResponse {
   status: string;
 }
 
-async function getAllPlaces(initialUrl: string): Promise<PlaceSearchResult[]> {
+interface ScoredPlaceDetails extends PlaceDetails {
+  relevanceScore: number;
+}
+
+function scoreRelevance(place: PlaceSearchResult, keyword: string): number {
+  let score = 0;
+  const keywordLower = keyword.toLowerCase();
+  const nameLower = place.name.toLowerCase();
+  const words = keywordLower.split(' ');
+  
+  // Exact name match is best
+  if (nameLower === keywordLower) score += 10;
+  
+  // Partial name matches
+  if (nameLower.includes(keywordLower)) score += 7;
+  words.forEach(word => {
+    if (nameLower.includes(word)) score += 3;
+  });
+  
+  // Type matches
+  if (place.types.some(t => t.includes(keywordLower))) score += 5;
+  words.forEach(word => {
+    if (place.types.some(t => t.includes(word))) score += 2;
+  });
+
+  // Penalize very generic results
+  if (!nameLower.includes(keywordLower) && 
+      !place.types.some(t => t.includes(keywordLower))) {
+    score -= 3;
+  }
+
+  return score;
+}
+
+async function getAllPlaces(initialUrl: string, keyword: string): Promise<ScoredPlaceDetails[]> {
   let allResults: PlaceSearchResult[] = [];
   let nextPageToken: string | undefined;
   let pageCount = 0;
-  const maxPages = 3; // Maximum 3 pages (up to 60 results)
+  const maxPages = 3;
+  const minimumScore = 5; // Require decent relevance
 
   do {
     const url = nextPageToken 
@@ -66,13 +101,27 @@ async function getAllPlaces(initialUrl: string): Promise<PlaceSearchResult[]> {
     const response = await fetch(url);
     const data = await response.json() as PlaceSearchResponse;
     
-    allResults = [...allResults, ...data.results];
+    const scoredResults = data.results.map(place => ({
+      ...place,
+      relevanceScore: scoreRelevance(place, keyword)
+    }));
+
+    // Stop if results become too irrelevant
+    if (scoredResults.every(p => p.relevanceScore < minimumScore)) {
+      console.log('Stopping due to low relevance');
+      break;
+    }
+
+    allResults = [...allResults, ...scoredResults];
     nextPageToken = data.next_page_token;
     pageCount++;
 
   } while (nextPageToken && pageCount < maxPages);
 
-  return allResults;
+  // Filter and sort by relevance
+  return allResults
+    .filter(place => place.relevanceScore >= minimumScore)
+    .sort((a, b) => b.relevanceScore - a.relevanceScore);
 }
 
 export async function POST(request: Request) {
@@ -82,7 +131,7 @@ export async function POST(request: Request) {
     const baseUrl = 'https://maps.googleapis.com/maps/api/place';
     const searchUrl = `${baseUrl}/nearbysearch/json?location=${location.lat},${location.lng}&radius=${radius}&keyword=${encodeURIComponent(keyword)}&key=${process.env.GOOGLE_PLACES_API_KEY}`;
 
-    const allResults = await getAllPlaces(searchUrl);
+    const allResults = await getAllPlaces(searchUrl, keyword);
     console.log(`Found ${allResults.length} total results for "${keyword}"`);
 
     // Get details for each place

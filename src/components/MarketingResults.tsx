@@ -5,6 +5,7 @@ import { MarketingStrategy, BusinessTarget, DatabaseTarget } from '@/types/marke
 import { BusinessAnalysis } from '@/types/businessAnalysis';
 import LeadsCollection from '@/components/LeadsCollection';
 import PlacesLeadsCollection from '@/components/PlacesLeadsCollection';
+import { GooglePlace } from '@/types/places';
 
 interface MarketingResultsProps {
   strategy: MarketingStrategy;
@@ -16,23 +17,7 @@ interface TaskInfo {
   id: string;
   businessType: string;
   source: 'browse-ai' | 'google-places';
-  places?: GooglePlace[]; // Optional field for Google Places data
-}
-
-interface GooglePlace {
-  name: string;
-  formatted_address: string;
-  formatted_phone_number?: string;
-  website?: string;
-  rating?: number;
-  user_ratings_total?: number;
-  business_status: string;
-  opening_hours?: {
-    open_now: boolean;
-    weekday_text?: string[];
-  };
-  types: string[];
-  businessType: string;
+  places?: GooglePlace[];
 }
 
 const generateSearchQuery = (businessType: string, boundingBox: BusinessAnalysis['boundingBox']) => {
