@@ -11,6 +11,11 @@ interface MarketingResultsProps {
   onClose: () => void;
 }
 
+interface TaskInfo {
+  id: string;
+  businessType: string;
+}
+
 const generateSearchQuery = (businessType: string, boundingBox: BusinessAnalysis['boundingBox']) => {
   // Calculate grid points for better coverage
   const gridSize = 3; // 3x3 grid
@@ -43,7 +48,7 @@ const generateSearchQuery = (businessType: string, boundingBox: BusinessAnalysis
 const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsProps) => {
   const [selectedTargets, setSelectedTargets] = useState<Set<string>>(new Set());
   const [showLeadsCollection, setShowLeadsCollection] = useState(false);
-  const [taskIds, setTaskIds] = useState<string[]>([]);
+  const [taskInfos, setTaskInfos] = useState<TaskInfo[]>([]);
 
   const handleCheckboxChange = (targetType: string) => {
     setSelectedTargets(prev => {
@@ -59,23 +64,16 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
   const handleGetData = async () => {
     try {
-      const newTaskIds: string[] = [];
-      
-      // Get the full business target objects for selected types
-      const selectedBusinessTypes = strategy.method1Analysis.businessTargets
-        .filter(target => selectedTargets.has(target.type));
-
-      console.log('Selected business types:', selectedBusinessTypes);
+      const newTaskInfos: TaskInfo[] = [];
       
       // Create tasks for each selected business type
-      for (const target of selectedBusinessTypes) {
-        const query = generateSearchQuery(target.type, boundingBox);
-        console.log(`\nProcessing ${target.type}:`);
+      for (const businessType of selectedTargets) {
+        const query = generateSearchQuery(businessType, boundingBox);
+        console.log(`\nProcessing ${businessType}:`);
         console.log('Search URLs:', query.searchUrls);
 
         // Create tasks for each search URL
-        for (let i = 0; i < query.searchUrls.length; i++) {
-          const searchUrl = query.searchUrls[i];
+        for (const searchUrl of query.searchUrls) {
           try {
             const browseResponse = await fetch('/api/browse-ai', {
               method: 'POST',
@@ -94,15 +92,20 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
             const browseData = await browseResponse.json();
             console.log('Task created successfully:', browseData.result.id);
-            newTaskIds.push(browseData.result.id);
+            
+            // Store task ID with its business type
+            newTaskInfos.push({
+              id: browseData.result.id,
+              businessType
+            });
           } catch (error) {
             console.error('Failed to create task for URL:', searchUrl, error);
           }
         }
       }
 
-      console.log('Total tasks created:', newTaskIds.length);
-      setTaskIds(newTaskIds);
+      console.log('Total tasks created:', newTaskInfos.length);
+      setTaskInfos(newTaskInfos);
       setShowLeadsCollection(true);
     } catch (error) {
       console.error('Error:', error);
@@ -242,7 +245,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
         </div>
       ) : (
         <LeadsCollection
-          taskIds={taskIds}
+          taskInfos={taskInfos}
           onClose={() => {
             setShowLeadsCollection(false);
             onClose();

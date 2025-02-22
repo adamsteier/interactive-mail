@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 
 interface LeadsCollectionProps {
-  taskIds: string[];
+  taskInfos: TaskInfo[];
   onClose: () => void;
 }
 
@@ -32,6 +32,11 @@ interface BrowseAIResult {
     'Search Results'?: SearchResultItem[];
   };
   userFriendlyError?: string;
+}
+
+interface TaskInfo {
+  id: string;
+  businessType: string;
 }
 
 const processLeadsFromResponse = (result: BrowseAIResult): Lead[] => {
@@ -64,7 +69,7 @@ const processLeadsFromResponse = (result: BrowseAIResult): Lead[] => {
   return processed;
 };
 
-const LeadsCollection = ({ taskIds, onClose }: LeadsCollectionProps) => {
+const LeadsCollection = ({ taskInfos, onClose }: LeadsCollectionProps) => {
   const [progress, setProgress] = useState(0);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [activeFilter, setActiveFilter] = useState<string>('all');
@@ -80,93 +85,72 @@ const LeadsCollection = ({ taskIds, onClose }: LeadsCollectionProps) => {
     leadsCountRef.current = leads.length;
 
     const pollTasks = async () => {
-      const totalTasks = taskIds.length;
+      const totalTasks = taskInfos.length;
       
-      // Check if all tasks are already completed
       if (completedTasks.size === totalTasks) {
         setIsPolling(false);
         setLoadingMessage(`Search complete! Found ${leadsCountRef.current} leads`);
         return;
       }
       
-      console.log('Polling tasks:', taskIds, 'Completed:', completedTasks.size, 'Total:', totalTasks);
-      
-      for (const taskId of taskIds) {
-        if (completedTasks.has(taskId)) {
-          console.log('Task already completed:', taskId);
+      for (const taskInfo of taskInfos) {
+        if (completedTasks.has(taskInfo.id)) {
           continue;
         }
 
         try {
-          console.log('Checking task:', taskId);
-          const response = await fetch(`/api/browse-ai/task/${taskId}`);
+          const response = await fetch(`/api/browse-ai/task/${taskInfo.id}`);
           
-          if (!response.ok) {
-            console.error(`Error response from task ${taskId}:`, response.status);
-            continue;
-          }
+          if (!response.ok) continue;
 
           const data = await response.json();
-          console.log('Task response:', data);
 
           if (data.result?.status === 'successful' || data.result?.status === 'completed') {
-            console.log('Task completed:', taskId);
             const newLeads = processLeadsFromResponse(data.result);
-            console.log('New leads found:', newLeads.length);
             
+            // Set the business type from the task info
+            const processedLeads = newLeads.map(lead => ({
+              ...lead,
+              businessType: taskInfo.businessType
+            }));
+
             setLeads(current => {
-              console.log('Current leads before update:', current.length);
               const existingAddresses = new Set(current.map(lead => lead.address));
-              const uniqueNewLeads = newLeads.filter(lead => !existingAddresses.has(lead.address));
-              console.log('Unique new leads:', uniqueNewLeads.length);
-              const updatedLeads = [...current, ...uniqueNewLeads];
-              console.log('Total leads after update:', updatedLeads.length);
-              leadsCountRef.current = updatedLeads.length;
-              return updatedLeads;
+              const uniqueNewLeads = processedLeads.filter(lead => !existingAddresses.has(lead.address));
+              return [...current, ...uniqueNewLeads];
             });
             
-            setCompletedTasks(prev => new Set([...prev, taskId]));
+            setCompletedTasks(prev => new Set([...prev, taskInfo.id]));
           } else if (data.result?.status === 'failed') {
-            console.error(`Task ${taskId} failed:`, data.result?.userFriendlyError || 'No error message');
-            setCompletedTasks(prev => new Set([...prev, taskId]));
-          } else {
-            console.log(`Task ${taskId} still processing:`, data.result?.status);
+            setCompletedTasks(prev => new Set([...prev, taskInfo.id]));
           }
         } catch (error) {
-          console.error('Error polling task:', taskId, error);
+          console.error('Error polling task:', taskInfo.id, error);
         }
       }
 
-      // Update progress based on completed tasks
       const progress = (completedTasks.size / totalTasks) * 100;
       setProgress(progress);
       
-      // Check if all tasks are completed after this run
       if (completedTasks.size === totalTasks) {
-        console.log('All tasks completed');
         setIsPolling(false);
         setLoadingMessage(`Search complete! Found ${leadsCountRef.current} leads`);
       } else {
         setLoadingMessage(`Found ${leadsCountRef.current} leads (${completedTasks.size}/${totalTasks} areas searched)`);
         if (isPolling) {
-          console.log('Scheduling next poll in 10 seconds');
           timeoutId = setTimeout(pollTasks, 10000);
         }
       }
     };
 
-    if (isPolling && taskIds.length > 0) {
-      console.log('Starting polling with task IDs:', taskIds);
+    if (isPolling && taskInfos.length > 0) {
       pollTasks();
     }
 
     return () => {
-      if (timeoutId) {
-        console.log('Cleaning up polling timeout');
-        clearTimeout(timeoutId);
-      }
+      if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [taskIds, completedTasks, isPolling, leads.length]);
+  }, [taskInfos, completedTasks, isPolling, leads.length]);
 
   // Add debug logging for leads updates
   useEffect(() => {
