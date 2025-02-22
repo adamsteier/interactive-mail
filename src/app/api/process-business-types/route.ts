@@ -4,12 +4,14 @@ import { calculateSearchGrid } from '@/utils/gridCalculator';
 export async function POST(req: Request) {
   try {
     const { businessTypes, boundingBox } = await req.json();
+    console.log('Received business types:', businessTypes);
     
     const searchQueries: Array<{ businessType: string; searchUrls: string[] }> = [];
     
     for (const business of businessTypes) {
       // Calculate grid cells for this business type
       const cells = calculateSearchGrid(boundingBox, business.count);
+      console.log(`Grid cells for ${business.name}:`, cells);
       
       // Create search URLs for each cell with the specific business type
       const searchUrls = cells.map(cell => 

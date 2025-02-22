@@ -36,6 +36,8 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
           count: target.estimatedCount
         }));
 
+      console.log('Selected business types:', selectedBusinessTypes);
+
       const response = await fetch('/api/process-business-types', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -50,6 +52,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       }
 
       const data = await response.json();
+      console.log('Grid search queries:', data.searchQueries);
       
       // For each search URL, create a Browse.ai task
       const taskIds = [];
