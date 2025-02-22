@@ -72,21 +72,43 @@ const calculateRadius = (boundingBox: BusinessAnalysis['boundingBox']) => {
 };
 
 const generateSearchGrid = (businessType: string, boundingBox: BusinessAnalysis['boundingBox'], estimatedReach: number) => {
-  // Calculate required grid size
-  const cellsNeeded = Math.ceil(estimatedReach / 60);
-  const gridSize = Math.ceil(Math.sqrt(cellsNeeded));
+  // Calculate area dimensions in meters
+  const totalRadius = calculateRadius(boundingBox);
+  const areaWidth = totalRadius * 2;
   
+  // Google Places optimal search radius is around 50km
+  const optimalSearchRadius = Math.min(50000, totalRadius); // 50km or less
+  
+  // Calculate how many grid points we need to cover the area
+  // with overlapping circles of optimal radius
+  const gridSize = Math.max(
+    Math.ceil(areaWidth / (optimalSearchRadius * 1.5)), // 1.5 for overlap
+    2 // Minimum 2x2 grid
+  );
+
+  console.log(`Area width: ${areaWidth}m`);
+  console.log(`Optimal search radius: ${optimalSearchRadius}m`);
+  console.log(`Grid size: ${gridSize}x${gridSize}`);
+
   const latStep = (boundingBox.northeast.lat - boundingBox.southwest.lat) / (gridSize - 1);
   const lngStep = (boundingBox.northeast.lng - boundingBox.southwest.lng) / (gridSize - 1);
 
-  const searchPoints: Array<{lat: number, lng: number}> = [];
+  const searchPoints: Array<{
+    lat: number;
+    lng: number;
+    radius: number;
+  }> = [];
 
-  // Generate grid points
+  // Generate grid points with their optimal radius
   for (let i = 0; i < gridSize; i++) {
     for (let j = 0; j < gridSize; j++) {
       const lat = boundingBox.southwest.lat + (i * latStep);
       const lng = boundingBox.southwest.lng + (j * lngStep);
-      searchPoints.push({ lat, lng });
+      searchPoints.push({ 
+        lat, 
+        lng,
+        radius: optimalSearchRadius
+      });
     }
   }
 
@@ -201,19 +223,13 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
           totalGridPoints: gridConfig.searchPoints.length
         }]);
 
-        const totalRadius = calculateRadius(boundingBox);
-        const gridRadius = Math.min(
-          totalRadius / (gridConfig.totalPoints * 4),
-          2000
-        );
-        
         // Process each grid point
         for (let i = 0; i < gridConfig.searchPoints.length; i++) {
           const point = gridConfig.searchPoints[i];
           
           console.log(`Searching grid point ${i + 1}/${gridConfig.searchPoints.length}`);
           console.log(`Location: ${point.lat}, ${point.lng}`);
-          console.log(`Radius: ${gridRadius}m`);
+          console.log(`Radius: ${point.radius}m`);
 
           // Update current grid point
           setTaskInfos(current => [{
@@ -227,7 +243,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               location: point,
-              radius: gridRadius,
+              radius: point.radius,
               keyword: businessType
             })
           });
