@@ -18,7 +18,11 @@ interface PlaceSearchResult {
       lng: number;
     };
   };
-  // Add other fields as needed
+  types: string[];
+  business_status?: string;
+  formatted_address?: string;
+  rating?: number;
+  user_ratings_total?: number;
 }
 
 interface PlaceSearchResponse {
