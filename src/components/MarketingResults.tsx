@@ -57,8 +57,9 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       const data = await response.json();
       console.log('Search Queries received:', JSON.stringify(data.searchQueries, null, 2));
       
-      // For each search URL, create a Browse.ai task
-      const taskIds = [];
+      // Create temporary array to collect task IDs
+      const newTaskIds: string[] = [];
+
       for (const query of data.searchQueries) {
         console.log(`\nProcessing business type: ${query.businessType}`);
         console.log(`Number of URLs for this business: ${query.searchUrls.length}`);
@@ -90,7 +91,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
             const browseData = await browseResponse.json();
             console.log('Task created successfully:', browseData.result.id);
-            taskIds.push(browseData.result.task.id);
+            newTaskIds.push(browseData.result.id);  // Add to temporary array
           } catch (error) {
             console.error('Failed to create task for URL:', searchUrl, error);
           }
@@ -98,18 +99,11 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       }
 
       console.log(`\nFinal summary:`);
-      console.log(`Total tasks created: ${taskIds.length}`);
-      console.log(`Task IDs:`, taskIds);
+      console.log(`Total tasks created: ${newTaskIds.length}`);
+      console.log(`Task IDs:`, newTaskIds);
 
-      // Start polling for results
-      const results = await Promise.all(
-        taskIds.map(taskId => pollTaskStatus(taskId))
-      );
-
-      console.log('All tasks completed:', results);
-      // Handle results...
-
-      setTaskIds(taskIds);
+      // Set the state with all collected task IDs
+      setTaskIds(newTaskIds);
       setShowLeadsCollection(true);
 
     } catch (error) {

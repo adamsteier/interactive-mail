@@ -94,13 +94,18 @@ const LeadsCollection = ({ selectedBusinessTypes, allBusinessTypes, taskIds, onC
   const [activeBusinessType, setActiveBusinessType] = useState<string>(selectedBusinessTypes[0]?.type);
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
   const [loadingMessage, setLoadingMessage] = useState<string>('Starting search...');
+  const [isPolling, setIsPolling] = useState(true);
 
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
     const pollTasks = async () => {
       const totalTasks = taskIds.length;
+      let allTasksCompleted = true;
       
       for (const taskId of taskIds) {
         if (!completedTasks.has(taskId)) {
+          allTasksCompleted = false;
           try {
             const response = await fetch(`/api/browse-ai/task/${taskId}`);
             const data: BrowseAIResponse = await response.json();
@@ -108,23 +113,22 @@ const LeadsCollection = ({ selectedBusinessTypes, allBusinessTypes, taskIds, onC
             if (data.result.status === 'completed') {
               // Process and add new leads
               const newLeads = processLeadsFromResponse(data.result);
-              
               setLeads(current => {
-                // Deduplicate leads by address
                 const existingAddresses = new Set(current.map(lead => lead.address));
                 const uniqueNewLeads = newLeads.filter(lead => !existingAddresses.has(lead.address));
-                const updatedLeads = [...current, ...uniqueNewLeads];
-                
-                // Update progress and message inside this callback to ensure we have the latest count
-                const completed = completedTasks.size + 1;
-                setProgress((completed / totalTasks) * 100);
-                setLoadingMessage(`Found ${updatedLeads.length} leads (${completed}/${totalTasks} areas searched)`);
-                
-                return updatedLeads;
+                return [...current, ...uniqueNewLeads];
               });
               
               // Mark task as completed
-              setCompletedTasks(current => new Set([...current, taskId]));
+              setCompletedTasks(prev => new Set([...prev, taskId]));
+              
+              // Update progress
+              const completed = completedTasks.size + 1;
+              setProgress((completed / totalTasks) * 100);
+              setLoadingMessage(`Found ${leads.length} leads (${completed}/${totalTasks} areas searched)`);
+            } else if (data.result.status === 'failed') {
+              console.error(`Task ${taskId} failed`);
+              setCompletedTasks(prev => new Set([...prev, taskId]));
             }
           } catch (error) {
             console.error('Error polling task:', error);
@@ -132,14 +136,24 @@ const LeadsCollection = ({ selectedBusinessTypes, allBusinessTypes, taskIds, onC
         }
       }
 
-      // If not all tasks are complete, continue polling
-      if (completedTasks.size < totalTasks) {
-        setTimeout(pollTasks, 5000);
+      if (allTasksCompleted) {
+        setIsPolling(false);
+        setLoadingMessage(`Search complete! Found ${leads.length} leads`);
+      } else if (isPolling) {
+        timeoutId = setTimeout(pollTasks, 5000);
       }
     };
 
-    pollTasks();
-  }, [taskIds, completedTasks]);
+    if (isPolling) {
+      pollTasks();
+    }
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [taskIds, completedTasks, isPolling, leads.length]);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-charcoal">
