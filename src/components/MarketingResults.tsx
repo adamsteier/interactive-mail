@@ -208,7 +208,13 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
           strategy.totalEstimatedReach
         );
 
-        // Process grid points sequentially
+        // Calculate smaller radius for grid searches
+        const totalRadius = calculateRadius(boundingBox);
+        const gridRadius = Math.min(
+          totalRadius / (gridConfig.totalPoints * 2),
+          5000 // Max 5km per grid point to ensure overlap
+        );
+
         let allPlaces = [...initialData.places];
         for (let i = 0; i < gridConfig.searchPoints.length; i++) {
           const point = gridConfig.searchPoints[i];
@@ -217,7 +223,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               location: point,
-              radius: calculateRadius(boundingBox) / gridConfig.totalPoints,
+              radius: gridRadius, // Use smaller radius for better coverage
               keyword: businessType
             })
           });
@@ -397,6 +403,8 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
         taskInfos[0]?.source === 'google-places' ? (
           <PlacesLeadsCollection
             places={taskInfos[0].places || []}
+            isLoading={taskInfos[0].isLoading}
+            progress={taskInfos[0].progress}
             onClose={() => {
               setShowLeadsCollection(false);
               onClose();
