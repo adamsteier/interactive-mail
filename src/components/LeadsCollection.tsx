@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { BusinessTarget } from '@/types/marketing';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface LeadsCollectionProps {
   selectedBusinessTypes: BusinessTarget[];
@@ -78,11 +79,13 @@ const LeadsCollection = ({ selectedBusinessTypes, allBusinessTypes, taskIds, onC
 
     const pollTasks = async () => {
       const totalTasks = taskIds.length;
+      let completedInThisRun = 0;
       
       console.log('Polling tasks:', taskIds, 'Completed:', completedTasks.size, 'Total:', totalTasks);
       
       for (const taskId of taskIds) {
         if (completedTasks.has(taskId)) {
+          completedInThisRun++;
           console.log('Task already completed:', taskId);
           continue;
         }
@@ -100,6 +103,7 @@ const LeadsCollection = ({ selectedBusinessTypes, allBusinessTypes, taskIds, onC
           console.log('Task response:', data);
 
           if (data.result?.status === 'successful' || data.result?.status === 'completed') {
+            completedInThisRun++;
             console.log('Task completed:', taskId);
             const newLeads = processLeadsFromResponse(data.result);
             console.log('New leads found:', newLeads.length);
@@ -113,20 +117,11 @@ const LeadsCollection = ({ selectedBusinessTypes, allBusinessTypes, taskIds, onC
               return updatedLeads;
             });
             
-            setCompletedTasks(prev => {
-              const updated = new Set(prev).add(taskId);
-              console.log('Updated completed tasks:', updated.size, 'of', taskIds.length);
-              return updated;
-            });
-
-            // Update progress after state updates
-            const completed = completedTasks.size + 1;
-            const progress = (completed / taskIds.length) * 100;
-            setProgress(progress);
-            setLoadingMessage(`Found ${leadsCountRef.current} leads (${completed}/${taskIds.length} areas searched)`);
+            setCompletedTasks(prev => new Set([...prev, taskId]));
           } else if (data.result?.status === 'failed') {
+            completedInThisRun++;
             console.error(`Task ${taskId} failed:`, data.result?.userFriendlyError || 'No error message');
-            setCompletedTasks(prev => new Set(prev).add(taskId));
+            setCompletedTasks(prev => new Set([...prev, taskId]));
           } else {
             console.log(`Task ${taskId} still processing:`, data.result?.status);
           }
@@ -135,16 +130,16 @@ const LeadsCollection = ({ selectedBusinessTypes, allBusinessTypes, taskIds, onC
         }
       }
 
-      // Update progress and message after all tasks are checked
-      const completed = completedTasks.size;
-      setProgress((completed / totalTasks) * 100);
+      // Update progress based on completed tasks
+      const progress = (completedInThisRun / totalTasks) * 100;
+      setProgress(progress);
       
-      if (completed === totalTasks) {
+      if (completedInThisRun === totalTasks) {
         console.log('All tasks completed');
         setIsPolling(false);
         setLoadingMessage(`Search complete! Found ${leadsCountRef.current} leads`);
       } else {
-        setLoadingMessage(`Found ${leadsCountRef.current} leads (${completed}/${totalTasks} areas searched)`);
+        setLoadingMessage(`Found ${leadsCountRef.current} leads (${completedInThisRun}/${totalTasks} areas searched)`);
         if (isPolling) {
           console.log('Scheduling next poll in 10 seconds');
           timeoutId = setTimeout(pollTasks, 10000);
@@ -213,41 +208,50 @@ const LeadsCollection = ({ selectedBusinessTypes, allBusinessTypes, taskIds, onC
 
       {/* Leads Display */}
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {leads
-            .filter(lead => {
-              const matches = lead.businessType.toLowerCase().includes(activeBusinessType.toLowerCase());
-              console.log('Filtering lead:', lead.businessType, activeBusinessType, matches);
-              return matches;
-            })
-            .map((lead, index) => (
-              <div 
-                key={`${lead.name}-${lead.address}-${index}`}
-                className="p-4 rounded-lg border border-electric-teal/30 bg-charcoal/50"
-              >
-                <h3 className="text-electric-teal font-medium">{lead.name}</h3>
-                <p className="text-electric-teal/80 text-sm">{lead.address}</p>
-                {lead.phone && (
-                  <p className="text-electric-teal/60 text-sm">{lead.phone}</p>
-                )}
-                {lead.website && (
-                  <a 
-                    href={lead.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-electric-teal/60 text-sm hover:text-electric-teal block"
-                  >
-                    {lead.website}
-                  </a>
-                )}
-                {lead.rating && (
-                  <p className="text-electric-teal/60 text-sm">
-                    Rating: {lead.rating} ({lead.reviews} reviews)
-                  </p>
-                )}
-              </div>
-            ))}
-        </div>
+        <AnimatePresence mode="popLayout">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {leads
+              .filter(lead => {
+                // Make the filtering more lenient
+                const leadType = lead.businessType.toLowerCase().trim();
+                const activeType = activeBusinessType.toLowerCase().trim();
+                return leadType.includes(activeType) || activeType.includes(leadType);
+              })
+              .map((lead, index) => (
+                <motion.div 
+                  key={`${lead.name}-${lead.address}-${index}`}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.3 }}
+                  className="p-4 rounded-lg border border-electric-teal/30 bg-charcoal/50 transform hover:scale-102 hover:border-electric-teal/50 transition-all"
+                >
+                  <h3 className="text-electric-teal font-medium truncate">{lead.name}</h3>
+                  <p className="text-electric-teal/80 text-sm truncate">{lead.address}</p>
+                  {lead.phone && (
+                    <p className="text-electric-teal/60 text-sm truncate">
+                      {lead.phone}
+                    </p>
+                  )}
+                  {lead.website && (
+                    <a 
+                      href={lead.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-electric-teal/60 text-sm hover:text-electric-teal block truncate"
+                    >
+                      {lead.website}
+                    </a>
+                  )}
+                  {lead.rating && (
+                    <p className="text-electric-teal/60 text-sm">
+                      Rating: {lead.rating} ({lead.reviews} reviews)
+                    </p>
+                  )}
+                </motion.div>
+              ))}
+          </div>
+        </AnimatePresence>
       </div>
     </div>
   );
