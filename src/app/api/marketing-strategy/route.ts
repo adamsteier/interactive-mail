@@ -50,12 +50,12 @@ Please structure your response to be as granular as possible, breaking down each
     "businessTargets": [
       {
         "type": "Legal Offices - Corporate Law",
-        "estimatedCount": 150,
+        "estimatedReach": 150,
         "reasoning": ""
       },
       {
         "type": "Legal Offices - Real Estate Law",
-        "estimatedCount": 100,
+        "estimatedReach": 100,
         "reasoning": ""
       }
       // ... more specific targets
