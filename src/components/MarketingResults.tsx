@@ -71,7 +71,12 @@ const calculateRadius = (boundingBox: BusinessAnalysis['boundingBox']) => {
   return R * c; // Returns radius in meters
 };
 
-const generateSearchGrid = (businessType: string, boundingBox: BusinessAnalysis['boundingBox'], estimatedReach: number) => {
+const generateSearchGrid = (businessType: string, boundingBox: BusinessAnalysis['boundingBox'], estimatedReach: number = 100) => {
+  // Ensure estimatedReach is a number
+  const safeEstimatedReach = typeof estimatedReach === 'number' && !isNaN(estimatedReach) 
+    ? estimatedReach 
+    : 100;
+
   // Calculate area dimensions in meters
   const totalRadius = calculateRadius(boundingBox);
   const areaWidth = totalRadius * 2;
@@ -81,7 +86,7 @@ const generateSearchGrid = (businessType: string, boundingBox: BusinessAnalysis[
   
   // Calculate minimum grid points needed based on both area and estimated reach
   const areaBasedPoints = Math.ceil(areaWidth / (optimalSearchRadius * 1.5)); // 1.5 for overlap
-  const reachBasedPoints = Math.ceil(estimatedReach / 20); // Assume ~20 results per point
+  const reachBasedPoints = Math.ceil(safeEstimatedReach / 20); // Assume ~20 results per point
   
   // Use the larger of the two calculations to ensure coverage
   const gridSize = Math.max(
@@ -90,7 +95,7 @@ const generateSearchGrid = (businessType: string, boundingBox: BusinessAnalysis[
   );
 
   console.log(`Area width: ${areaWidth}m`);
-  console.log(`Estimated reach: ${estimatedReach} businesses`);
+  console.log(`Estimated reach: ${safeEstimatedReach} businesses`);
   console.log(`Area-based grid points: ${areaBasedPoints}`);
   console.log(`Reach-based grid points: ${reachBasedPoints}`);
   console.log(`Final grid size: ${gridSize}x${gridSize}`);
@@ -226,7 +231,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
         const gridConfig = generateSearchGrid(
           businessType, 
           boundingBox,
-          businessTypeConfig.estimatedReach
+          businessTypeConfig.estimatedReach ?? 100 // Fallback to 100 if undefined
         );
 
         console.log(`Starting grid search for ${businessType}`);
@@ -324,7 +329,11 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
                 <h3 className="text-lg text-electric-teal mb-2">Primary Recommendation</h3>
                 <p className="text-electric-teal/80">{strategy.primaryRecommendation}</p>
                 <p className="mt-2 text-sm text-electric-teal/60">
-                  Estimated total reach: {strategy.totalEstimatedReach.toLocaleString()} potential leads
+                  Estimated total reach: {
+                    strategy.totalEstimatedReach != null 
+                      ? strategy.totalEstimatedReach.toLocaleString() 
+                      : 'Unknown'
+                  } potential leads
                 </p>
               </div>
 
@@ -355,7 +364,11 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
                             <h4 className="text-lg font-medium text-electric-teal">{target.type}</h4>
                           </div>
                           <p className="text-electric-teal/60 mb-2">
-                            Estimated number of businesses: {target.estimatedReach.toLocaleString()}
+                            Estimated number of businesses: {
+                              target.estimatedReach != null 
+                                ? target.estimatedReach.toLocaleString() 
+                                : 'Unknown'
+                            }
                           </p>
                           <p className="text-electric-teal/80">{target.reasoning}</p>
                         </div>
