@@ -1,17 +1,21 @@
 import { NextResponse } from 'next/server';
 import https from 'https';
 
+type Params = Promise<{ taskId: string }>;
+
 export async function GET(
   request: Request,
-  { params }: { params: { taskId: string } }
+  { params }: { params: Params }
 ) {
   try {
+    const { taskId } = await params;
+
     // Create a promise-based version of the request
     const makeRequest = () => new Promise((resolve, reject) => {
       const options = {
         method: 'GET',
         hostname: 'api.browse.ai',
-        path: `/v2/robots/${process.env.BROWSE_AI_ROBOT_ID}/tasks/${params.taskId}`,
+        path: `/v2/robots/${process.env.BROWSE_AI_ROBOT_ID}/tasks/${taskId}`,
         headers: {
           'Authorization': `Bearer ${process.env.BROWSE_AI_API_KEY}`
         }

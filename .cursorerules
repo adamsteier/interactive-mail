@@ -1,0 +1,13 @@
+Rule: Next.js 15+ Dynamic Route Parameters
+
+In Next.js 15+ route handlers ([param]/route.ts), params must be handled as Promises:
+
+typescript
+type Params = Promise<{ paramName: string }>;
+export async function GET(
+request: Request,
+{ params }: { params: Params }
+) {
+const { paramName } = await params;
+// Use paramName
+}
