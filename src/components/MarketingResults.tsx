@@ -20,6 +20,8 @@ interface TaskInfo {
   places?: GooglePlace[];
   isLoading?: boolean;
   progress?: number;
+  totalGridPoints?: number;
+  currentGridPoint?: number;
 }
 
 const generateSearchQuery = (businessType: string, boundingBox: BusinessAnalysis['boundingBox']) => {
@@ -168,20 +170,32 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       // Get the first selected business type for initial search
       const firstBusinessType = Array.from(selectedTargets)[0];
       
-      // Initial search to show immediate results
+      // Show loading state immediately
+      setTaskInfos([{
+        id: 'google-places-search',
+        businessType: 'google-places',
+        source: 'google-places',
+        places: [], // Start empty
+        isLoading: true,
+        progress: 0,
+        totalGridPoints: 0,
+        currentGridPoint: 0
+      }]);
+      setShowLeadsCollection(true);
+
+      // Initial center point search
       const center = {
         lat: (boundingBox.northeast.lat + boundingBox.southwest.lat) / 2,
         lng: (boundingBox.northeast.lng + boundingBox.southwest.lng) / 2
       };
       
-      // Start with center point search
       const initialResponse = await fetch('/api/google-places', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           location: center,
           radius: calculateRadius(boundingBox) / 2,
-          keyword: firstBusinessType // Use first business type
+          keyword: firstBusinessType
         })
       });
 
@@ -190,15 +204,13 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       }
 
       const initialData = await initialResponse.json();
-      setTaskInfos([{
-        id: 'google-places-search',
-        businessType: 'google-places',
-        source: 'google-places',
+      
+      // Update with initial results
+      setTaskInfos(current => [{
+        ...current[0],
         places: initialData.places,
-        isLoading: true,
-        progress: 0
+        progress: 5 // Show some initial progress
       }]);
-      setShowLeadsCollection(true);
 
       // Start grid-based search in background
       for (const businessType of selectedTargets) {
@@ -208,40 +220,52 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
           strategy.totalEstimatedReach
         );
 
-        // Calculate smaller radius for grid searches
+        // Update total grid points
+        setTaskInfos(current => [{
+          ...current[0],
+          totalGridPoints: gridConfig.searchPoints.length
+        }]);
+
         const totalRadius = calculateRadius(boundingBox);
         const gridRadius = Math.min(
           totalRadius / (gridConfig.totalPoints * 2),
-          5000 // Max 5km per grid point to ensure overlap
+          5000
         );
 
         let allPlaces = [...initialData.places];
+        
+        // Process each grid point
         for (let i = 0; i < gridConfig.searchPoints.length; i++) {
           const point = gridConfig.searchPoints[i];
+          
+          // Update current grid point
+          setTaskInfos(current => [{
+            ...current[0],
+            currentGridPoint: i + 1,
+            progress: 5 + ((i + 1) / gridConfig.searchPoints.length * 95) // Reserve 5% for initial load
+          }]);
+
           const response = await fetch('/api/google-places', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               location: point,
-              radius: gridRadius, // Use smaller radius for better coverage
+              radius: gridRadius,
               keyword: businessType
             })
           });
 
           if (response.ok) {
             const data = await response.json();
-            // Deduplicate and add new places
             const newPlaces = data.places.filter((newPlace: GooglePlace) => 
               !allPlaces.some(existing => existing.place_id === newPlace.place_id)
             );
             allPlaces = [...allPlaces, ...newPlaces];
 
-            // Update progress
-            const progress = ((i + 1) / gridConfig.searchPoints.length) * 100;
+            // Update places immediately as they come in
             setTaskInfos(current => [{
               ...current[0],
-              places: allPlaces,
-              progress
+              places: allPlaces
             }]);
           }
         }

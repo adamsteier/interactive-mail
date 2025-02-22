@@ -9,9 +9,11 @@ interface PlacesLeadsCollectionProps {
   onClose: () => void;
   isLoading?: boolean;
   progress?: number;
+  totalGridPoints?: number;
+  currentGridPoint?: number;
 }
 
-const PlacesLeadsCollection = ({ places, onClose, isLoading, progress }: PlacesLeadsCollectionProps) => {
+const PlacesLeadsCollection = ({ places, onClose, isLoading, progress, totalGridPoints, currentGridPoint }: PlacesLeadsCollectionProps) => {
   const [activeFilter, setActiveFilter] = useState<string>('all');
   
   // Calculate business type counts
@@ -41,7 +43,8 @@ const PlacesLeadsCollection = ({ places, onClose, isLoading, progress }: PlacesL
             />
           </div>
           <div className="text-electric-teal/60 text-sm px-4 py-1">
-            Searching additional areas... Found {places.length} places so far
+            Searching grid point {currentGridPoint} of {totalGridPoints}... 
+            Found {places.length} places so far
           </div>
         </div>
       )}
