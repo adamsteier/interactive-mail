@@ -34,6 +34,7 @@ const PlacesLeadsCollection = ({ places, onClose, isLoading, progress, totalGrid
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-charcoal">
+      {/* Progress Bar */}
       {isLoading && (
         <div className="fixed top-0 left-0 right-0">
           <div className="h-1 bg-electric-teal/20">
@@ -48,23 +49,19 @@ const PlacesLeadsCollection = ({ places, onClose, isLoading, progress, totalGrid
           </div>
         </div>
       )}
-      {/* Header */}
-      <div className="fixed top-0 left-0 right-0">
+      
+      {/* Header - Add mt-8 when loading */}
+      <div className={`fixed top-0 left-0 right-0 ${isLoading ? 'mt-8' : ''}`}>
         <div className="flex justify-between items-center px-4 py-2">
           <div className="text-electric-teal/60 text-sm">
             Found {places.length} places
           </div>
-          <button
-            onClick={onClose}
-            className="text-electric-teal hover:text-electric-teal/80 transition-colors"
-          >
-            Close
-          </button>
+          <button onClick={onClose}>Close</button>
         </div>
       </div>
 
-      {/* Business Type Filters */}
-      <div className="flex gap-2 p-4 mt-12 flex-wrap">
+      {/* Adjust top margin of filters based on loading state */}
+      <div className={`flex gap-2 p-4 ${isLoading ? 'mt-20' : 'mt-12'} flex-wrap`}>
         <button
           onClick={() => setActiveFilter('all')}
           className={`px-4 py-2 rounded-lg transition-all duration-300 ${

@@ -167,9 +167,6 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
   const handleGoogleSearch = async () => {
     try {
-      // Get the first selected business type for initial search
-      const firstBusinessType = Array.from(selectedTargets)[0];
-      
       // Show loading state immediately
       setTaskInfos([{
         id: 'google-places-search',
@@ -183,42 +180,20 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       }]);
       setShowLeadsCollection(true);
 
-      // Initial center point search
-      const center = {
-        lat: (boundingBox.northeast.lat + boundingBox.southwest.lat) / 2,
-        lng: (boundingBox.northeast.lng + boundingBox.southwest.lng) / 2
-      };
-      
-      const initialResponse = await fetch('/api/google-places', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          location: center,
-          radius: calculateRadius(boundingBox) / 2,
-          keyword: firstBusinessType
-        })
-      });
+      // Track all places across all business types
+      let allPlacesAcrossTypes: GooglePlace[] = [];
 
-      if (!initialResponse.ok) {
-        throw new Error('Failed to fetch initial results');
-      }
-
-      const initialData = await initialResponse.json();
-      
-      // Update with initial results
-      setTaskInfos(current => [{
-        ...current[0],
-        places: initialData.places,
-        progress: 5 // Show some initial progress
-      }]);
-
-      // Start grid-based search in background
+      // Start grid-based search for each business type
       for (const businessType of selectedTargets) {
         const gridConfig = generateSearchGrid(
           businessType, 
           boundingBox,
           strategy.totalEstimatedReach
         );
+
+        console.log(`Starting grid search for ${businessType}`);
+        console.log(`Grid size: ${Math.sqrt(gridConfig.searchPoints.length)}x${Math.sqrt(gridConfig.searchPoints.length)}`);
+        console.log(`Total points: ${gridConfig.searchPoints.length}`);
 
         // Update total grid points
         setTaskInfos(current => [{
@@ -228,21 +203,23 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
         const totalRadius = calculateRadius(boundingBox);
         const gridRadius = Math.min(
-          totalRadius / (gridConfig.totalPoints * 2),
-          5000
+          totalRadius / (gridConfig.totalPoints * 4),
+          2000
         );
-
-        let allPlaces = [...initialData.places];
         
         // Process each grid point
         for (let i = 0; i < gridConfig.searchPoints.length; i++) {
           const point = gridConfig.searchPoints[i];
           
+          console.log(`Searching grid point ${i + 1}/${gridConfig.searchPoints.length}`);
+          console.log(`Location: ${point.lat}, ${point.lng}`);
+          console.log(`Radius: ${gridRadius}m`);
+
           // Update current grid point
           setTaskInfos(current => [{
             ...current[0],
             currentGridPoint: i + 1,
-            progress: 5 + ((i + 1) / gridConfig.searchPoints.length * 95) // Reserve 5% for initial load
+            progress: 5 + ((i + 1) / gridConfig.searchPoints.length * 95)
           }]);
 
           const response = await fetch('/api/google-places', {
@@ -257,27 +234,41 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
           if (response.ok) {
             const data = await response.json();
-            const newPlaces = data.places.filter((newPlace: GooglePlace) => 
-              !allPlaces.some(existing => existing.place_id === newPlace.place_id)
+            console.log(`Found ${data.places.length} new places at point ${i + 1}`);
+            
+            // Add businessType to each place
+            const placesWithType = data.places.map((place: GooglePlace) => ({
+              ...place,
+              businessType
+            }));
+            
+            // Deduplicate against all places found so far
+            const newPlaces = placesWithType.filter((newPlace: GooglePlace) => 
+              !allPlacesAcrossTypes.some(existing => existing.place_id === newPlace.place_id)
             );
-            allPlaces = [...allPlaces, ...newPlaces];
+            
+            console.log(`After deduplication: ${newPlaces.length} unique new places`);
+            
+            allPlacesAcrossTypes = [...allPlacesAcrossTypes, ...newPlaces];
+            console.log(`Total unique places across all types: ${allPlacesAcrossTypes.length}`);
 
-            // Update places immediately as they come in
+            // Update places immediately
             setTaskInfos(current => [{
               ...current[0],
-              places: allPlaces
+              places: allPlacesAcrossTypes
             }]);
           }
         }
-
-        // Final update
-        setTaskInfos(current => [{
-          ...current[0],
-          places: allPlaces,
-          isLoading: false,
-          progress: 100
-        }]);
       }
+
+      // Final update
+      setTaskInfos(current => [{
+        ...current[0],
+        places: allPlacesAcrossTypes,
+        isLoading: false,
+        progress: 100
+      }]);
+
     } catch (error) {
       console.error('Google Places search error:', error);
     }
