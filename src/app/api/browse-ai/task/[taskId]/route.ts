@@ -1,21 +1,13 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-type RouteContext = {
-  params: {
-    taskId: string;
-  }
-}
-
 export async function GET(
   request: NextRequest,
-  context: RouteContext
+  { params }: { params: { taskId: string } }
 ) {
   try {
-    const { taskId } = context.params;
-    
     const response = await fetch(
-      `https://api.browse.ai/v2/robots/${process.env.BROWSE_AI_ROBOT_ID}/tasks/${taskId}`, 
+      `https://api.browse.ai/v2/robots/${process.env.BROWSE_AI_ROBOT_ID}/tasks/${params.taskId}`, 
       {
         headers: {
           'Authorization': `Bearer ${process.env.BROWSE_AI_API_KEY}`,
