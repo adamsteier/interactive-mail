@@ -25,6 +25,10 @@ interface PlaceSearchResult {
   user_ratings_total?: number;
 }
 
+interface ScoredSearchResult extends PlaceSearchResult {
+  relevanceScore: number;
+}
+
 interface PlaceSearchResponse {
   results: PlaceSearchResult[];
   status: string;
@@ -85,19 +89,18 @@ function scoreRelevance(place: PlaceSearchResult, keyword: string): number {
   return score;
 }
 
-async function getAllPlaces(initialUrl: string, keyword: string): Promise<ScoredPlaceDetails[]> {
-  let allResults: PlaceSearchResult[] = [];
+async function getAllPlaces(initialUrl: string, keyword: string): Promise<ScoredSearchResult[]> {
+  let allResults: ScoredSearchResult[] = [];
   let nextPageToken: string | undefined;
   let pageCount = 0;
   const maxPages = 3;
-  const minimumScore = 5; // Require decent relevance
+  const minimumScore = 5;
 
   do {
     const url = nextPageToken 
       ? `${initialUrl}&pagetoken=${nextPageToken}`
       : initialUrl;
     
-    // Google requires a short delay before using a pagetoken
     if (nextPageToken) {
       await new Promise(resolve => setTimeout(resolve, 2000));
     }
@@ -110,7 +113,6 @@ async function getAllPlaces(initialUrl: string, keyword: string): Promise<Scored
       relevanceScore: scoreRelevance(place, keyword)
     }));
 
-    // Stop if results become too irrelevant
     if (scoredResults.every(p => p.relevanceScore < minimumScore)) {
       console.log('Stopping due to low relevance');
       break;
@@ -122,7 +124,6 @@ async function getAllPlaces(initialUrl: string, keyword: string): Promise<Scored
 
   } while (nextPageToken && pageCount < maxPages);
 
-  // Filter and sort by relevance
   return allResults
     .filter(place => place.relevanceScore >= minimumScore)
     .sort((a, b) => b.relevanceScore - a.relevanceScore);
