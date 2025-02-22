@@ -103,14 +103,25 @@ const LeadsCollection = ({ selectedBusinessTypes, allBusinessTypes, taskIds, onC
       const totalTasks = taskIds.length;
       let allTasksCompleted = true;
       
+      console.log('Polling tasks:', taskIds);
+      
       for (const taskId of taskIds) {
         if (!completedTasks.has(taskId)) {
           allTasksCompleted = false;
           try {
+            console.log('Checking task:', taskId);
             const response = await fetch(`/api/browse-ai/task/${taskId}`);
-            const data: BrowseAIResponse = await response.json();
+            
+            if (!response.ok) {
+              console.error(`Error response from task ${taskId}:`, response.status);
+              continue;
+            }
 
-            if (data.result.status === 'completed') {
+            const data = await response.json();
+            console.log('Task response:', data);
+
+            if (data.result?.status === 'successful' || data.result?.status === 'completed') {
+              console.log('Task completed:', taskId);
               // Process and add new leads
               const newLeads = processLeadsFromResponse(data.result);
               setLeads(current => {
@@ -126,30 +137,36 @@ const LeadsCollection = ({ selectedBusinessTypes, allBusinessTypes, taskIds, onC
               const completed = completedTasks.size + 1;
               setProgress((completed / totalTasks) * 100);
               setLoadingMessage(`Found ${leads.length} leads (${completed}/${totalTasks} areas searched)`);
-            } else if (data.result.status === 'failed') {
-              console.error(`Task ${taskId} failed`);
+            } else if (data.result?.status === 'failed') {
+              console.error(`Task ${taskId} failed:`, data.result?.userFriendlyError || 'No error message');
               setCompletedTasks(prev => new Set([...prev, taskId]));
+            } else {
+              console.log(`Task ${taskId} still processing:`, data.result?.status);
             }
           } catch (error) {
-            console.error('Error polling task:', error);
+            console.error('Error polling task:', taskId, error);
           }
         }
       }
 
       if (allTasksCompleted) {
+        console.log('All tasks completed');
         setIsPolling(false);
         setLoadingMessage(`Search complete! Found ${leads.length} leads`);
       } else if (isPolling) {
-        timeoutId = setTimeout(pollTasks, 5000);
+        console.log('Scheduling next poll in 10 seconds');
+        timeoutId = setTimeout(pollTasks, 10000); // Increased to 10 seconds
       }
     };
 
-    if (isPolling) {
+    if (isPolling && taskIds.length > 0) {
+      console.log('Starting polling with task IDs:', taskIds);
       pollTasks();
     }
 
     return () => {
       if (timeoutId) {
+        console.log('Cleaning up polling timeout');
         clearTimeout(timeoutId);
       }
     };

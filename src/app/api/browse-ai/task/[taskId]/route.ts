@@ -9,6 +9,8 @@ export async function GET(
 ) {
   try {
     const { taskId } = await params;
+    console.log('Fetching task:', taskId);
+    console.log('Using API key:', process.env.BROWSE_AI_API_KEY?.slice(0, 5) + '...');
 
     // Create a promise-based version of the request
     const makeRequest = () => new Promise((resolve, reject) => {
@@ -17,9 +19,18 @@ export async function GET(
         hostname: 'api.browse.ai',
         path: `/v2/robots/${process.env.BROWSE_AI_ROBOT_ID}/tasks/${taskId}`,
         headers: {
-          'Authorization': `Bearer ${process.env.BROWSE_AI_API_KEY}`
+          'Authorization': `Bearer ${process.env.BROWSE_AI_API_KEY}`,
+          'Accept': 'application/json'
         }
       };
+
+      console.log('Making request with options:', {
+        ...options,
+        headers: {
+          ...options.headers,
+          'Authorization': 'Bearer ' + process.env.BROWSE_AI_API_KEY?.slice(0, 5) + '...'
+        }
+      });
 
       const req = https.request(options, (response) => {
         const chunks: Buffer[] = [];
@@ -28,11 +39,16 @@ export async function GET(
 
         response.on('end', () => {
           const body = Buffer.concat(chunks).toString();
+          console.log('Browse AI Response:', body);
           resolve(JSON.parse(body));
         });
       });
 
-      req.on('error', (error) => reject(error));
+      req.on('error', (error) => {
+        console.error('Request error:', error);
+        reject(error);
+      });
+      
       req.end();
     });
 
