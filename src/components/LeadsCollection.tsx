@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 interface LeadsCollectionProps {
   taskIds: string[];
@@ -244,45 +244,61 @@ const LeadsCollection = ({ taskIds, onClose }: LeadsCollectionProps) => {
         ))}
       </div>
 
-      {/* Leads Display */}
-      <div className="flex-1 overflow-y-auto p-4">
-        <AnimatePresence mode="popLayout">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredLeads.map((lead, index) => (
-              <motion.div 
-                key={`${lead.name}-${lead.address}-${index}`}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.3, delay: index * 0.05 }}
-                className="p-4 rounded-lg border border-electric-teal/30 bg-charcoal/50 hover:scale-105 hover:border-electric-teal/50 transition-all"
-              >
-                <h3 className="text-electric-teal font-medium truncate">{lead.name}</h3>
-                <p className="text-electric-teal/80 text-sm whitespace-pre-line">
-                  {lead.address}
-                </p>
-                {lead.website && (
-                  <a 
-                    href={lead.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-electric-teal/60 text-sm hover:text-electric-teal block truncate mt-2"
-                  >
-                    {lead.website}
-                  </a>
-                )}
-                {lead.rating && (
-                  <p className="text-electric-teal/60 text-sm flex items-center gap-1 mt-2">
-                    <span>Rating: {lead.rating}</span>
-                    {lead.reviews && (
-                      <span className="text-electric-teal/40">({lead.reviews} reviews)</span>
+      {/* Leads Table Container */}
+      <div className="flex-1 overflow-hidden p-4">
+        <div className="h-full overflow-auto">
+          <table className="w-full min-w-[1024px] border-collapse">
+            <thead className="sticky top-0 bg-charcoal z-10">
+              <tr className="text-electric-teal/60 text-left">
+                <th className="p-2 w-[20%]">Business Name</th>
+                <th className="p-2 w-[15%]">Type</th>
+                <th className="p-2 w-[25%]">Address</th>
+                <th className="p-2 w-[10%]">Phone</th>
+                <th className="p-2 w-[5%]">Rating</th>
+                <th className="p-2 w-[5%]">Reviews</th>
+                <th className="p-2 w-[10%]">Status</th>
+                <th className="p-2 w-[10%]">Website</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredLeads.map((lead, index) => (
+                <motion.tr
+                  key={`${lead.name}-${lead.address}-${index}`}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: index * 0.05 }}
+                  className="border-b border-electric-teal/10 text-electric-teal/80 hover:bg-electric-teal/5"
+                >
+                  <td className="p-2 truncate">{lead.name}</td>
+                  <td className="p-2 truncate">{lead.businessType}</td>
+                  <td className="p-2">
+                    <div className="max-h-20 overflow-y-auto whitespace-pre-line">
+                      {lead.address}
+                    </div>
+                  </td>
+                  <td className="p-2 truncate">{lead.phone}</td>
+                  <td className="p-2">{lead.rating}</td>
+                  <td className="p-2">{lead.reviews}</td>
+                  <td className="p-2 truncate">
+                    {lead.address.match(/Open|Closed[^·]*/)?.[0] || ''}
+                  </td>
+                  <td className="p-2">
+                    {lead.website && (
+                      <a
+                        href={lead.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-electric-teal hover:text-electric-teal/80"
+                      >
+                        Visit
+                      </a>
                     )}
-                  </p>
-                )}
-              </motion.div>
-            ))}
-          </div>
-        </AnimatePresence>
+                  </td>
+                </motion.tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
