@@ -19,16 +19,28 @@ export async function POST(req: Request) {
       1. The specific industry classification for this business
       2. A clear, factual description of what this business does (avoid words like "likely" or "probably")
       3. The primary customer types for this business
+      4. A bounding box for ${targetArea} that would work well for Google Maps searches
+         (provide coordinates that encompass the target area)
 
       Format your response as JSON:
       {
         "industry": "specific industry name",
         "description": "clear, factual description",
-        "customerTypes": ["type1", "type2", "type3"]
+        "customerTypes": ["type1", "type2", "type3"],
+        "boundingBox": {
+          "southwest": { "lat": 53.4, "lng": -113.7 },
+          "northeast": { "lat": 53.7, "lng": -113.2 }
+        }
+      }
+
+      Example for Edmonton:
+      "boundingBox": {
+        "southwest": { "lat": 53.4, "lng": -113.7 },
+        "northeast": { "lat": 53.7, "lng": -113.2 }
       }`;
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4-turbo-preview",
+      model: "chatgpt-4o-latest",
       messages: [
         {
           role: "system",

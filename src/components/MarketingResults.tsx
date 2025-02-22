@@ -2,13 +2,15 @@
 
 import { useState } from 'react';
 import { MarketingStrategy, BusinessTarget, DatabaseTarget } from '@/types/marketing';
+import { BusinessAnalysis } from '@/types/businessAnalysis';
 
 interface MarketingResultsProps {
   strategy: MarketingStrategy;
+  boundingBox: BusinessAnalysis['boundingBox'];
   onClose: () => void;
 }
 
-const MarketingResults = ({ strategy, onClose }: MarketingResultsProps) => {
+const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsProps) => {
   const [selectedTargets, setSelectedTargets] = useState<Set<string>>(new Set());
 
   const handleCheckboxChange = (targetType: string) => {
@@ -23,10 +25,84 @@ const MarketingResults = ({ strategy, onClose }: MarketingResultsProps) => {
     });
   };
 
-  const handleGetData = () => {
-    // For now, just log the selected targets
-    console.log('Selected targets:', Array.from(selectedTargets));
-    // We'll implement the data fetching later
+  const handleGetData = async () => {
+    try {
+      // First get the grid cells from our process-business-types endpoint
+      const response = await fetch('/api/process-business-types', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessTypes: Array.from(selectedTargets).map(type => ({
+            name: type,
+            count: strategy.method1Analysis.businessTargets.find(t => t.type === type)?.estimatedCount || 0
+          })),
+          boundingBox
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to process business types');
+      }
+
+      const data = await response.json();
+      
+      // For each search URL, create a Browse.ai task
+      const taskIds = [];
+      for (const query of data.searchQueries) {
+        for (const searchUrl of query.searchUrls) {
+          const browseResponse = await fetch('/api/browse-ai', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              inputParameters: {
+                originUrl: searchUrl
+              },
+              recordVideo: false
+            })
+          });
+
+          if (!browseResponse.ok) {
+            throw new Error('Failed to create Browse.ai task');
+          }
+
+          const browseData = await browseResponse.json();
+          taskIds.push(browseData.result.task.id);
+        }
+      }
+
+      // Start polling for results
+      const results = await Promise.all(
+        taskIds.map(taskId => pollTaskStatus(taskId))
+      );
+
+      console.log('All tasks completed:', results);
+      // Handle results...
+
+    } catch (error) {
+      console.error('Error:', error);
+      // Handle error...
+    }
+  };
+
+  const pollTaskStatus = async (taskId: string): Promise<any> => {
+    while (true) {
+      const response = await fetch(`/api/browse-ai/task/${taskId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch task status');
+      }
+
+      const data = await response.json();
+      if (data.result.status === 'completed') {
+        return data.result.capturedLists;
+      } else if (data.result.status === 'failed') {
+        throw new Error('Task failed');
+      }
+
+      // Wait 5 seconds before checking again
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
   };
 
   return (
