@@ -88,9 +88,6 @@ function scoreRelevance(place: PlaceSearchResult, keyword: string): number {
 async function getAllPlaces(initialUrl: string, keyword: string): Promise<ScoredSearchResult[]> {
   let allResults: ScoredSearchResult[] = [];
   let nextPageToken: string | undefined;
-  let pageCount = 0;
-  const maxPages = 3;
-  const minimumScore = 5;
 
   do {
     const url = nextPageToken 
@@ -109,20 +106,13 @@ async function getAllPlaces(initialUrl: string, keyword: string): Promise<Scored
       relevanceScore: scoreRelevance(place, keyword)
     }));
 
-    if (scoredResults.every(p => p.relevanceScore < minimumScore)) {
-      console.log('Stopping due to low relevance');
-      break;
-    }
-
     allResults = [...allResults, ...scoredResults];
     nextPageToken = data.next_page_token;
-    pageCount++;
 
-  } while (nextPageToken && pageCount < maxPages);
+  } while (nextPageToken);
 
-  return allResults
-    .filter(place => place.relevanceScore >= minimumScore)
-    .sort((a, b) => b.relevanceScore - a.relevanceScore);
+  // Sort by relevance but don't filter
+  return allResults.sort((a, b) => b.relevanceScore - a.relevanceScore);
 }
 
 export async function POST(request: Request) {
