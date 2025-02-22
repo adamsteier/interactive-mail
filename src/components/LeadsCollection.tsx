@@ -43,48 +43,81 @@ interface TaskInfo {
   businessType: string;
 }
 
-const processLeadsFromResponse = (result: BrowseAIResult, taskBusinessType: string): Lead[] => {
-  if (!result.capturedLists || !result.capturedLists['Search Results']) {
-    console.log('No search results found in response');
-    return [];
+interface GooglePlace {
+  name: string;
+  formatted_address: string;
+  formatted_phone_number?: string;
+  website?: string;
+  rating?: number;
+  user_ratings_total?: number;
+  business_status: string;
+  opening_hours?: {
+    open_now: boolean;
+    weekday_text?: string[];
+  };
+  types: string[];
+  businessType: string; // Our search category
+}
+
+const processLeadsFromResponse = (result: BrowseAIResult | GooglePlace[], taskBusinessType: string): Lead[] => {
+  if (Array.isArray(result)) {
+    // Handle Google Places data
+    return result.map(place => ({
+      name: place.name,
+      businessType: place.businessType,
+      rawBusinessType: place.types[0],
+      address: place.formatted_address,
+      status: place.business_status,
+      hours: place.opening_hours?.weekday_text?.join('\n') || '',
+      phone: place.formatted_phone_number,
+      website: place.website,
+      rating: place.rating?.toString(),
+      reviews: place.user_ratings_total,
+      fullInfo: JSON.stringify(place)
+    }));
+  } else {
+    if (!result.capturedLists || !result.capturedLists['Search Results']) {
+      console.log('No search results found in response');
+      return [];
+    }
+
+    console.log('Processing raw results:', result.capturedLists['Search Results']);
+    
+    const processed = result.capturedLists['Search Results'].map((item: SearchResultItem) => {
+      const info = item.Information || '';
+      const infoLines = info.split('\n');
+      
+      // Parse first line which contains business type and address
+      const [typeAndAddress = '', ...otherLines] = infoLines;
+      const [rawType = '', rawAddress = ''] = typeAndAddress.split(' · ').map(s => s.trim());
+      
+      // Parse second line which contains status, hours, and phone
+      const statusLine = otherLines.join(' ');
+      const status = statusLine.match(/^(Open|Closed)[^·]*/)?.[0]?.trim() || '';
+      const hours = statusLine.match(/·([^·]+)·/)?.[1]?.trim() || '';
+      const phone = statusLine.match(/[+]1 \d{3}[-]\d{3}[-]\d{4}|[(]\d{3}[)] \d{3}[-]\d{4}/)?.[0] || '';
+
+      const lead = {
+        name: item.Title || '',
+        businessType: taskBusinessType, // Use the business type from the task
+        rawBusinessType: rawType, // Store the raw business type from the result
+        address: rawAddress || typeAndAddress, // Use full line if no address parsed
+        status,
+        hours,
+        phone,
+        website: item.Link || '',
+        rating: item.Rating || '',
+        reviews: item.Review ? parseInt(item.Review) : undefined,
+        fullInfo: info // Keep the full info for reference
+      };
+      
+      console.log('Processed lead:', lead);
+      return lead;
+    });
+
+    console.log('Total processed leads:', processed.length);
+    return processed;
   }
-
-  console.log('Processing raw results:', result.capturedLists['Search Results']);
-  
-  const processed = result.capturedLists['Search Results'].map((item: SearchResultItem) => {
-    const info = item.Information || '';
-    const infoLines = info.split('\n');
-    
-    // Parse first line which contains business type and address
-    const [typeAndAddress = '', ...otherLines] = infoLines;
-    const [rawType = '', rawAddress = ''] = typeAndAddress.split(' · ').map(s => s.trim());
-    
-    // Parse second line which contains status, hours, and phone
-    const statusLine = otherLines.join(' ');
-    const status = statusLine.match(/^(Open|Closed)[^·]*/)?.[0]?.trim() || '';
-    const hours = statusLine.match(/·([^·]+)·/)?.[1]?.trim() || '';
-    const phone = statusLine.match(/[+]1 \d{3}[-]\d{3}[-]\d{4}|[(]\d{3}[)] \d{3}[-]\d{4}/)?.[0] || '';
-
-    const lead = {
-      name: item.Title || '',
-      businessType: taskBusinessType, // Use the business type from the task
-      rawBusinessType: rawType, // Store the raw business type from the result
-      address: rawAddress || typeAndAddress, // Use full line if no address parsed
-      status,
-      hours,
-      phone,
-      website: item.Link || '',
-      rating: item.Rating || '',
-      reviews: item.Review ? parseInt(item.Review) : undefined,
-      fullInfo: info // Keep the full info for reference
-    };
-    
-    console.log('Processed lead:', lead);
-    return lead;
-  });
-
-  console.log('Total processed leads:', processed.length);
-  return processed;
 };
 
 const LeadsCollection = ({ taskInfos, onClose }: LeadsCollectionProps) => {

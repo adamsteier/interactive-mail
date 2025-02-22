@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { MarketingStrategy, BusinessTarget, DatabaseTarget } from '@/types/marketing';
 import { BusinessAnalysis } from '@/types/businessAnalysis';
 import LeadsCollection from '@/components/LeadsCollection';
+import PlacesLeadsCollection from '@/components/PlacesLeadsCollection';
 
 interface MarketingResultsProps {
   strategy: MarketingStrategy;
@@ -13,6 +14,24 @@ interface MarketingResultsProps {
 
 interface TaskInfo {
   id: string;
+  businessType: string;
+  source: 'browse-ai' | 'google-places';
+  places?: GooglePlace[]; // Optional field for Google Places data
+}
+
+interface GooglePlace {
+  name: string;
+  formatted_address: string;
+  formatted_phone_number?: string;
+  website?: string;
+  rating?: number;
+  user_ratings_total?: number;
+  business_status: string;
+  opening_hours?: {
+    open_now: boolean;
+    weekday_text?: string[];
+  };
+  types: string[];
   businessType: string;
 }
 
@@ -43,6 +62,24 @@ const generateSearchQuery = (businessType: string, boundingBox: BusinessAnalysis
     businessType,
     searchUrls
   };
+};
+
+const calculateRadius = (boundingBox: BusinessAnalysis['boundingBox']) => {
+  const R = 6371e3; // Earth's radius in meters
+  const lat1 = boundingBox.southwest.lat * Math.PI / 180;
+  const lat2 = boundingBox.northeast.lat * Math.PI / 180;
+  const lon1 = boundingBox.southwest.lng * Math.PI / 180;
+  const lon2 = boundingBox.northeast.lng * Math.PI / 180;
+
+  const dLat = lat2 - lat1;
+  const dLon = lon2 - lon1;
+
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+          Math.cos(lat1) * Math.cos(lat2) *
+          Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+  return R * c; // Returns radius in meters
 };
 
 const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsProps) => {
@@ -96,7 +133,8 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
             // Store task ID with its business type
             newTaskInfos.push({
               id: browseData.result.id,
-              businessType
+              businessType,
+              source: 'browse-ai'
             });
           } catch (error) {
             console.error('Failed to create task for URL:', searchUrl, error);
@@ -109,6 +147,54 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       setShowLeadsCollection(true);
     } catch (error) {
       console.error('Error:', error);
+    }
+  };
+
+  const handleGoogleSearch = async () => {
+    try {
+      const center = {
+        lat: (boundingBox.northeast.lat + boundingBox.southwest.lat) / 2,
+        lng: (boundingBox.northeast.lng + boundingBox.southwest.lng) / 2
+      };
+      
+      const radius = calculateRadius(boundingBox);
+      const searchPromises = Array.from(selectedTargets).map(async (businessType) => {
+        const response = await fetch('/api/google-places', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            location: center,
+            radius,
+            type: businessType.toLowerCase()
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch places for ${businessType}`);
+        }
+
+        const data = await response.json();
+        return data.places.map((place: GooglePlace) => ({
+          ...place,
+          businessType // Add the search category
+        }));
+      });
+
+      const results = await Promise.all(searchPromises);
+      const allPlaces = results.flat();
+      
+      // Convert to task info format for compatibility
+      const taskInfo: TaskInfo = {
+        id: 'google-places-search',
+        businessType: 'google-places',
+        source: 'google-places',
+        places: allPlaces
+      };
+
+      setTaskInfos([taskInfo]);
+      setShowLeadsCollection(true);
+    } catch (error) {
+      console.error('Google Places search error:', error);
     }
   };
 
@@ -236,7 +322,16 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
                       text-electric-teal shadow-glow hover:bg-electric-teal/20 hover:shadow-glow-strong 
                       active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {selectedTargets.size === 0 ? 'Select some businesses to get data' : 'Get Data'}
+                    {selectedTargets.size === 0 ? 'Select some businesses to get data' : 'Scrape Data'}
+                  </button>
+                  <button
+                    onClick={handleGoogleSearch}
+                    disabled={selectedTargets.size === 0}
+                    className="rounded border-2 border-electric-teal bg-electric-teal/10 px-6 py-2 
+                      text-electric-teal shadow-glow hover:bg-electric-teal/20 hover:shadow-glow-strong 
+                      active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {selectedTargets.size === 0 ? 'Select some businesses to get data' : 'Google Search'}
                   </button>
                 </div>
               </div>
@@ -244,13 +339,23 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
           </div>
         </div>
       ) : (
-        <LeadsCollection
-          taskInfos={taskInfos}
-          onClose={() => {
-            setShowLeadsCollection(false);
-            onClose();
-          }}
-        />
+        taskInfos[0]?.source === 'google-places' ? (
+          <PlacesLeadsCollection
+            places={taskInfos[0].places || []}
+            onClose={() => {
+              setShowLeadsCollection(false);
+              onClose();
+            }}
+          />
+        ) : (
+          <LeadsCollection
+            taskInfos={taskInfos}
+            onClose={() => {
+              setShowLeadsCollection(false);
+              onClose();
+            }}
+          />
+        )
       )}
     </>
   );
