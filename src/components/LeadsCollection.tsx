@@ -20,11 +20,51 @@ interface Lead {
   businessType: string;
 }
 
+interface BrowseAIBusiness {
+  name: string;
+  address: string;
+  phone?: string;
+  website?: string;
+  rating?: string;
+  reviews?: string;
+}
+
+interface BrowseAIResponse {
+  result: {
+    status: string;
+    capturedLists: {
+      businesses: BrowseAIBusiness[];
+    };
+    inputParameters: {
+      google_map_url: string;
+    };
+  };
+}
+
+const processLeadsFromResponse = (result: BrowseAIResponse['result']): Lead[] => {
+  const leads: Lead[] = [];
+  
+  if (result.capturedLists && result.capturedLists.businesses) {
+    leads.push(...result.capturedLists.businesses.map((business: BrowseAIBusiness) => ({
+      name: business.name || '',
+      address: business.address || '',
+      phone: business.phone,
+      website: business.website,
+      rating: business.rating,
+      reviews: business.reviews ? parseInt(business.reviews) : undefined,
+      businessType: result.inputParameters.google_map_url.split('/search/')[1].split('@')[0]
+    })));
+  }
+
+  return leads;
+};
+
 const LeadsCollection = ({ selectedBusinessTypes, allBusinessTypes, taskIds, onClose }: LeadsCollectionProps) => {
   const [progress, setProgress] = useState(0);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [activeBusinessType, setActiveBusinessType] = useState<string>(selectedBusinessTypes[0]?.type);
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
+  const [loadingMessage, setLoadingMessage] = useState<string>('Starting search...');
 
   useEffect(() => {
     const pollTasks = async () => {
@@ -34,18 +74,28 @@ const LeadsCollection = ({ selectedBusinessTypes, allBusinessTypes, taskIds, onC
         if (!completedTasks.has(taskId)) {
           try {
             const response = await fetch(`/api/browse-ai/task/${taskId}`);
-            const data = await response.json();
+            const data: BrowseAIResponse = await response.json();
 
             if (data.result.status === 'completed') {
-              // Add new leads
+              // Process and add new leads
               const newLeads = processLeadsFromResponse(data.result);
-              setLeads(current => [...current, ...newLeads]);
+              
+              setLeads(current => {
+                // Deduplicate leads by address
+                const existingAddresses = new Set(current.map(lead => lead.address));
+                const uniqueNewLeads = newLeads.filter(lead => !existingAddresses.has(lead.address));
+                const updatedLeads = [...current, ...uniqueNewLeads];
+                
+                // Update progress and message inside this callback to ensure we have the latest count
+                const completed = completedTasks.size + 1;
+                setProgress((completed / totalTasks) * 100);
+                setLoadingMessage(`Found ${updatedLeads.length} leads (${completed}/${totalTasks} areas searched)`);
+                
+                return updatedLeads;
+              });
               
               // Mark task as completed
               setCompletedTasks(current => new Set([...current, taskId]));
-              
-              // Update progress
-              setProgress(completedTasks.size / totalTasks * 100);
             }
           } catch (error) {
             console.error('Error polling task:', error);
@@ -64,12 +114,25 @@ const LeadsCollection = ({ selectedBusinessTypes, allBusinessTypes, taskIds, onC
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-charcoal">
-      {/* Progress Bar */}
-      <div className="fixed top-0 left-0 right-0 h-2 bg-electric-teal/20">
-        <div 
-          className="h-full bg-electric-teal transition-all duration-500"
-          style={{ width: `${progress}%` }}
-        />
+      {/* Progress Bar and Loading Message */}
+      <div className="fixed top-0 left-0 right-0">
+        <div className="h-2 bg-electric-teal/20">
+          <div 
+            className="h-full bg-electric-teal transition-all duration-500"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        <div className="flex justify-between items-center px-4 py-2">
+          <div className="text-electric-teal/60 text-sm">
+            {loadingMessage}
+          </div>
+          <button
+            onClick={onClose}
+            className="text-electric-teal hover:text-electric-teal/80 transition-colors"
+          >
+            Close
+          </button>
+        </div>
       </div>
 
       {/* Business Type Selector */}
