@@ -32,7 +32,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       const selectedBusinessTypes = strategy.method1Analysis.businessTargets
         .filter(target => selectedTargets.has(target.type))
         .map(target => ({
-          name: target.type,  // Use the full business type name
+          name: target.type,
           count: target.estimatedCount
         }));
 
@@ -57,7 +57,9 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       // For each search URL, create a Browse.ai task
       const taskIds = [];
       for (const query of data.searchQueries) {
+        console.log(`Creating tasks for ${query.businessType}`);
         for (const searchUrl of query.searchUrls) {
+          console.log('Creating task with URL:', searchUrl);
           const browseResponse = await fetch('/api/browse-ai', {
             method: 'POST',
             headers: {
@@ -76,6 +78,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
           }
 
           const browseData = await browseResponse.json();
+          console.log('Browse.ai response:', browseData);
           taskIds.push(browseData.result.task.id);
         }
       }
