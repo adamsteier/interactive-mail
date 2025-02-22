@@ -7,9 +7,11 @@ import { GooglePlace } from '@/types/places';
 interface PlacesLeadsCollectionProps {
   places: GooglePlace[];
   onClose: () => void;
+  isLoading?: boolean;
+  progress?: number;
 }
 
-const PlacesLeadsCollection = ({ places, onClose }: PlacesLeadsCollectionProps) => {
+const PlacesLeadsCollection = ({ places, onClose, isLoading, progress }: PlacesLeadsCollectionProps) => {
   const [activeFilter, setActiveFilter] = useState<string>('all');
   
   // Calculate business type counts
@@ -30,6 +32,19 @@ const PlacesLeadsCollection = ({ places, onClose }: PlacesLeadsCollectionProps) 
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-charcoal">
+      {isLoading && (
+        <div className="fixed top-0 left-0 right-0">
+          <div className="h-1 bg-electric-teal/20">
+            <div 
+              className="h-full bg-electric-teal transition-all duration-500"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <div className="text-electric-teal/60 text-sm px-4 py-1">
+            Searching additional areas... Found {places.length} places so far
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="fixed top-0 left-0 right-0">
         <div className="flex justify-between items-center px-4 py-2">

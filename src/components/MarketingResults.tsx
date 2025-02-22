@@ -18,6 +18,8 @@ interface TaskInfo {
   businessType: string;
   source: 'browse-ai' | 'google-places';
   places?: GooglePlace[];
+  isLoading?: boolean;
+  progress?: number;
 }
 
 const generateSearchQuery = (businessType: string, boundingBox: BusinessAnalysis['boundingBox']) => {
@@ -65,6 +67,32 @@ const calculateRadius = (boundingBox: BusinessAnalysis['boundingBox']) => {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 
   return R * c; // Returns radius in meters
+};
+
+const generateSearchGrid = (businessType: string, boundingBox: BusinessAnalysis['boundingBox'], estimatedReach: number) => {
+  // Calculate required grid size
+  const cellsNeeded = Math.ceil(estimatedReach / 60);
+  const gridSize = Math.ceil(Math.sqrt(cellsNeeded));
+  
+  const latStep = (boundingBox.northeast.lat - boundingBox.southwest.lat) / (gridSize - 1);
+  const lngStep = (boundingBox.northeast.lng - boundingBox.southwest.lng) / (gridSize - 1);
+
+  const searchPoints: Array<{lat: number, lng: number}> = [];
+
+  // Generate grid points
+  for (let i = 0; i < gridSize; i++) {
+    for (let j = 0; j < gridSize; j++) {
+      const lat = boundingBox.southwest.lat + (i * latStep);
+      const lng = boundingBox.southwest.lng + (j * lngStep);
+      searchPoints.push({ lat, lng });
+    }
+  }
+
+  return {
+    businessType,
+    searchPoints,
+    totalPoints: searchPoints.length
+  };
 };
 
 const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsProps) => {
@@ -137,47 +165,89 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
   const handleGoogleSearch = async () => {
     try {
+      // Get the first selected business type for initial search
+      const firstBusinessType = Array.from(selectedTargets)[0];
+      
+      // Initial search to show immediate results
       const center = {
         lat: (boundingBox.northeast.lat + boundingBox.southwest.lat) / 2,
         lng: (boundingBox.northeast.lng + boundingBox.southwest.lng) / 2
       };
       
-      const radius = calculateRadius(boundingBox);
-      const searchPromises = Array.from(selectedTargets).map(async (businessType) => {
-        const response = await fetch('/api/google-places', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            location: center,
-            radius,
-            keyword: businessType // Send the exact business type
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch places for ${businessType}`);
-        }
-
-        const data = await response.json();
-        return data.places.map((place: GooglePlace) => ({
-          ...place,
-          businessType // Add the search category
-        }));
+      // Start with center point search
+      const initialResponse = await fetch('/api/google-places', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: center,
+          radius: calculateRadius(boundingBox) / 2,
+          keyword: firstBusinessType // Use first business type
+        })
       });
 
-      const results = await Promise.all(searchPromises);
-      const allPlaces = results.flat();
-      
-      // Convert to task info format for compatibility
-      const taskInfo: TaskInfo = {
+      if (!initialResponse.ok) {
+        throw new Error('Failed to fetch initial results');
+      }
+
+      const initialData = await initialResponse.json();
+      setTaskInfos([{
         id: 'google-places-search',
         businessType: 'google-places',
         source: 'google-places',
-        places: allPlaces
-      };
-
-      setTaskInfos([taskInfo]);
+        places: initialData.places,
+        isLoading: true,
+        progress: 0
+      }]);
       setShowLeadsCollection(true);
+
+      // Start grid-based search in background
+      for (const businessType of selectedTargets) {
+        const gridConfig = generateSearchGrid(
+          businessType, 
+          boundingBox,
+          strategy.totalEstimatedReach
+        );
+
+        // Process grid points sequentially
+        let allPlaces = [...initialData.places];
+        for (let i = 0; i < gridConfig.searchPoints.length; i++) {
+          const point = gridConfig.searchPoints[i];
+          const response = await fetch('/api/google-places', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              location: point,
+              radius: calculateRadius(boundingBox) / gridConfig.totalPoints,
+              keyword: businessType
+            })
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            // Deduplicate and add new places
+            const newPlaces = data.places.filter((newPlace: GooglePlace) => 
+              !allPlaces.some(existing => existing.place_id === newPlace.place_id)
+            );
+            allPlaces = [...allPlaces, ...newPlaces];
+
+            // Update progress
+            const progress = ((i + 1) / gridConfig.searchPoints.length) * 100;
+            setTaskInfos(current => [{
+              ...current[0],
+              places: allPlaces,
+              progress
+            }]);
+          }
+        }
+
+        // Final update
+        setTaskInfos(current => [{
+          ...current[0],
+          places: allPlaces,
+          isLoading: false,
+          progress: 100
+        }]);
+      }
     } catch (error) {
       console.error('Google Places search error:', error);
     }

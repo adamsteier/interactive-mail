@@ -1,4 +1,5 @@
 export interface GooglePlace {
+  place_id: string;
   name: string;
   formatted_address: string;
   formatted_phone_number?: string;
