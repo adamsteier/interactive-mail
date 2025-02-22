@@ -26,7 +26,6 @@ export async function POST(req: Request) {
   try {
     const { location, radius, keyword } = await req.json();
     
-    // Log the request parameters
     console.log('Google Places API Request:', {
       location,
       radius,
@@ -34,10 +33,24 @@ export async function POST(req: Request) {
       apiKey: process.env.GOOGLE_MAPS_API_KEY ? 'Present' : 'Missing'
     });
 
-    let url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${radius}&keyword=${encodeURIComponent(keyword)}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+    let url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.lat},${location.lng}&radius=${radius}&keyword=${encodeURIComponent(keyword)}&key=${process.env.GOOGLE_PLACES_API_KEY}`;
     
-    // Log the full URL (remove API key for security)
     console.log('Request URL:', url.replace(process.env.GOOGLE_MAPS_API_KEY || '', '[API_KEY]'));
+
+    const response = await fetch(url);
+    const data = await response.json() as PlaceSearchResponse;
+    
+    // Log the raw response
+    console.log('Google Places API Response:', {
+      status: data.status,
+      resultsCount: data.results?.length || 0,
+      hasNextPage: !!data.next_page_token
+    });
+
+    if (data.status !== 'OK') {
+      console.error('Google Places API Error Status:', data.status);
+      return NextResponse.json({ error: `API returned status: ${data.status}` }, { status: 400 });
+    }
 
     let allPlaces: PlaceSearchResult[] = [];
     let nextPageToken: string | undefined;

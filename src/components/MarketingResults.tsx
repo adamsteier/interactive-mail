@@ -270,7 +270,10 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              location: point,
+              location: {
+                lat: point.lat,
+                lng: point.lng
+              },
               radius: point.radius,
               keyword: businessType
             })
