@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { taskId: string } }
-) {
+export async function GET(req: Request, { params }: { params: { taskId: string } }) {
   try {
     const response = await fetch(
       `https://api.browse.ai/v2/robots/${process.env.BROWSE_AI_ROBOT_ID}/tasks/${params.taskId}`, 
