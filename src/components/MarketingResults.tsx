@@ -64,7 +64,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              variables: {
+              inputParameters: {
                 originUrl: searchUrl
               },
               recordVideo: false
