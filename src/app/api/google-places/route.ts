@@ -125,13 +125,16 @@ export async function POST(request: Request) {
     const allResults = await getAllPlaces(searchUrl, keyword);
     console.log(`Found ${allResults.length} total results for "${keyword}"`);
 
-    // Get details for each place
+    // Get details for each place while preserving the relevance score
     const detailedPlaces = await Promise.all(
       allResults.map(async (place) => {
         const detailsUrl = `${baseUrl}/details/json?place_id=${place.place_id}&fields=name,formatted_address,formatted_phone_number,website,opening_hours,rating,user_ratings_total,business_status,types&key=${process.env.GOOGLE_PLACES_API_KEY}`;
         const detailsResponse = await fetch(detailsUrl);
         const detailsData = await detailsResponse.json() as PlaceDetailsResponse;
-        return detailsData.result;
+        return {
+          ...detailsData.result,
+          relevanceScore: place.relevanceScore // Keep the relevance score
+        };
       })
     );
 
