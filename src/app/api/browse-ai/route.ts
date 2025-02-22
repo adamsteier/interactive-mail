@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+    console.log('Creating Browse AI task with body:', body);
 
     const response = await fetch(`https://api.browse.ai/v2/robots/${process.env.BROWSE_AI_ROBOT_ID}/tasks`, {
       method: 'POST',
