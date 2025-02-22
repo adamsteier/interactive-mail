@@ -43,15 +43,16 @@ const processLeadsFromResponse = (result: BrowseAIResult): Lead[] => {
     return [];
   }
 
-  return result.capturedLists['Search Results'].map((item: SearchResultItem) => {
-    // Parse the Information field which contains address and other details
+  console.log('Processing raw results:', result.capturedLists['Search Results']);
+  
+  const processed = result.capturedLists['Search Results'].map((item: SearchResultItem) => {
     const info = item.Information || '';
     const infoLines = info.split('\n');
     const businessType = infoLines[0] || '';
     const address = infoLines[1] || '';
     const phone = info.match(/[+]1 \d{3}[-]\d{3}[-]\d{4}|[(]\d{3}[)] \d{3}[-]\d{4}/)?.[0] || '';
 
-    return {
+    const lead = {
       name: item.Title || '',
       address: address.replace(/^· /, '').trim(),
       phone: phone,
@@ -60,7 +61,13 @@ const processLeadsFromResponse = (result: BrowseAIResult): Lead[] => {
       reviews: item.Review ? parseInt(item.Review) : undefined,
       businessType: businessType.replace(/ · $/, '').trim()
     };
+    
+    console.log('Processed lead:', lead);
+    return lead;
   });
+
+  console.log('Total processed leads:', processed.length);
+  return processed;
 };
 
 const LeadsCollection = ({ selectedBusinessTypes, allBusinessTypes, taskIds, onClose }: LeadsCollectionProps) => {
@@ -109,8 +116,10 @@ const LeadsCollection = ({ selectedBusinessTypes, allBusinessTypes, taskIds, onC
             console.log('New leads found:', newLeads.length);
             
             setLeads(current => {
+              console.log('Current leads before update:', current.length);
               const existingAddresses = new Set(current.map(lead => lead.address));
               const uniqueNewLeads = newLeads.filter(lead => !existingAddresses.has(lead.address));
+              console.log('Unique new leads:', uniqueNewLeads.length);
               const updatedLeads = [...current, ...uniqueNewLeads];
               console.log('Total leads after update:', updatedLeads.length);
               leadsCountRef.current = updatedLeads.length;
@@ -159,6 +168,25 @@ const LeadsCollection = ({ selectedBusinessTypes, allBusinessTypes, taskIds, onC
       }
     };
   }, [taskIds, completedTasks, isPolling, leads.length]);
+
+  // Add debug logging for business types
+  useEffect(() => {
+    console.log('Selected business types:', selectedBusinessTypes);
+    console.log('Active business type:', activeBusinessType);
+  }, [selectedBusinessTypes, activeBusinessType]);
+
+  // Add debug logging for leads updates
+  useEffect(() => {
+    console.log('Total leads:', leads.length);
+    const filteredLeads = leads.filter(lead => {
+      const leadType = lead.businessType.toLowerCase().trim();
+      const activeType = activeBusinessType.toLowerCase().trim();
+      const matches = leadType.includes(activeType) || activeType.includes(leadType);
+      console.log('Lead type:', leadType, 'Active type:', activeType, 'Matches:', matches);
+      return matches;
+    });
+    console.log('Filtered leads:', filteredLeads.length);
+  }, [leads, activeBusinessType]);
 
   // Add debug output for leads
   console.log('Current leads:', leads.length, 'Active type:', activeBusinessType);
@@ -212,10 +240,11 @@ const LeadsCollection = ({ selectedBusinessTypes, allBusinessTypes, taskIds, onC
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {leads
               .filter(lead => {
-                // Make the filtering more lenient
                 const leadType = lead.businessType.toLowerCase().trim();
                 const activeType = activeBusinessType.toLowerCase().trim();
-                return leadType.includes(activeType) || activeType.includes(leadType);
+                const matches = leadType.includes(activeType) || activeType.includes(leadType);
+                console.log(`Filtering lead: "${leadType}" against "${activeType}" = ${matches}`);
+                return matches;
               })
               .map((lead, index) => (
                 <motion.div 
@@ -223,8 +252,8 @@ const LeadsCollection = ({ selectedBusinessTypes, allBusinessTypes, taskIds, onC
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ duration: 0.3 }}
-                  className="p-4 rounded-lg border border-electric-teal/30 bg-charcoal/50 transform hover:scale-102 hover:border-electric-teal/50 transition-all"
+                  transition={{ duration: 0.3, delay: index * 0.05 }} // Add stagger effect
+                  className="p-4 rounded-lg border border-electric-teal/30 bg-charcoal/50 hover:scale-105 hover:border-electric-teal/50 transition-all"
                 >
                   <h3 className="text-electric-teal font-medium truncate">{lead.name}</h3>
                   <p className="text-electric-teal/80 text-sm truncate">{lead.address}</p>
@@ -244,8 +273,11 @@ const LeadsCollection = ({ selectedBusinessTypes, allBusinessTypes, taskIds, onC
                     </a>
                   )}
                   {lead.rating && (
-                    <p className="text-electric-teal/60 text-sm">
-                      Rating: {lead.rating} ({lead.reviews} reviews)
+                    <p className="text-electric-teal/60 text-sm flex items-center gap-1">
+                      <span>Rating: {lead.rating}</span>
+                      {lead.reviews && (
+                        <span className="text-electric-teal/40">({lead.reviews} reviews)</span>
+                      )}
                     </p>
                   )}
                 </motion.div>
