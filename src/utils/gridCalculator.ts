@@ -23,8 +23,9 @@ export function calculateSearchGrid(
   const aspectRatio = Math.abs(lngSpan / latSpan);
   
   // Determine grid dimensions
-  let cols = Math.round(Math.sqrt(totalCells * aspectRatio));
-  let rows = Math.ceil(totalCells / cols);
+  const initialCols = Math.round(Math.sqrt(totalCells * aspectRatio));
+  let cols = initialCols;
+  const rows = Math.ceil(totalCells / initialCols);
   
   // Ensure we have enough cells
   while (rows * cols < totalCells) {

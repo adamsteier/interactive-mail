@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { MarketingStrategy, BusinessTarget, DatabaseTarget } from '@/types/marketing';
 import { BusinessAnalysis } from '@/types/businessAnalysis';
+import { BrowseAiTaskResult } from '@/types/browseAi';
 
 interface MarketingResultsProps {
   strategy: MarketingStrategy;
@@ -86,7 +87,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
     }
   };
 
-  const pollTaskStatus = async (taskId: string): Promise<any> => {
+  const pollTaskStatus = async (taskId: string): Promise<BrowseAiTaskResult> => {
     while (true) {
       const response = await fetch(`/api/browse-ai/task/${taskId}`);
       if (!response.ok) {
@@ -95,7 +96,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
       const data = await response.json();
       if (data.result.status === 'completed') {
-        return data.result.capturedLists;
+        return data.result;
       } else if (data.result.status === 'failed') {
         throw new Error('Task failed');
       }
