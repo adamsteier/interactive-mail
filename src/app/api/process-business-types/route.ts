@@ -1,25 +1,9 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import { calculateSearchGrid } from '@/utils/gridCalculator';
-
-interface BusinessType {
-  name: string;
-  count: number;
-}
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-interface MapSquare {
-  center: { lat: number; lng: number };
-  zoom: number;
-  businessType: string;
-}
 
 export async function POST(req: Request) {
   try {
-    const { businessTypes, location, boundingBox } = await req.json();
+    const { businessTypes, boundingBox } = await req.json();
     
     const searchQueries: Array<{ businessType: string; searchUrls: string[] }> = [];
     

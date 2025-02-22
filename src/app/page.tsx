@@ -363,9 +363,10 @@ export default function Home() {
         </div>
       )}
 
-      {showResults && marketingStrategy && (
+      {showResults && marketingStrategy && businessAnalysis && (
         <MarketingResults 
           strategy={marketingStrategy} 
+          boundingBox={businessAnalysis.boundingBox}
           onClose={() => setShowResults(false)}
         />
       )}
