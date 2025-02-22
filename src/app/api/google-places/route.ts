@@ -55,10 +55,6 @@ interface PlaceDetailsResponse {
   status: string;
 }
 
-interface ScoredPlaceDetails extends PlaceDetails {
-  relevanceScore: number;
-}
-
 function scoreRelevance(place: PlaceSearchResult, keyword: string): number {
   let score = 0;
   const keywordLower = keyword.toLowerCase();
