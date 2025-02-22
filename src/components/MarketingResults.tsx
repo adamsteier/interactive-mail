@@ -195,12 +195,11 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
   const handleGoogleSearch = async () => {
     try {
-      // Show loading state immediately
       setTaskInfos([{
         id: 'google-places-search',
         businessType: 'google-places',
         source: 'google-places',
-        places: [], // Start empty
+        places: [],
         isLoading: true,
         progress: 0,
         totalGridPoints: 0,
@@ -208,15 +207,26 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       }]);
       setShowLeadsCollection(true);
 
-      // Track all places across all business types
       let allPlacesAcrossTypes: GooglePlace[] = [];
 
       // Start grid-based search for each business type
       for (const businessType of selectedTargets) {
+        // Get the estimated reach for this specific business type
+        const businessTypeConfig = strategy.method1Analysis.businessTargets.find(
+          (bt: BusinessTarget) => bt.type === businessType
+        );
+
+        if (!businessTypeConfig) {
+          console.error(`No configuration found for business type: ${businessType}`);
+          continue;
+        }
+
+        console.log(`Processing ${businessType} with estimated reach: ${businessTypeConfig.estimatedReach}`);
+
         const gridConfig = generateSearchGrid(
           businessType, 
           boundingBox,
-          strategy.totalEstimatedReach
+          businessTypeConfig.estimatedReach
         );
 
         console.log(`Starting grid search for ${businessType}`);
@@ -345,7 +355,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
                             <h4 className="text-lg font-medium text-electric-teal">{target.type}</h4>
                           </div>
                           <p className="text-electric-teal/60 mb-2">
-                            Estimated number of businesses: {target.estimatedCount.toLocaleString()}
+                            Estimated number of businesses: {target.estimatedReach.toLocaleString()}
                           </p>
                           <p className="text-electric-teal/80">{target.reasoning}</p>
                         </div>

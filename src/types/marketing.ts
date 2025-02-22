@@ -1,7 +1,7 @@
 export interface BusinessTarget {
   type: string;
-  estimatedCount: number;
-  reasoning: string;
+  estimatedReach: number;
+  reasoning?: string;
 }
 
 export interface DatabaseTarget {
@@ -12,7 +12,7 @@ export interface DatabaseTarget {
 }
 
 export interface MarketingStrategy {
-  recommendedMethods: Array<'method1' | 'method2' | 'method3'>;
+  recommendedMethods: string[];
   primaryRecommendation: string;
   totalEstimatedReach: number;
   method1Analysis: {
