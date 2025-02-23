@@ -40,43 +40,30 @@ Please identify specific databases and platforms that would be valuable. For eac
 Method 3: Mass Flyer Drop
 Only recommend if other methods aren't suitable.
 
-Please structure your response to be as granular as possible, breaking down each business type and database separately. Format your response in the following JSON structure:
+Please structure your response to be as granular as possible, breaking down each business type and database separately. Format your response in the following JSON structure, but only include relevant business types and databases for the specific business being analyzed:
 
 {
-  "recommendedMethods": ["method1", "method2"],
+  "recommendedMethods": [],
   "primaryRecommendation": "",
   "totalEstimatedReach": 0,
   "method1Analysis": {
     "businessTargets": [
       {
-        "type": "Legal Offices - Corporate Law",
-        "estimatedReach": 150,
-        "reasoning": ""
-      },
-      {
-        "type": "Legal Offices - Real Estate Law",
-        "estimatedReach": 100,
+        "type": "",
+        "estimatedReach": 0,
         "reasoning": ""
       }
-      // ... more specific targets
     ],
     "overallReasoning": ""
   },
   "method2Analysis": {
     "databaseTargets": [
       {
-        "name": "LinkedIn",
-        "type": "Professional Network",
+        "name": "",
+        "type": "",
         "reasoning": "",
-        "estimatedReach": 1000
-      },
-      {
-        "name": "Edmonton Chamber of Commerce",
-        "type": "Local Directory",
-        "reasoning": "",
-        "estimatedReach": 500
+        "estimatedReach": 0
       }
-      // ... more specific databases
     ],
     "overallReasoning": ""
   },
@@ -87,7 +74,7 @@ Please structure your response to be as granular as possible, breaking down each
 
     const completion = await openai.chat.completions.create({
       messages: [{ role: "user", content: prompt }],
-      model: "gpt-4-0125-preview",
+      model: "chatgpt-4o-latest",
       temperature: 0.7,
       response_format: { type: "json_object" }
     });
