@@ -370,17 +370,14 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
               }),
             });
 
-            if (!response.ok) {
-              throw new Error(`API Error: ${await response.text()}`);
-            }
-
             const data = await response.json();
-            console.log('API Response:', {
-              status: response.status,
-              places: data.places?.length || 0,
-              error: data.error
+            console.log('API Response data:', {
+              hasPlaces: !!data.places,
+              placesLength: data.places?.length,
+              firstPlace: data.places?.[0]
             });
-            if (data.places) {
+
+            if (data.places?.length) {
               const newPlaces = data.places
                 .map((place: GooglePlace) => ({
                   ...place,
@@ -388,19 +385,32 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
                 }))
                 .filter((place: GooglePlace) => handleDuplicates(place, allPlacesAcrossTypes));
 
+              console.log('After processing:', {
+                newPlacesLength: newPlaces.length,
+                totalPlacesBeforePush: allPlacesAcrossTypes.length
+              });
+
               allPlacesAcrossTypes.push(...newPlaces);
               
+              // Update the store with new places
               state.updateSearchResults({
-                places: allPlacesAcrossTypes
+                places: allPlacesAcrossTypes,
+                currentGridPoint: i + 1,
+                progress: 5 + ((i + 1) / gridConfig.searchPoints.length * 95)
+              });
+
+              console.log('Store updated:', {
+                totalPlaces: allPlacesAcrossTypes.length,
+                storeLength: state.searchResults.places.length
               });
             }
           } catch (error) {
-            console.error('API Error:', error);
-            // Continue with next point even if one fails
+            console.error('Search point error:', error);
           }
         }
       }
 
+      // Final update
       state.updateSearchResults({
         places: allPlacesAcrossTypes,
         isLoading: false,

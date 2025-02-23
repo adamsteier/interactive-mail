@@ -29,18 +29,31 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
 
   // Filter places based on active filter
   const filteredPlaces: GooglePlace[] = useMemo(() => {
-    if (activeFilter === 'all') return places;
-    return places.filter(place => place.businessType === activeFilter);
+    const filtered = activeFilter === 'all' 
+      ? places 
+      : places.filter(place => place.businessType === activeFilter);
+    
+    return filtered;
   }, [places, activeFilter]);
 
-  // Log when places are updated
+  // Log updates after all variables are defined
   useEffect(() => {
-    console.log('Places updated:', {
-      total: places.length,
-      filtered: filteredPlaces.length,
-      types: businessTypes
+    console.log('PlacesLeadsCollection render:', {
+      placesLength: places.length,
+      isLoading,
+      progress,
+      hasPlaces: places.length > 0,
+      firstPlace: places[0],
+      filteredLength: filteredPlaces.length,
+      businessTypes
     });
-  }, [places, filteredPlaces.length, businessTypes]);
+
+    console.log('Filtered places:', {
+      activeFilter,
+      totalPlaces: places.length,
+      filteredCount: filteredPlaces.length
+    });
+  }, [places, isLoading, progress, filteredPlaces, businessTypes, activeFilter]);
 
   const handleSelectPlace = (placeId: string) => {
     setSelectedPlaces(prev => {
@@ -60,7 +73,7 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
         {/* Header with close button */}
         <div className="border-b border-electric-teal/20 p-6 flex justify-between items-center">
           <h2 className="text-2xl font-semibold text-electric-teal">
-            Found Places {isLoading && <span>- Searching...</span>}
+            Found Places ({places.length}) {isLoading && <span>- Searching...</span>}
           </h2>
           <button 
             onClick={onClose}
