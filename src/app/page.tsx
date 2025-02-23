@@ -257,8 +257,8 @@ export default function Home() {
 
       {/* Show verification message and buttons after business name */}
       {currentStep > 1 && (
-        <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-4">
-          <div className="flex flex-col items-center gap-8 mt-32">
+        <div className="relative z-10 min-h-screen px-4 pt-[280px] sm:pt-[240px]">
+          <div className="flex flex-col items-center gap-8">
             <div className="text-xl font-normal text-electric-teal">
               Please verify your information.
             </div>
