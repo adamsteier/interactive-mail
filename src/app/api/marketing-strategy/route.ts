@@ -40,18 +40,18 @@ Please identify specific databases and platforms that would be valuable. For eac
 Method 3: Mass Flyer Drop
 Only recommend if other methods aren't suitable.
 
-Please structure your response to be as granular as possible, breaking down each business type and database separately. Format your response in the following JSON structure, but only include relevant business types and databases for the specific business being analyzed:
+Please structure your response to be as granular as possible, breaking down each business type and database separately. Format your response in the following JSON structure:
 
 {
-  "recommendedMethods": [],
+  "recommendedMethods": ["method1", "method2"],
   "primaryRecommendation": "",
   "totalEstimatedReach": 0,
   "method1Analysis": {
     "businessTargets": [
       {
-        "type": "",
+        "type": "[Industry-specific business type]",
         "estimatedReach": 0,
-        "reasoning": ""
+        "reasoning": "[Detailed explanation of why this business type is relevant]"
       }
     ],
     "overallReasoning": ""
@@ -59,9 +59,9 @@ Please structure your response to be as granular as possible, breaking down each
   "method2Analysis": {
     "databaseTargets": [
       {
-        "name": "",
-        "type": "",
-        "reasoning": "",
+        "name": "[Database name]",
+        "type": "[Database type]",
+        "reasoning": "[Why this database is relevant]",
         "estimatedReach": 0
       }
     ],
@@ -70,7 +70,9 @@ Please structure your response to be as granular as possible, breaking down each
   "method3Analysis": {
     "reasoning": ""
   }
-}`;
+}
+
+Important: Provide specific, relevant recommendations based on the business details provided. Do not use placeholder text in your response. Each recommendation should be tailored to the specific business and industry.`;
 
     const completion = await openai.chat.completions.create({
       messages: [{ role: "user", content: prompt }],
