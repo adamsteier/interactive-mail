@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { GooglePlace } from '@/types/places';
+import SelectionSummary from './SelectionSummary';
 
 interface PlacesLeadsCollectionProps {
   places: GooglePlace[];
@@ -15,6 +16,7 @@ interface PlacesLeadsCollectionProps {
 
 const PlacesLeadsCollection = ({ places, onClose, isLoading, progress, totalGridPoints, currentGridPoint }: PlacesLeadsCollectionProps) => {
   const [activeFilter, setActiveFilter] = useState<string>('all');
+  const [selectedPlaces, setSelectedPlaces] = useState<Set<string>>(new Set());
   
   // Calculate business type counts
   const businessTypes = useMemo(() => {
@@ -31,6 +33,26 @@ const PlacesLeadsCollection = ({ places, onClose, isLoading, progress, totalGrid
     if (activeFilter === 'all') return places;
     return places.filter(place => place.businessType === activeFilter);
   }, [places, activeFilter]);
+
+  const handleSelectPlace = (placeId: string) => {
+    setSelectedPlaces(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(placeId)) {
+        newSet.delete(placeId);
+      } else {
+        newSet.add(placeId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedPlaces.size === filteredPlaces.length) {
+      setSelectedPlaces(new Set());
+    } else {
+      setSelectedPlaces(new Set(filteredPlaces.map(place => place.place_id)));
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-charcoal">
@@ -90,11 +112,20 @@ const PlacesLeadsCollection = ({ places, onClose, isLoading, progress, totalGrid
       </div>
 
       {/* Places Table */}
-      <div className="flex-1 overflow-hidden p-4">
+      <div className="flex-1 overflow-hidden p-4 lg:pr-[20rem]">
         <div className="h-full overflow-auto">
           <table className="w-full min-w-[1024px] border-collapse">
             <thead className="sticky top-0 bg-charcoal z-10">
               <tr className="text-electric-teal/60 text-left">
+                <th className="p-2 w-[5%]">
+                  <input
+                    type="checkbox"
+                    checked={selectedPlaces.size === filteredPlaces.length}
+                    onChange={handleSelectAll}
+                    className="w-4 h-4 rounded border-electric-teal text-electric-teal 
+                      focus:ring-electric-teal focus:ring-offset-charcoal bg-charcoal"
+                  />
+                </th>
                 <th className="p-2 w-[15%]">Business Name</th>
                 <th className="p-2 w-[12%]">Type</th>
                 <th className="p-2 w-[20%]">Address</th>
@@ -106,12 +137,23 @@ const PlacesLeadsCollection = ({ places, onClose, isLoading, progress, totalGrid
             <tbody>
               {filteredPlaces.map((place, index) => (
                 <motion.tr
-                  key={`${place.name}-${place.formatted_address}-${index}`}
+                  key={`${place.name}-${place.vicinity}-${index}`}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, delay: index * 0.05 }}
                   className="border-b border-electric-teal/10 text-electric-teal/80 hover:bg-electric-teal/5"
+                  onClick={() => handleSelectPlace(place.place_id)}
                 >
+                  <td className="p-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedPlaces.has(place.place_id)}
+                      onChange={() => handleSelectPlace(place.place_id)}
+                      onClick={e => e.stopPropagation()}
+                      className="w-4 h-4 rounded border-electric-teal text-electric-teal 
+                        focus:ring-electric-teal focus:ring-offset-charcoal bg-charcoal"
+                    />
+                  </td>
                   <td className="p-2 truncate">{place.name}</td>
                   <td className="p-2 truncate">{place.types[0]}</td>
                   <td className="p-2 whitespace-pre-line">{place.vicinity || ''}</td>
@@ -135,6 +177,15 @@ const PlacesLeadsCollection = ({ places, onClose, isLoading, progress, totalGrid
           </table>
         </div>
       </div>
+
+      {/* Selection Summary */}
+      <SelectionSummary
+        selectedPlaces={selectedPlaces}
+        onStartCampaign={() => {
+          console.log('Starting campaign with', selectedPlaces.size, 'places');
+          // Add campaign start logic here
+        }}
+      />
     </div>
   );
 };
