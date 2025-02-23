@@ -213,9 +213,22 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
     }
   })),
 
-  updateSearchResults: (update) => set((state) => ({
-    searchResults: { ...state.searchResults, ...update }
-  })),
+  updateSearchResults: (update) => set((state) => {
+    const newState = {
+      searchResults: {
+        ...state.searchResults,
+        ...update
+      }
+    };
+    
+    console.log('Store update:', {
+      currentPlaces: state.searchResults.places.length,
+      newPlaces: update.places?.length || 0,
+      stateAfterUpdate: newState.searchResults.places.length
+    });
+
+    return newState;
+  }),
 
   setUserInput: (input) => set({ userInput: input }),
   setIsProcessing: (isProcessing) => set({ isProcessing }),

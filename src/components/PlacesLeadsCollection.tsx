@@ -12,12 +12,12 @@ interface PlacesLeadsCollectionProps {
 }
 
 const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
-  const { 
-    searchResults,
-    setCollectedLeads
-  } = useMarketingStore();
+  // Subscribe to specific fields we need
+  const places = useMarketingStore(state => state.searchResults.places);
+  const isLoading = useMarketingStore(state => state.searchResults.isLoading);
+  const progress = useMarketingStore(state => state.searchResults.progress);
+  const setCollectedLeads = useMarketingStore(state => state.setCollectedLeads);
 
-  const { places, isLoading, progress } = searchResults;
   const [selectedPlaces, setSelectedPlaces] = useState<Set<string>>(new Set());
   const [activeFilter, setActiveFilter] = useState<string>('all');
 
@@ -35,6 +35,13 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
     
     return filtered;
   }, [places, activeFilter]);
+
+  useEffect(() => {
+    console.log('Places updated in component:', {
+      count: places.length,
+      sample: places[0]
+    });
+  }, [places]);
 
   // Log updates after all variables are defined
   useEffect(() => {
