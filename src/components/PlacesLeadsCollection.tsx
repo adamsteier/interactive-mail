@@ -2,9 +2,10 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { GooglePlace } from '@/types/places';
 import SelectionSummary from './SelectionSummary';
 import { useMarketingStore } from '@/store/marketingStore';
+import LoadingBar from './LoadingBar';
+import type { GooglePlace } from '@/types/places';
 
 interface PlacesLeadsCollectionProps {
   onClose: () => void;
@@ -13,41 +14,33 @@ interface PlacesLeadsCollectionProps {
 const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
   const { 
     searchResults,
-    setCollectedLeads,
-    updateSearchResults
+    setCollectedLeads
   } = useMarketingStore();
 
-  const { places, isLoading, progress, totalGridPoints, currentGridPoint } = searchResults;
-
-  const [activeFilter, setActiveFilter] = useState<string>('all');
+  const { places, isLoading, progress } = searchResults;
   const [selectedPlaces, setSelectedPlaces] = useState<Set<string>>(new Set());
-  
-  // Calculate business type counts
+  const [activeFilter, setActiveFilter] = useState<string>('all');
+
+  // Get unique business types for filtering
   const businessTypes = useMemo(() => {
-    const typeCounts = new Map<string, number>();
-    places.forEach(place => {
-      const type = place.businessType;
-      typeCounts.set(type, (typeCounts.get(type) || 0) + 1);
-    });
-    return typeCounts;
+    const types = new Set(places.map(place => place.businessType));
+    return Array.from(types);
   }, [places]);
 
   // Filter places based on active filter
-  const filteredPlaces = useMemo(() => {
+  const filteredPlaces: GooglePlace[] = useMemo(() => {
     if (activeFilter === 'all') return places;
-    return places.filter((place: GooglePlace) => place.businessType === activeFilter);
+    return places.filter(place => place.businessType === activeFilter);
   }, [places, activeFilter]);
 
+  // Log when places are updated
   useEffect(() => {
-    // Log store state when component mounts
-    console.log('PlacesLeadsCollection mounted with:', {
-      places: places.length,
-      isLoading,
-      progress,
-      totalGridPoints,
-      currentGridPoint
+    console.log('Places updated:', {
+      total: places.length,
+      filtered: filteredPlaces.length,
+      types: businessTypes
     });
-  }, [places.length, isLoading, progress, totalGridPoints, currentGridPoint]);
+  }, [places, filteredPlaces.length, businessTypes]);
 
   const handleSelectPlace = (placeId: string) => {
     setSelectedPlaces(prev => {
@@ -57,151 +50,91 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
       } else {
         newSet.add(placeId);
       }
-      // Update search results with selection
-      updateSearchResults({
-        places: places.map(place => ({
-          ...place,
-          selected: newSet.has(place.place_id)
-        }))
-      });
       return newSet;
     });
   };
 
-  const handleSelectAll = () => {
-    if (selectedPlaces.size === filteredPlaces.length) {
-      setSelectedPlaces(new Set());
-    } else {
-      const newSelected = new Set(filteredPlaces.map(place => place.place_id));
-      setSelectedPlaces(newSelected);
-      // Update search results with selection
-      updateSearchResults({
-        places: places.map(place => ({
-          ...place,
-          selected: newSelected.has(place.place_id)
-        }))
-      });
-    }
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-charcoal">
-      {/* Progress Bar */}
-      {isLoading && (
-        <div className="fixed top-0 left-0 right-0">
-          <div className="h-1 bg-electric-teal/20">
-            <div 
-              className="h-full bg-electric-teal transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <div className="text-electric-teal/60 text-sm px-4 py-1">
-            Searching grid point {currentGridPoint} of {totalGridPoints}... 
-            Found {places.length} places so far
-          </div>
-        </div>
-      )}
-      
-      {/* Header - Add mt-8 when loading */}
-      <div className={`fixed top-0 left-0 right-0 ${isLoading ? 'mt-8' : ''}`}>
-        <div className="flex justify-between items-center px-4 py-2">
-          <div className="text-electric-teal/60 text-sm">
-            Found {places.length} places
-          </div>
-          <button onClick={onClose}>Close</button>
-        </div>
-      </div>
-
-      {/* Adjust top margin of filters based on loading state */}
-      <div className={`flex gap-2 p-4 ${isLoading ? 'mt-20' : 'mt-12'} flex-wrap`}>
-        <button
-          onClick={() => setActiveFilter('all')}
-          className={`px-4 py-2 rounded-lg transition-all duration-300 ${
-            activeFilter === 'all'
-              ? 'bg-electric-teal text-charcoal'
-              : 'bg-electric-teal/20 text-electric-teal hover:bg-electric-teal/30'
-          }`}
-        >
-          All Places ({places.length})
-        </button>
-        {Array.from(businessTypes).map(([type, count]) => (
-          <motion.button
-            key={type}
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            onClick={() => setActiveFilter(type)}
-            className={`px-4 py-2 rounded-lg transition-all duration-300 ${
-              type === activeFilter
-                ? 'bg-electric-teal text-charcoal'
-                : 'bg-electric-teal/20 text-electric-teal hover:bg-electric-teal/30'
-            }`}
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-charcoal/80 backdrop-blur-sm p-4">
+      <div className="relative w-full max-w-6xl rounded-lg border-2 border-electric-teal bg-charcoal shadow-glow my-8">
+        {/* Header with close button */}
+        <div className="border-b border-electric-teal/20 p-6 flex justify-between items-center">
+          <h2 className="text-2xl font-semibold text-electric-teal">
+            Found Places {isLoading && <span>- Searching...</span>}
+          </h2>
+          <button 
+            onClick={onClose}
+            className="text-electric-teal hover:text-electric-teal/80"
           >
-            {type} ({count})
-          </motion.button>
-        ))}
-      </div>
+            Close
+          </button>
+        </div>
+        {isLoading && <LoadingBar progress={progress} />}
 
-      {/* Places Table - Add custom scrollbar class */}
-      <div className="flex-1 overflow-hidden p-4 lg:pr-[20rem]">
-        <div className="h-full overflow-auto custom-scrollbar">
-          <table className="w-full min-w-[1024px] border-collapse">
-            <thead className="sticky top-0 bg-charcoal z-10">
-              <tr className="text-electric-teal/60 text-left">
-                <th className="p-2 w-[5%]">
-                  <input
-                    type="checkbox"
-                    checked={selectedPlaces.size === filteredPlaces.length}
-                    onChange={handleSelectAll}
-                    className="w-4 h-4 rounded border-electric-teal text-electric-teal 
-                      focus:ring-electric-teal focus:ring-offset-charcoal bg-charcoal"
-                  />
-                </th>
-                <th className="p-2 w-[15%] max-w-[200px]">Business Name</th>
-                <th className="p-2 w-[12%] max-w-[150px]">Type</th>
-                <th className="p-2 w-[20%] max-w-[250px]">Address</th>
-                <th className="p-2 w-[8%] max-w-[100px]">Status</th>
-                <th className="p-2 w-[15%] max-w-[180px]">Rating</th>
-                <th className="p-2 w-[10%] max-w-[120px]">Relevance</th>
+        {/* Filters */}
+        <div className="border-b border-electric-teal/20 p-4">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveFilter('all')}
+              className={`rounded px-3 py-1 ${
+                activeFilter === 'all' 
+                  ? 'bg-electric-teal text-charcoal' 
+                  : 'text-electric-teal hover:bg-electric-teal/10'
+              }`}
+            >
+              All ({places.length})
+            </button>
+            {businessTypes.map(type => (
+              <button
+                key={type}
+                onClick={() => setActiveFilter(type)}
+                className={`rounded px-3 py-1 ${
+                  activeFilter === type 
+                    ? 'bg-electric-teal text-charcoal' 
+                    : 'text-electric-teal hover:bg-electric-teal/10'
+                }`}
+              >
+                {type} ({places.filter(p => p.businessType === type).length})
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Results Table */}
+        <div className="p-4">
+          <table className="w-full">
+            <thead>
+              <tr className="text-left text-electric-teal/60">
+                <th className="p-2">Select</th>
+                <th className="p-2">Name</th>
+                <th className="p-2">Address</th>
+                <th className="p-2">Type</th>
+                <th className="p-2">Rating</th>
+                <th className="p-2">Score</th>
               </tr>
             </thead>
             <tbody>
-              {filteredPlaces.map((place: GooglePlace, index) => (
+              {filteredPlaces.map((place, index) => (
                 <motion.tr
-                  key={`${place.name}-${place.vicinity}-${index}`}
+                  key={place.place_id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: index * 0.05 }}
-                  className="border-b border-electric-teal/10 text-electric-teal/80 hover:bg-electric-teal/5"
-                  onClick={() => handleSelectPlace(place.place_id)}
+                  transition={{ delay: index * 0.05 }}
+                  className="text-electric-teal/80 hover:bg-electric-teal/5"
                 >
                   <td className="p-2">
                     <input
                       type="checkbox"
                       checked={selectedPlaces.has(place.place_id)}
                       onChange={() => handleSelectPlace(place.place_id)}
-                      onClick={e => e.stopPropagation()}
-                      className="w-4 h-4 rounded border-electric-teal text-electric-teal 
-                        focus:ring-electric-teal focus:ring-offset-charcoal bg-charcoal"
+                      className="rounded border-electric-teal text-electric-teal focus:ring-electric-teal"
                     />
                   </td>
-                  <td className="p-2 max-w-[200px]">
-                    <div className="break-words">{place.name}</div>
-                  </td>
-                  <td className="p-2 max-w-[150px]">
-                    <div className="break-words">{place.types[0]}</div>
-                  </td>
-                  <td className="p-2 max-w-[250px]">
-                    <div className="break-words">{place.vicinity || ''}</div>
-                  </td>
-                  <td className="p-2 max-w-[100px]">
-                    <div className="break-words">{place.business_status || ''}</div>
-                  </td>
-                  <td className="p-2 max-w-[180px]">
-                    <div className="break-words">
-                      {place.rating ? `${place.rating} (${place.user_ratings_total})` : ''}
-                    </div>
-                  </td>
-                  <td className="p-2 max-w-[120px]">
+                  <td className="p-2">{place.name}</td>
+                  <td className="p-2">{place.vicinity}</td>
+                  <td className="p-2">{place.businessType}</td>
+                  <td className="p-2">{place.rating || 'N/A'}</td>
+                  <td className="p-2">
                     <div className="flex items-center">
                       <div className={`h-2 w-2 rounded-full mr-2 ${
                         place.relevanceScore >= 15 ? 'bg-green-500' :
@@ -216,23 +149,19 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
             </tbody>
           </table>
         </div>
-      </div>
 
-      {/* Selection Summary */}
-      <SelectionSummary
-        selectedPlaces={selectedPlaces}
-        onStartCampaign={() => {
-          const selectedBusinesses = filteredPlaces.filter((place: GooglePlace) => 
-            selectedPlaces.has(place.place_id)
-          );
-          
-          // Store selected places in the store
-          setCollectedLeads(selectedBusinesses);
-          
-          console.log('Starting campaign with', selectedPlaces.size, 'places');
-          // Add campaign start logic here
-        }}
-      />
+        {/* Selection Summary */}
+        <SelectionSummary
+          selectedPlaces={selectedPlaces}
+          onStartCampaign={() => {
+            const selectedBusinesses = filteredPlaces.filter(place => 
+              selectedPlaces.has(place.place_id)
+            );
+            setCollectedLeads(selectedBusinesses);
+            console.log('Starting campaign with', selectedPlaces.size, 'places');
+          }}
+        />
+      </div>
     </div>
   );
 };
