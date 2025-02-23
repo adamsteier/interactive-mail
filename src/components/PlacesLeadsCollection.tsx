@@ -111,9 +111,9 @@ const PlacesLeadsCollection = ({ places, onClose, isLoading, progress, totalGrid
         ))}
       </div>
 
-      {/* Places Table */}
+      {/* Places Table - Add custom scrollbar class */}
       <div className="flex-1 overflow-hidden p-4 lg:pr-[20rem]">
-        <div className="h-full overflow-auto">
+        <div className="h-full overflow-auto custom-scrollbar">
           <table className="w-full min-w-[1024px] border-collapse">
             <thead className="sticky top-0 bg-charcoal z-10">
               <tr className="text-electric-teal/60 text-left">
@@ -126,12 +126,12 @@ const PlacesLeadsCollection = ({ places, onClose, isLoading, progress, totalGrid
                       focus:ring-electric-teal focus:ring-offset-charcoal bg-charcoal"
                   />
                 </th>
-                <th className="p-2 w-[15%]">Business Name</th>
-                <th className="p-2 w-[12%]">Type</th>
-                <th className="p-2 w-[20%]">Address</th>
-                <th className="p-2 w-[8%]">Status</th>
-                <th className="p-2 w-[15%]">Rating</th>
-                <th className="p-2 w-[10%]">Relevance</th>
+                <th className="p-2 w-[15%] max-w-[200px]">Business Name</th>
+                <th className="p-2 w-[12%] max-w-[150px]">Type</th>
+                <th className="p-2 w-[20%] max-w-[250px]">Address</th>
+                <th className="p-2 w-[8%] max-w-[100px]">Status</th>
+                <th className="p-2 w-[15%] max-w-[180px]">Rating</th>
+                <th className="p-2 w-[10%] max-w-[120px]">Relevance</th>
               </tr>
             </thead>
             <tbody>
@@ -154,14 +154,24 @@ const PlacesLeadsCollection = ({ places, onClose, isLoading, progress, totalGrid
                         focus:ring-electric-teal focus:ring-offset-charcoal bg-charcoal"
                     />
                   </td>
-                  <td className="p-2 truncate">{place.name}</td>
-                  <td className="p-2 truncate">{place.types[0]}</td>
-                  <td className="p-2 whitespace-pre-line">{place.vicinity || ''}</td>
-                  <td className="p-2 truncate">{place.business_status || ''}</td>
-                  <td className="p-2">
-                    {place.rating ? `${place.rating} (${place.user_ratings_total})` : ''}
+                  <td className="p-2 max-w-[200px]">
+                    <div className="break-words">{place.name}</div>
                   </td>
-                  <td className="p-2">
+                  <td className="p-2 max-w-[150px]">
+                    <div className="break-words">{place.types[0]}</div>
+                  </td>
+                  <td className="p-2 max-w-[250px]">
+                    <div className="break-words">{place.vicinity || ''}</div>
+                  </td>
+                  <td className="p-2 max-w-[100px]">
+                    <div className="break-words">{place.business_status || ''}</div>
+                  </td>
+                  <td className="p-2 max-w-[180px]">
+                    <div className="break-words">
+                      {place.rating ? `${place.rating} (${place.user_ratings_total})` : ''}
+                    </div>
+                  </td>
+                  <td className="p-2 max-w-[120px]">
                     <div className="flex items-center">
                       <div className={`h-2 w-2 rounded-full mr-2 ${
                         place.relevanceScore >= 15 ? 'bg-green-500' :

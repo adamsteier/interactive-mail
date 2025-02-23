@@ -49,26 +49,26 @@ body {
 
 /* Custom scrollbar styles */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px; /* Made thinner */
+  width: 10px;
+  height: 10px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #1a1a1a; /* charcoal background */
-  border-radius: 3px;
+  background: rgba(0, 163, 176, 0.1); /* electric-teal with 10% opacity */
+  border-radius: 5px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(0, 240, 255, 0.3); /* electric-teal with opacity */
-  border-radius: 3px;
-  transition: background-color 0.2s ease;
+  background: rgba(0, 163, 176, 0.3); /* electric-teal with 30% opacity */
+  border-radius: 5px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 240, 255, 0.5); /* brighter on hover */
+  background: rgba(0, 163, 176, 0.5); /* electric-teal with 50% opacity */
 }
 
 /* For Firefox */
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(0, 240, 255, 0.3) #1a1a1a;
+  scrollbar-color: rgba(0, 163, 176, 0.3) rgba(0, 163, 176, 0.1);
 }
