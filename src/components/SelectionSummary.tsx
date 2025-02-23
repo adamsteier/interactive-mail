@@ -1,11 +1,9 @@
 'use client';
 
 import { useMemo } from 'react';
-import { GooglePlace } from '@/types/places';
 
 interface SelectionSummaryProps {
   selectedPlaces: Set<string>;
-  allPlaces: GooglePlace[];
   onStartCampaign: () => void;
 }
 
@@ -15,7 +13,7 @@ const calculateCost = (count: number) => {
   return count * 1.50;
 };
 
-const SelectionSummary = ({ selectedPlaces, allPlaces, onStartCampaign }: SelectionSummaryProps) => {
+const SelectionSummary = ({ selectedPlaces, onStartCampaign }: SelectionSummaryProps) => {
   const stats = useMemo(() => {
     const count = selectedPlaces.size;
     const cost = calculateCost(count);
