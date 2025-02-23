@@ -1,6 +1,7 @@
 'use client';
 
 import { useMarketingStore } from '@/store/marketingStore';
+import { GeocodeResult } from '@/types/geocoding';
 
 const LocationSelector = () => {
   const { 

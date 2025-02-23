@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { BusinessAnalysis } from '@/types/businessAnalysis';
 import { MarketingStrategy } from '@/types/marketing';
 import { GooglePlace } from '@/types/places';
+import { GeocodeResult } from '@/types/geocoding';
 
 interface MarketingState {
   // Step tracking
@@ -87,20 +88,6 @@ interface MarketingState {
   // Add new actions
   setGeocodeResults: (results: GeocodeResult[]) => void;
   setSelectedLocation: (location: GeocodeResult | null) => void;
-}
-
-interface GeocodeResult {
-  formatted_address: string;
-  geometry: {
-    bounds?: {
-      northeast: { lat: number; lng: number };
-      southwest: { lat: number; lng: number };
-    };
-    viewport: {
-      northeast: { lat: number; lng: number };
-      southwest: { lat: number; lng: number };
-    };
-  };
 }
 
 const handleDuplicates = (place: GooglePlace, existingPlaces: GooglePlace[]): boolean => {
