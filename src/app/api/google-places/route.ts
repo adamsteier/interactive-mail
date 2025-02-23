@@ -7,14 +7,26 @@ interface PlacesApiError extends Error {
   code?: string;
 }
 
+// Add type for the request body
+interface SearchRequestBody {
+  lat: number;
+  lng: number;
+  radius: number;
+  keyword: string;
+  boundingBox: {
+    northeast: { lat: number; lng: number };
+    southwest: { lat: number; lng: number };
+  };
+}
+
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = await request.json() as SearchRequestBody;
     console.log('API request received:', body);
 
-    const { lat, lng, radius, keyword } = body;
+    const { lat, lng, radius, keyword, boundingBox } = body;
 
-    if (!lat || !lng || !radius || !keyword) {
+    if (!lat || !lng || !radius || !keyword || !boundingBox) {
       return NextResponse.json(
         { error: 'Missing required parameters' },
         { status: 400 }
@@ -25,7 +37,8 @@ export async function POST(request: Request) {
     const places = await placesService.searchPlaces({
       location: { lat, lng },
       radius,
-      keyword
+      keyword,
+      boundingBox
     });
 
     console.log('Places found:', {

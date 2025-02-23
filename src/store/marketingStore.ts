@@ -81,51 +81,44 @@ interface MarketingState {
   handleGoogleSearch: () => Promise<void>;
 }
 
-const calculateRadius = (boundingBox: BusinessAnalysis['boundingBox']) => {
-  const R = 6371e3; // Earth's radius in meters
-  const lat1 = boundingBox.southwest.lat * Math.PI / 180;
-  const lat2 = boundingBox.northeast.lat * Math.PI / 180;
-  const lon1 = boundingBox.southwest.lng * Math.PI / 180;
-  const lon2 = boundingBox.northeast.lng * Math.PI / 180;
-
-  const dLat = lat2 - lat1;
-  const dLon = lon2 - lon1;
-
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-          Math.cos(lat1) * Math.cos(lat2) *
-          Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-  return R * c; // Returns radius in meters
-};
-
 const handleDuplicates = (place: GooglePlace, existingPlaces: GooglePlace[]): boolean => {
   return !existingPlaces.some(p => p.place_id === place.place_id);
 };
 
-const generateHexagonalGrid = (businessType: string, boundingBox: BusinessAnalysis['boundingBox'], estimatedReach = 100) => {
-  // Calculate grid density based on estimated reach
-  const gridDensity = Math.min(Math.ceil(estimatedReach / 25), 4); // Max 4x4 grid
+const generateHexagonalGrid = (businessType: string, boundingBox: BusinessAnalysis['boundingBox']) => {
+  // Calculate distances in meters
+  const latDistance = (boundingBox.northeast.lat - boundingBox.southwest.lat) * 111111; // Convert to meters
+  const lngDistance = (boundingBox.northeast.lng - boundingBox.southwest.lng) * 111111 * 
+    Math.cos(boundingBox.southwest.lat * Math.PI / 180);
   
-  const totalRadius = calculateRadius(boundingBox);
-  const areaWidth = totalRadius * 2;
+  // Calculate optimal grid size based on area
+  const areaSize = latDistance * lngDistance;
+  const gridDensity = Math.min(Math.ceil(Math.sqrt(areaSize) / 2000), 4); // Max 4x4 grid
   
-  // Adjust base radius based on estimated reach and area size
-  const baseRadius = Math.min(
-    Math.max(500, areaWidth / (gridDensity * 2)), // Scale with grid density
-    25000 // Cap at 25km
-  );
+  // Calculate search radius for each point
+  const areaRadius = Math.min(latDistance, lngDistance) / 2;
+  const baseRadius = Math.min(areaRadius / gridDensity, 5000); // Cap at 5km
 
-  const hexSpacing = baseRadius * 1.732;
+  // Calculate hexagonal grid spacing
+  const hexSpacing = baseRadius * 1.732; // √3 for hexagonal packing
   
+  // Calculate grid dimensions
   const latCount = Math.min(
     Math.ceil((boundingBox.northeast.lat - boundingBox.southwest.lat) / (hexSpacing / 111111)),
-    4
+    gridDensity
   );
   const lngCount = Math.min(
     Math.ceil((boundingBox.northeast.lng - boundingBox.southwest.lng) / (hexSpacing / (111111 * Math.cos(boundingBox.southwest.lat * Math.PI / 180)))),
-    4
+    gridDensity
   );
+
+  console.log('Grid calculations:', {
+    areaSize,
+    gridDensity,
+    baseRadius,
+    latCount,
+    lngCount
+  });
 
   const searchPoints: Array<{
     lat: number;
@@ -133,16 +126,23 @@ const generateHexagonalGrid = (businessType: string, boundingBox: BusinessAnalys
     radius: number;
   }> = [];
 
+  // Generate hexagonal grid points
   for (let row = 0; row < latCount; row++) {
     for (let col = 0; col < lngCount; col++) {
       const latOffset = row * (hexSpacing / 111111);
       const lngOffset = col * (hexSpacing / (111111 * Math.cos(boundingBox.southwest.lat * Math.PI / 180)));
       
+      // Offset every other row for hexagonal packing
       const lat = boundingBox.southwest.lat + latOffset;
       const lng = boundingBox.southwest.lng + lngOffset + (row % 2 ? hexSpacing / (2 * 111111) : 0);
 
+      // Only add points within the bounding box
       if (lat <= boundingBox.northeast.lat && lng <= boundingBox.northeast.lng) {
-        searchPoints.push({ lat, lng, radius: baseRadius });
+        searchPoints.push({ 
+          lat, 
+          lng, 
+          radius: baseRadius 
+        });
       }
     }
   }
@@ -150,7 +150,12 @@ const generateHexagonalGrid = (businessType: string, boundingBox: BusinessAnalys
   return {
     businessType,
     searchPoints,
-    totalPoints: searchPoints.length
+    totalPoints: searchPoints.length,
+    gridDetails: {
+      density: gridDensity,
+      radius: baseRadius,
+      spacing: hexSpacing
+    }
   };
 };
 
@@ -327,8 +332,10 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
         throw new Error('No bounding box available');
       }
 
+      const boundingBox = state.businessInfo.businessAnalysis.boundingBox;
+
       console.log('Starting search with:', {
-        boundingBox: state.businessInfo.businessAnalysis.boundingBox,
+        boundingBox,
         selectedTypes: Array.from(state.selectedBusinessTypes)
       });
 
@@ -346,7 +353,7 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
       for (const businessType of state.selectedBusinessTypes) {
         const gridConfig = generateHexagonalGrid(
           businessType,
-          state.businessInfo.businessAnalysis.boundingBox
+          boundingBox
         );
 
         console.log('Grid search config:', {
@@ -382,7 +389,8 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
                 lat: point.lat,
                 lng: point.lng,
                 radius: point.radius,
-                keyword: businessType
+                keyword: businessType,
+                boundingBox
               }),
             });
 

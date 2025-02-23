@@ -1,3 +1,5 @@
+import { BusinessAnalysis } from '@/types/businessAnalysis';
+
 interface PlaceResult {
   place_id: string;
   name: string;
@@ -6,6 +8,12 @@ interface PlaceResult {
   business_status?: string;
   rating?: number;
   user_ratings_total?: number;
+  geometry: {
+    location: {
+      lat: number;
+      lng: number;
+    };
+  };
 }
 
 interface PlacesResponse {
@@ -31,33 +39,47 @@ export class GooglePlacesService {
     });
   }
 
+  private isPointInBoundingBox(
+    point: { lat: number; lng: number },
+    boundingBox: { northeast: { lat: number; lng: number }; southwest: { lat: number; lng: number } }
+  ): boolean {
+    return (
+      point.lat >= boundingBox.southwest.lat &&
+      point.lat <= boundingBox.northeast.lat &&
+      point.lng >= boundingBox.southwest.lng &&
+      point.lng <= boundingBox.northeast.lng
+    );
+  }
+
   async searchPlaces({
     location,
     radius,
-    keyword
+    keyword,
+    boundingBox
   }: {
     location: { lat: number; lng: number };
     radius: number;
     keyword: string;
+    boundingBox: BusinessAnalysis['boundingBox'];
   }) {
     try {
       let allResults: PlaceResult[] = [];
       let nextPageToken: string | undefined;
 
       do {
-        const url = new URL('https://maps.googleapis.com/maps/api/place/textsearch/json');
+        const url = new URL('https://maps.googleapis.com/maps/api/place/nearbysearch/json');
         if (nextPageToken) {
           url.searchParams.append('pagetoken', nextPageToken);
         } else {
-          url.searchParams.append('query', keyword);
+          url.searchParams.append('keyword', keyword);
           url.searchParams.append('location', `${location.lat},${location.lng}`);
-          url.searchParams.append('radius', radius.toString());
+          url.searchParams.append('radius', Math.min(radius, 5000).toString());
         }
         url.searchParams.append('key', this.apiKey);
 
         console.log('Making Places API request:', {
           location,
-          radius,
+          radius: Math.min(radius, 5000),
           keyword,
           hasKey: !!this.apiKey,
           isPageRequest: !!nextPageToken
@@ -76,11 +98,17 @@ export class GooglePlacesService {
           throw new Error(`Places API Error: ${data.status}`);
         }
 
-        allResults = [...allResults, ...data.results];
+        const validResults = data.results.filter(place => 
+          this.isPointInBoundingBox(
+            { lat: place.geometry.location.lat, lng: place.geometry.location.lng },
+            boundingBox
+          )
+        );
+
+        allResults = [...allResults, ...validResults];
         nextPageToken = data.next_page_token;
 
         if (nextPageToken) {
-          // Google requires a short delay between requests when using pagetoken
           await new Promise(resolve => setTimeout(resolve, 2000));
         }
       } while (nextPageToken);
@@ -93,7 +121,8 @@ export class GooglePlacesService {
         business_status: place.business_status,
         rating: place.rating,
         user_ratings_total: place.user_ratings_total,
-        relevanceScore: this.calculateRelevanceScore(place)
+        relevanceScore: this.calculateRelevanceScore(place),
+        location: place.geometry.location
       }));
     } catch (error) {
       console.error('Places API Error:', error);
