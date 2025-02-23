@@ -1,11 +1,23 @@
-import { Client } from '@googlemaps/google-maps-services-js';
+interface PlaceResult {
+  place_id: string;
+  name: string;
+  formatted_address: string;
+  types: string[];
+  business_status?: string;
+  rating?: number;
+  user_ratings_total?: number;
+}
+
+interface PlacesResponse {
+  results: PlaceResult[];
+  status: string;
+  next_page_token?: string;
+}
 
 export class GooglePlacesService {
-  private client: Client;
   private apiKey: string;
 
   constructor() {
-    this.client = new Client({});
     this.apiKey = process.env.GOOGLE_MAPS_API_KEY || '';
   }
 
@@ -19,16 +31,20 @@ export class GooglePlacesService {
     keyword: string;
   }) {
     try {
-      const response = await this.client.textSearch({
-        params: {
-          query: keyword,
-          location,
-          radius,
-          key: this.apiKey
-        }
-      });
+      const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?` + 
+        `query=${encodeURIComponent(keyword)}` +
+        `&location=${location.lat},${location.lng}` +
+        `&radius=${radius}` +
+        `&key=${this.apiKey}`;
 
-      return response.data.results.map(place => ({
+      const response = await fetch(url);
+      const data = await response.json() as PlacesResponse;
+
+      if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+        throw new Error(`Places API Error: ${data.status}`);
+      }
+
+      return data.results.map((place: PlaceResult) => ({
         place_id: place.place_id,
         name: place.name,
         vicinity: place.formatted_address,
@@ -44,10 +60,10 @@ export class GooglePlacesService {
     }
   }
 
-  private calculateRelevanceScore(place: any) {
+  private calculateRelevanceScore(place: PlaceResult): number {
     let score = 10;
     if (place.rating) score += place.rating;
-    if (place.user_ratings_total > 100) score += 5;
+    if (place.user_ratings_total && place.user_ratings_total > 100) score += 5;
     return Math.round(score);
   }
 } 
