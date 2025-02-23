@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import AnimatedBackground from '@/components/AnimatedBackground';
 import TypewriterPrompt from '@/components/TypewriterPrompt';
 import InputField from '@/components/InputField';
@@ -22,6 +22,7 @@ const LoadingSkeleton = () => (
 
 export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   const { 
     // State
@@ -123,6 +124,13 @@ export default function Home() {
       fetchMarketingStrategy();
     }
   }, [businessInfo.businessAnalysis, fetchMarketingStrategy]);
+
+  // Add new useEffect to handle scrolling when loading finishes
+  useEffect(() => {
+    if (!isLoadingStrategy && buttonRef.current) {
+      buttonRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [isLoadingStrategy]);
 
   // If we're showing places collection view, render only that
   if (showResults && searchResults.places.length > 0) {
@@ -257,42 +265,45 @@ export default function Home() {
 
       {/* Show verification message and buttons after business name */}
       {currentStep > 1 && (
-        <div className="relative z-10 w-full px-4">
-          <div className="flex min-h-screen flex-col items-center">
-            <div className="mt-[450px] sm:mt-[400px] flex flex-col items-center gap-8 w-full max-w-2xl mx-auto">
-              <div className="text-xl font-normal text-electric-teal text-center">
-                Please verify your information.
-              </div>
-              <div className="flex flex-col items-center gap-4 w-full">
-                <button
-                  onClick={() => {
-                    if (marketingStrategy && businessInfo.businessAnalysis) {
-                      setShowResults(true);
-                    }
-                  }}
-                  className="relative z-50 rounded-lg border-2 border-electric-teal bg-charcoal px-8 py-4 
-                    text-lg font-medium text-electric-teal shadow-glow overflow-hidden
-                    transition-all duration-300 hover:border-electric-teal/80 hover:shadow-glow-strong 
-                    active:scale-95 w-full max-w-md text-center"
-                >
-                  {isLoadingStrategy && (
-                    <div className="absolute inset-0 overflow-hidden">
-                      <div className="absolute inset-y-0 -inset-x-full animate-loading-progress bg-neon-magenta/20" />
-                    </div>
-                  )}
-                  <span className="relative z-10">
-                    {isLoadingStrategy ? 'Analyzing your market...' : 'Looks good, now show me my leads'}
-                  </span>
-                </button>
-                <button
-                  onClick={() => setIsEditModalOpen(true)}
-                  className="rounded-lg border-2 border-electric-teal bg-electric-teal/10 px-6 py-3 
-                    text-base font-medium text-electric-teal shadow-glow 
-                    transition-all duration-300 hover:bg-electric-teal/20 hover:shadow-glow-strong 
-                    active:scale-95"
-                >
-                  Edit my info
-                </button>
+        <div className="relative z-10 w-full px-4 mt-[400px] pb-20">
+          <div className="flex flex-col items-center">
+            <div className="w-full max-w-2xl">
+              <div className="flex flex-col items-center gap-8">
+                <div className="text-xl font-normal text-electric-teal text-center">
+                  Please verify your information.
+                </div>
+                <div className="flex flex-col items-center gap-4 w-full">
+                  <button
+                    ref={buttonRef}
+                    onClick={() => {
+                      if (marketingStrategy && businessInfo.businessAnalysis) {
+                        setShowResults(true);
+                      }
+                    }}
+                    className="relative z-50 rounded-lg border-2 border-electric-teal bg-charcoal px-8 py-4 
+                      text-lg font-medium text-electric-teal shadow-glow overflow-hidden
+                      transition-all duration-300 hover:border-electric-teal/80 hover:shadow-glow-strong 
+                      active:scale-95 w-full max-w-md text-center"
+                  >
+                    {isLoadingStrategy && (
+                      <div className="absolute inset-0 overflow-hidden">
+                        <div className="absolute inset-y-0 -inset-x-full animate-loading-progress bg-neon-magenta/20" />
+                      </div>
+                    )}
+                    <span className="relative z-10">
+                      {isLoadingStrategy ? 'Analyzing your market...' : 'Looks good, now show me my leads'}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setIsEditModalOpen(true)}
+                    className="rounded-lg border-2 border-electric-teal bg-electric-teal/10 px-6 py-3 
+                      text-base font-medium text-electric-teal shadow-glow 
+                      transition-all duration-300 hover:bg-electric-teal/20 hover:shadow-glow-strong 
+                      active:scale-95"
+                  >
+                    Edit my info
+                  </button>
+                </div>
               </div>
             </div>
           </div>
