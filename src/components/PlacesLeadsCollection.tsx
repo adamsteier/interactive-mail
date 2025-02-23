@@ -75,8 +75,8 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-charcoal/80 backdrop-blur-sm p-4">
-      <div className="relative w-full max-w-6xl rounded-lg border-2 border-electric-teal bg-charcoal shadow-glow my-8">
+    <div className="min-h-screen bg-charcoal p-4">
+      <div className="rounded-lg border-2 border-electric-teal bg-charcoal shadow-glow">
         {/* Header with close button */}
         <div className="border-b border-electric-teal/20 p-6 flex justify-between items-center">
           <h2 className="text-2xl font-semibold text-electric-teal">
