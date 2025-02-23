@@ -271,7 +271,10 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
                     {selectedBusinessTypes.size === 0 ? 'Select some businesses to get data' : 'Scrape Data'}
                   </button>
                   <button
-                    onClick={handleGoogleSearch}
+                    onClick={() => {
+                      handleGoogleSearch();
+                      setShowLeadsCollection(true);
+                    }}
                     disabled={selectedBusinessTypes.size === 0}
                     className="rounded border-2 border-electric-teal bg-electric-teal/10 px-6 py-2 
                       text-electric-teal shadow-glow hover:bg-electric-teal/20 hover:shadow-glow-strong 

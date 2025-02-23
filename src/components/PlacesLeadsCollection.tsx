@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { GooglePlace } from '@/types/places';
 import SelectionSummary from './SelectionSummary';
@@ -37,6 +37,17 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
     if (activeFilter === 'all') return places;
     return places.filter((place: GooglePlace) => place.businessType === activeFilter);
   }, [places, activeFilter]);
+
+  useEffect(() => {
+    // Log store state when component mounts
+    console.log('PlacesLeadsCollection mounted with:', {
+      places: places.length,
+      isLoading,
+      progress,
+      totalGridPoints,
+      currentGridPoint
+    });
+  }, [places.length, isLoading, progress, totalGridPoints, currentGridPoint]);
 
   const handleSelectPlace = (placeId: string) => {
     setSelectedPlaces(prev => {

@@ -311,6 +311,7 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
         throw new Error('No bounding box available');
       }
 
+      // Set loading state and show PlacesLeadsCollection
       state.updateSearchResults({
         places: [],
         isLoading: true,
@@ -318,11 +319,11 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
         totalGridPoints: 0,
         currentGridPoint: 0
       });
+      state.setShowResults(true); // Add this to show the collection view
 
       const allPlacesAcrossTypes: GooglePlace[] = [];
 
       for (const businessType of state.selectedBusinessTypes) {
-        // Get estimated reach for this business type
         const businessTarget = state.marketingStrategy?.method1Analysis.businessTargets
           .find(target => target.type === businessType);
 
@@ -332,6 +333,12 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
           businessTarget?.estimatedReach ?? 100
         );
 
+        console.log('Grid Config:', {
+          businessType,
+          points: gridConfig.searchPoints.length,
+          estimatedReach: businessTarget?.estimatedReach
+        });
+
         state.updateSearchResults({
           totalGridPoints: gridConfig.searchPoints.length
         });
@@ -339,24 +346,38 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
         for (let i = 0; i < gridConfig.searchPoints.length; i++) {
           const point = gridConfig.searchPoints[i];
           
+          console.log('Searching point:', {
+            lat: point.lat,
+            lng: point.lng,
+            radius: point.radius,
+            type: businessType
+          });
+
           state.updateSearchResults({
             currentGridPoint: i + 1,
             progress: 5 + ((i + 1) / gridConfig.searchPoints.length * 95)
           });
 
-          const response = await fetch('/api/google-places', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              lat: point.lat,
-              lng: point.lng,
-              radius: point.radius,
-              type: businessType
-            }),
-          });
+          try {
+            const response = await fetch('/api/google-places', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                lat: point.lat,
+                lng: point.lng,
+                radius: point.radius,
+                type: businessType,
+                keyword: businessType // Add this - some business types need keyword search
+              }),
+            });
 
-          if (response.ok) {
+            if (!response.ok) {
+              throw new Error(`API Error: ${await response.text()}`);
+            }
+
             const data = await response.json();
+            console.log('API Response:', data);
+
             if (data.places) {
               const newPlaces = data.places
                 .map((place: GooglePlace) => ({
@@ -371,6 +392,9 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
                 places: allPlacesAcrossTypes
               });
             }
+          } catch (error) {
+            console.error('API Error:', error);
+            // Continue with next point even if one fails
           }
         }
       }
