@@ -7,17 +7,6 @@ import SelectionSummary from './SelectionSummary';
 
 interface PlacesLeadsCollectionProps {
   places: GooglePlace[];
-  businessContext: {
-    businessName: string;
-    targetArea: string;
-    industry: string;
-    description: string;
-    targetingRationale: {
-      businessType: string;
-      reasoning: string;
-      estimatedReach: number;
-    }[];
-  };
   onClose: () => void;
   isLoading?: boolean;
   progress?: number;
@@ -25,7 +14,7 @@ interface PlacesLeadsCollectionProps {
   currentGridPoint?: number;
 }
 
-const PlacesLeadsCollection = ({ places, businessContext, onClose, isLoading, progress, totalGridPoints, currentGridPoint }: PlacesLeadsCollectionProps) => {
+const PlacesLeadsCollection = ({ places, onClose, isLoading, progress, totalGridPoints, currentGridPoint }: PlacesLeadsCollectionProps) => {
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [selectedPlaces, setSelectedPlaces] = useState<Set<string>>(new Set());
   
@@ -65,42 +54,8 @@ const PlacesLeadsCollection = ({ places, businessContext, onClose, isLoading, pr
     }
   };
 
-  // Add a function to get rationale for current filter
-  const getCurrentRationale = () => {
-    if (activeFilter === 'all') return null;
-    return businessContext.targetingRationale.find(
-      target => target.businessType === activeFilter
-    );
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-charcoal">
-      {/* Add business context header */}
-      <div className={`fixed top-0 left-0 right-0 ${isLoading ? 'mt-8' : ''}`}>
-        <div className="bg-electric-teal/5 border-b border-electric-teal/20 px-4 py-3">
-          <div className="text-electric-teal text-sm">
-            <span className="font-medium">{businessContext.businessName}</span>
-            <span className="mx-2">•</span>
-            <span className="text-electric-teal/80">{businessContext.industry}</span>
-            <span className="mx-2">•</span>
-            <span className="text-electric-teal/60">{businessContext.targetArea}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Add rationale display when filter is active */}
-      {getCurrentRationale() && (
-        <div className="px-4 py-3 bg-electric-teal/10 border-b border-electric-teal/20">
-          <div className="text-electric-teal/80 text-sm">
-            <span className="font-medium">Why {getCurrentRationale()?.businessType}?</span>
-            <p className="mt-1">{getCurrentRationale()?.reasoning}</p>
-            <p className="mt-1 text-electric-teal/60">
-              Estimated potential: {getCurrentRationale()?.estimatedReach.toLocaleString()} businesses
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Progress Bar */}
       {isLoading && (
         <div className="fixed top-0 left-0 right-0">

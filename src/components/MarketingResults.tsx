@@ -476,17 +476,6 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
         taskInfos[0]?.source === 'google-places' ? (
           <PlacesLeadsCollection
             places={taskInfos[0].places || []}
-            businessContext={{
-              businessName: strategy.businessName || "",
-              targetArea: strategy.targetArea || "",
-              industry: strategy.industry || "",
-              description: strategy.description || "",
-              targetingRationale: strategy.method1Analysis.businessTargets.map(target => ({
-                businessType: target.type,
-                reasoning: target.reasoning,
-                estimatedReach: target.estimatedReach || 0
-              }))
-            }}
             isLoading={taskInfos[0].isLoading}
             progress={taskInfos[0].progress}
             onClose={() => {
