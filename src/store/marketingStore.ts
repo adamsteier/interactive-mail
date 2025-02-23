@@ -214,20 +214,23 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
   })),
 
   updateSearchResults: (update) => set((state) => {
-    const newState = {
-      searchResults: {
-        ...state.searchResults,
-        ...update
-      }
+    // Create completely new objects to ensure state updates are detected
+    const newSearchResults = {
+      ...state.searchResults,
+      ...update,
+      // Ensure places array is a new array reference
+      places: update.places ? [...update.places] : state.searchResults.places
     };
-    
+
     console.log('Store update:', {
       currentPlaces: state.searchResults.places.length,
       newPlaces: update.places?.length || 0,
-      stateAfterUpdate: newState.searchResults.places.length
+      stateAfterUpdate: newSearchResults.places.length
     });
 
-    return newState;
+    return {
+      searchResults: newSearchResults
+    };
   }),
 
   setUserInput: (input) => set({ userInput: input }),
