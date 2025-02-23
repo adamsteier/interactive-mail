@@ -42,7 +42,8 @@ export default function Home() {
     setIsEditModalOpen,
     setShowResults,
     handleSubmit,
-    handleSaveEdits
+    handleSaveEdits,
+    setDisplayInfos
   } = useMarketingStore();
 
   const welcomeText = "Let's find you some new business. Tell me a little bit about your customers or who you're trying to reach.";
@@ -77,6 +78,39 @@ export default function Home() {
       fetchLocation();
     }
   }, [locationData, setLocationData]);
+
+  useEffect(() => {
+    // Update display infos whenever business info changes
+    const newDisplayInfos = [
+      // Target Area
+      ...(businessInfo.targetArea ? [{
+        label: "Target Area",
+        value: businessInfo.targetArea,
+        type: 'answer' as const,
+        position: 'first' as const
+      }] : []),
+      // Business Name
+      ...(businessInfo.businessName ? [{
+        label: "Your Business Name",
+        value: businessInfo.businessName,
+        type: 'answer' as const,
+        position: 'inline' as const
+      }] : []),
+      // Business Analysis
+      ...(businessInfo.businessAnalysis ? [{
+        label: "Industry & Description",
+        value: businessInfo.businessAnalysis.industry,
+        type: 'analysis' as const,
+        position: 'below' as const,
+        subInfo: {
+          industry: businessInfo.businessAnalysis.industry,
+          description: businessInfo.businessAnalysis.description
+        }
+      }] : [])
+    ];
+
+    setDisplayInfos(newDisplayInfos);
+  }, [businessInfo, setDisplayInfos]);
 
   return (
     <main className="relative min-h-screen w-full">

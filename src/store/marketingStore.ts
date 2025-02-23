@@ -65,7 +65,7 @@ interface MarketingState {
   updateSearchResults: (update: Partial<MarketingState['searchResults']>) => void;
   setUserInput: (input: string) => void;
   setIsProcessing: (isProcessing: boolean) => void;
-  setInputPosition: (position: { top: number; height: number } | null) => void;
+  setInputPosition: (position: { top: number; height: number } | undefined) => void;
   setIsEditModalOpen: (isOpen: boolean) => void;
   setIsLoadingStrategy: (isLoading: boolean) => void;
   setShowResults: (show: boolean) => void;
