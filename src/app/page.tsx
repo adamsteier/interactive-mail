@@ -43,7 +43,8 @@ export default function Home() {
     setShowResults,
     handleSubmit,
     handleSaveEdits,
-    setDisplayInfos
+    setDisplayInfos,
+    fetchMarketingStrategy
   } = useMarketingStore();
 
   const welcomeText = "Let's find you some new business. Tell me a little bit about your customers or who you're trying to reach.";
@@ -111,6 +112,12 @@ export default function Home() {
 
     setDisplayInfos(newDisplayInfos);
   }, [businessInfo, setDisplayInfos]);
+
+  useEffect(() => {
+    if (businessInfo.businessAnalysis) {
+      fetchMarketingStrategy();
+    }
+  }, [businessInfo.businessAnalysis, fetchMarketingStrategy]);
 
   return (
     <main className="relative min-h-screen w-full">

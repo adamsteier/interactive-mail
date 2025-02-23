@@ -77,6 +77,7 @@ interface MarketingState {
     industry: string;
     description: string;
   }) => void;
+  fetchMarketingStrategy: () => Promise<void>;
 }
 
 export const useMarketingStore = create<MarketingState>((set, get) => ({
@@ -198,4 +199,34 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
       description: editedInfo.description,
     });
   },
+
+  fetchMarketingStrategy: async () => {
+    const state = get();
+    state.setIsLoadingStrategy(true);
+    try {
+      const response = await fetch('/api/marketing-strategy', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          targetArea: state.businessInfo.targetArea,
+          businessName: state.businessInfo.businessName,
+          industry: state.businessInfo.businessAnalysis?.industry,
+          description: state.businessInfo.businessAnalysis?.description,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get marketing strategy');
+      }
+
+      const data = await response.json();
+      state.setMarketingStrategy(data.analysis);
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      state.setIsLoadingStrategy(false);
+    }
+  }
 })); 
