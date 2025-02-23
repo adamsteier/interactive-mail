@@ -3,7 +3,7 @@ import { BusinessAnalysis } from '@/types/businessAnalysis';
 interface PlaceResult {
   place_id: string;
   name: string;
-  formatted_address: string;
+  vicinity: string;
   types: string[];
   business_status?: string;
   rating?: number;
@@ -116,7 +116,7 @@ export class GooglePlacesService {
       return allResults.map((place: PlaceResult) => ({
         place_id: place.place_id,
         name: place.name,
-        vicinity: place.formatted_address,
+        vicinity: place.vicinity,
         types: place.types,
         business_status: place.business_status,
         rating: place.rating,

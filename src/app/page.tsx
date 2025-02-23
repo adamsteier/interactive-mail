@@ -257,9 +257,9 @@ export default function Home() {
 
       {/* Show verification message and buttons after business name */}
       {currentStep > 1 && (
-        <div className="relative z-10 min-h-screen px-4 pt-[280px] sm:pt-[240px]">
-          <div className="flex flex-col items-center gap-8">
-            <div className="text-xl font-normal text-electric-teal">
+        <div className="relative z-10 min-h-screen px-4">
+          <div className="mt-[400px] sm:mt-[320px] flex flex-col items-center gap-8">
+            <div className="text-xl font-normal text-electric-teal text-center">
               Please verify your information.
             </div>
             <div className="flex flex-col items-center gap-4">
@@ -272,7 +272,7 @@ export default function Home() {
                 className="relative z-50 rounded-lg border-2 border-electric-teal bg-charcoal px-8 py-4 
                   text-lg font-medium text-electric-teal shadow-glow overflow-hidden
                   transition-all duration-300 hover:border-electric-teal/80 hover:shadow-glow-strong 
-                  active:scale-95"
+                  active:scale-95 max-w-[90vw] text-center"
               >
                 {isLoadingStrategy && (
                   <div className="absolute inset-0 overflow-hidden">
