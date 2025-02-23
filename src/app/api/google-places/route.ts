@@ -17,18 +17,12 @@ interface PlaceSearchResult {
   user_ratings_total?: number;
 }
 
-interface PlaceSearchResponse {
-  results: PlaceSearchResult[];
-  status: string;
-  next_page_token?: string;
-}
-
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { lat, lng, radius, type, keyword } = body;
+    const { lat, lng, radius, keyword } = body;
 
-    if (!lat || !lng || !radius || !type) {
+    if (!lat || !lng || !radius || !keyword) {
       return NextResponse.json(
         { error: 'Missing required parameters' },
         { status: 400 }
@@ -39,7 +33,6 @@ export async function POST(request: Request) {
     const places = await placesService.searchPlaces({
       location: { lat, lng },
       radius,
-      type,
       keyword
     });
 
