@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { MarketingStrategy, BusinessTarget, DatabaseTarget } from '@/types/marketing';
+import { BusinessTarget, DatabaseTarget } from '@/types/marketing';
 import { BusinessAnalysis } from '@/types/businessAnalysis';
 import LeadsCollection from '@/components/LeadsCollection';
 import PlacesLeadsCollection from '@/components/PlacesLeadsCollection';
@@ -9,8 +9,6 @@ import { GooglePlace } from '@/types/places';
 import { useMarketingStore } from '@/store/marketingStore';
 
 interface MarketingResultsProps {
-  strategy: MarketingStrategy;
-  boundingBox: BusinessAnalysis['boundingBox'];
   onClose: () => void;
 }
 
@@ -138,21 +136,25 @@ const generateHexagonalGrid = (businessType: string, boundingBox: BusinessAnalys
   };
 };
 
-const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsProps) => {
+const MarketingResults = ({ onClose }: MarketingResultsProps) => {
   const { 
+    marketingStrategy,
+    businessInfo,
+    selectedBusinessTypes,
     setMarketingStrategy,
     setSelectedBusinessTypes,
-    selectedBusinessTypes 
+    updateSearchResults
   } = useMarketingStore();
 
-  // Keep local state during transition
   const [showLeadsCollection, setShowLeadsCollection] = useState(false);
   const [taskInfos, setTaskInfos] = useState<TaskInfo[]>([]);
 
   useEffect(() => {
-    // Store the strategy when component mounts
-    setMarketingStrategy(strategy);
-  }, [strategy, setMarketingStrategy]);
+    // Only update if marketingStrategy exists
+    if (marketingStrategy) {
+      setMarketingStrategy(marketingStrategy);
+    }
+  }, [marketingStrategy, setMarketingStrategy]);
 
   const handleCheckboxChange = (targetType: string) => {
     setSelectedBusinessTypes((prev: Set<string>) => {
@@ -172,7 +174,10 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       
       // Create tasks for each selected business type
       for (const businessType of selectedBusinessTypes) {
-        const query = generateSearchQuery(businessType, boundingBox);
+        const query = generateSearchQuery(businessType, businessInfo.businessAnalysis?.boundingBox || {
+          southwest: { lat: 0, lng: 0 },
+          northeast: { lat: 0, lng: 0 }
+        });
         console.log(`\nProcessing ${businessType}:`);
         console.log('Search URLs:', query.searchUrls);
 
@@ -219,24 +224,21 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
   const handleGoogleSearch = async () => {
     try {
-      setTaskInfos([{
-        id: 'google-places-search',
-        businessType: 'google-places',
-        source: 'google-places',
+      // Update search results in store instead of local state
+      updateSearchResults({
         places: [],
         isLoading: true,
         progress: 0,
         totalGridPoints: 0,
         currentGridPoint: 0
-      }]);
+      });
       setShowLeadsCollection(true);
 
       let allPlacesAcrossTypes: GooglePlace[] = [];
 
-      // Use selectedBusinessTypes from store
       for (const businessType of selectedBusinessTypes) {
         // Get the estimated reach for this specific business type
-        const businessTypeConfig = strategy.method1Analysis.businessTargets.find(
+        const businessTypeConfig = marketingStrategy?.method1Analysis.businessTargets.find(
           (bt: BusinessTarget) => bt.type === businessType
         );
 
@@ -249,7 +251,10 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
         const gridConfig = generateHexagonalGrid(
           businessType, 
-          boundingBox,
+          businessInfo.businessAnalysis?.boundingBox || {
+            southwest: { lat: 0, lng: 0 },
+            northeast: { lat: 0, lng: 0 }
+          },
           businessTypeConfig.estimatedReach ?? 100
         );
 
@@ -257,13 +262,11 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
         console.log(`Grid size: ${Math.sqrt(gridConfig.searchPoints.length)}x${Math.sqrt(gridConfig.searchPoints.length)}`);
         console.log(`Total points: ${gridConfig.searchPoints.length}`);
 
-        // Update total grid points
-        setTaskInfos(current => [{
-          ...current[0],
+        // Update progress in store instead of local state
+        updateSearchResults({
           totalGridPoints: gridConfig.searchPoints.length
-        }]);
+        });
 
-        // Process each grid point
         for (let i = 0; i < gridConfig.searchPoints.length; i++) {
           const point = gridConfig.searchPoints[i];
           
@@ -271,12 +274,11 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
           console.log(`Location: ${point.lat}, ${point.lng}`);
           console.log(`Radius: ${point.radius}m`);
 
-          // Update current grid point
-          setTaskInfos(current => [{
-            ...current[0],
+          // Update current progress in store
+          updateSearchResults({
             currentGridPoint: i + 1,
             progress: 5 + ((i + 1) / gridConfig.searchPoints.length * 95)
-          }]);
+          });
 
           const response = await fetch('/api/google-places', {
             method: 'POST',
@@ -312,24 +314,22 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
             allPlacesAcrossTypes = [...allPlacesAcrossTypes, ...newPlaces];
             console.log(`Total unique places across all types: ${allPlacesAcrossTypes.length}`);
 
-            // Update places immediately
-            setTaskInfos(current => [{
-              ...current[0],
+            // Update places in store
+            updateSearchResults({
               places: allPlacesAcrossTypes
-            }]);
+            });
           } else {
             console.error('API Error:', await response.text());
           }
         }
       }
 
-      // Final update
-      setTaskInfos(current => [{
-        ...current[0],
+      // Final update in store
+      updateSearchResults({
         places: allPlacesAcrossTypes,
         isLoading: false,
         progress: 100
-      }]);
+      });
 
     } catch (error) {
       console.error('Google Places search error:', error);
@@ -352,11 +352,11 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
             <div className="px-8">
               <div className="mb-8">
                 <h3 className="text-lg text-electric-teal mb-2">Primary Recommendation</h3>
-                <p className="text-electric-teal/80">{strategy.primaryRecommendation}</p>
+                <p className="text-electric-teal/80">{marketingStrategy?.primaryRecommendation}</p>
                 <p className="mt-2 text-sm text-electric-teal/60">
                   Estimated total reach: {
-                    strategy.totalEstimatedReach != null 
-                      ? strategy.totalEstimatedReach.toLocaleString() 
+                    marketingStrategy?.totalEstimatedReach != null 
+                      ? marketingStrategy.totalEstimatedReach.toLocaleString() 
                       : 'Unknown'
                   } potential leads
                 </p>
@@ -364,15 +364,15 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
               <div className="space-y-8 mb-8">
                 {/* Direct Mail to Businesses with checkboxes */}
-                {strategy.recommendedMethods.includes('method1') && (
+                {marketingStrategy?.recommendedMethods.includes('method1') && (
                   <div className="space-y-4">
                     <h3 className="text-xl font-medium text-electric-teal border-b border-electric-teal/20 pb-2">
                       Direct Mail to Businesses
                     </h3>
-                    <p className="text-electric-teal/80 mb-4">{strategy.method1Analysis.overallReasoning}</p>
+                    <p className="text-electric-teal/80 mb-4">{marketingStrategy.method1Analysis.overallReasoning}</p>
                     
                     <div className="space-y-4">
-                      {strategy.method1Analysis.businessTargets.map((target: BusinessTarget) => (
+                      {marketingStrategy.method1Analysis.businessTargets.map((target: BusinessTarget) => (
                         <div 
                           key={target.type}
                           className="rounded-lg border border-electric-teal/30 p-4 hover:bg-electric-teal/5 transition-colors"
@@ -414,15 +414,15 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
                 )}
 
                 {/* Database Targeting */}
-                {strategy.recommendedMethods.includes('method2') && (
+                {marketingStrategy?.recommendedMethods.includes('method2') && (
                   <div className="space-y-4">
                     <h3 className="text-xl font-medium text-electric-teal border-b border-electric-teal/20 pb-2">
                       Database Targeting
                     </h3>
-                    <p className="text-electric-teal/80 mb-4">{strategy.method2Analysis.overallReasoning}</p>
+                    <p className="text-electric-teal/80 mb-4">{marketingStrategy.method2Analysis.overallReasoning}</p>
                     
                     <div className="space-y-4">
-                      {strategy.method2Analysis.databaseTargets.map((database: DatabaseTarget) => (
+                      {marketingStrategy.method2Analysis.databaseTargets.map((database: DatabaseTarget) => (
                         <div 
                           key={database.name}
                           className="rounded-lg border border-electric-teal/30 p-4 hover:bg-electric-teal/5 transition-colors"
@@ -440,12 +440,12 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
                 )}
 
                 {/* Mass Flyer Drop */}
-                {strategy.recommendedMethods.includes('method3') && (
+                {marketingStrategy?.recommendedMethods.includes('method3') && (
                   <div className="space-y-4">
                     <h3 className="text-xl font-medium text-electric-teal border-b border-electric-teal/20 pb-2">
                       Mass Flyer Drop
                     </h3>
-                    <p className="text-electric-teal/80">{strategy.method3Analysis.reasoning}</p>
+                    <p className="text-electric-teal/80">{marketingStrategy.method3Analysis.reasoning}</p>
                   </div>
                 )}
               </div>
@@ -487,9 +487,6 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       ) : (
         taskInfos[0]?.source === 'google-places' ? (
           <PlacesLeadsCollection
-            places={taskInfos[0].places || []}
-            isLoading={taskInfos[0].isLoading}
-            progress={taskInfos[0].progress}
             onClose={() => {
               setShowLeadsCollection(false);
               onClose();

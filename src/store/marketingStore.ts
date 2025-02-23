@@ -22,12 +22,19 @@ interface MarketingState {
     businessAnalysis: BusinessAnalysis | null;
   };
 
-  // Step 3: Analysis & Strategy
+  // Step 3: Marketing Strategy
   marketingStrategy: MarketingStrategy | null;
 
   // Step 4: Lead Collection
   selectedBusinessTypes: Set<string>;
   collectedLeads: GooglePlace[];
+  searchResults: {
+    places: GooglePlace[];
+    isLoading: boolean;
+    progress: number;
+    totalGridPoints: number;
+    currentGridPoint: number;
+  };
 
   // Actions
   setLocationData: (data: MarketingState['locationData']) => void;
@@ -37,6 +44,7 @@ interface MarketingState {
   setSelectedBusinessTypes: (types: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
   setCollectedLeads: (leads: GooglePlace[]) => void;
   setBusinessAnalysis: (analysis: BusinessAnalysis | null) => void;
+  updateSearchResults: (update: Partial<MarketingState['searchResults']>) => void;
 }
 
 export const useMarketingStore = create<MarketingState>((set) => ({
@@ -52,6 +60,13 @@ export const useMarketingStore = create<MarketingState>((set) => ({
   marketingStrategy: null,
   selectedBusinessTypes: new Set<string>(),
   collectedLeads: [],
+  searchResults: {
+    places: [],
+    isLoading: false,
+    progress: 0,
+    totalGridPoints: 0,
+    currentGridPoint: 0
+  },
 
   // Actions
   setLocationData: (data) => set({ locationData: data }),
@@ -80,5 +95,9 @@ export const useMarketingStore = create<MarketingState>((set) => ({
       ...state.businessInfo,
       businessAnalysis: analysis
     }
+  })),
+
+  updateSearchResults: (update) => set((state) => ({
+    searchResults: { ...state.searchResults, ...update }
   }))
 })); 

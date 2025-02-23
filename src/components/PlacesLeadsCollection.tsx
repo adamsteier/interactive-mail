@@ -7,20 +7,20 @@ import SelectionSummary from './SelectionSummary';
 import { useMarketingStore } from '@/store/marketingStore';
 
 interface PlacesLeadsCollectionProps {
-  places: GooglePlace[];
   onClose: () => void;
-  isLoading?: boolean;
-  progress?: number;
-  totalGridPoints?: number;
-  currentGridPoint?: number;
 }
 
-const PlacesLeadsCollection = ({ places, onClose, isLoading, progress, totalGridPoints, currentGridPoint }: PlacesLeadsCollectionProps) => {
+const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
+  const { 
+    searchResults,
+    setCollectedLeads,
+    updateSearchResults
+  } = useMarketingStore();
+
+  const { places, isLoading, progress, totalGridPoints, currentGridPoint } = searchResults;
+
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [selectedPlaces, setSelectedPlaces] = useState<Set<string>>(new Set());
-  
-  // Get data from store
-  const { setCollectedLeads } = useMarketingStore();
   
   // Calculate business type counts
   const businessTypes = useMemo(() => {
@@ -35,7 +35,7 @@ const PlacesLeadsCollection = ({ places, onClose, isLoading, progress, totalGrid
   // Filter places based on active filter
   const filteredPlaces = useMemo(() => {
     if (activeFilter === 'all') return places;
-    return places.filter(place => place.businessType === activeFilter);
+    return places.filter((place: GooglePlace) => place.businessType === activeFilter);
   }, [places, activeFilter]);
 
   const handleSelectPlace = (placeId: string) => {
@@ -46,6 +46,13 @@ const PlacesLeadsCollection = ({ places, onClose, isLoading, progress, totalGrid
       } else {
         newSet.add(placeId);
       }
+      // Update search results with selection
+      updateSearchResults({
+        places: places.map(place => ({
+          ...place,
+          selected: newSet.has(place.place_id)
+        }))
+      });
       return newSet;
     });
   };
@@ -54,7 +61,15 @@ const PlacesLeadsCollection = ({ places, onClose, isLoading, progress, totalGrid
     if (selectedPlaces.size === filteredPlaces.length) {
       setSelectedPlaces(new Set());
     } else {
-      setSelectedPlaces(new Set(filteredPlaces.map(place => place.place_id)));
+      const newSelected = new Set(filteredPlaces.map(place => place.place_id));
+      setSelectedPlaces(newSelected);
+      // Update search results with selection
+      updateSearchResults({
+        places: places.map(place => ({
+          ...place,
+          selected: newSelected.has(place.place_id)
+        }))
+      });
     }
   };
 
@@ -139,7 +154,7 @@ const PlacesLeadsCollection = ({ places, onClose, isLoading, progress, totalGrid
               </tr>
             </thead>
             <tbody>
-              {filteredPlaces.map((place, index) => (
+              {filteredPlaces.map((place: GooglePlace, index) => (
                 <motion.tr
                   key={`${place.name}-${place.vicinity}-${index}`}
                   initial={{ opacity: 0, y: 20 }}
@@ -196,7 +211,7 @@ const PlacesLeadsCollection = ({ places, onClose, isLoading, progress, totalGrid
       <SelectionSummary
         selectedPlaces={selectedPlaces}
         onStartCampaign={() => {
-          const selectedBusinesses = filteredPlaces.filter(place => 
+          const selectedBusinesses = filteredPlaces.filter((place: GooglePlace) => 
             selectedPlaces.has(place.place_id)
           );
           

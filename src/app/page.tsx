@@ -80,10 +80,17 @@ export default function Home() {
   const [isLoadingStrategy, setIsLoadingStrategy] = useState(false);
   const [showResults, setShowResults] = useState(false);
 
-  const labels = [
-    "Target Area",
-    "Your Business Name",
-    "Business Type"
+  const welcomeText = "Let's find you some new business. Tell me a little bit about your customers or who you're trying to reach.";
+  
+  const prompts = [
+    {
+      text: `${welcomeText}\nWhere do you want to target? You can be descriptive and use terms like North ${locationData?.city || 'Toronto'}.`,
+      placeholder: "Type City, Province, Area, Neighbourhood"
+    },
+    {
+      text: "What's the name of your business?",
+      placeholder: "Enter your business name"
+    }
   ];
 
   useEffect(() => {
@@ -129,19 +136,6 @@ export default function Home() {
     ];
     setDisplayInfos(newDisplayInfos);
   }, [answers, businessInfo.businessAnalysis]);
-
-  const welcomeText = "Let's find you some new business. Tell me a little bit about your customers or who you're trying to reach.";
-  
-  const prompts = [
-    {
-      text: `${welcomeText}\nWhere do you want to target? You can be descriptive and use terms like North ${locationData?.city || 'Toronto'}.`,
-      placeholder: "Type City, Province, Area, Neighbourhood"
-    },
-    {
-      text: "What's the name of your business?",
-      placeholder: "Enter your business name"
-    }
-  ];
 
   const handleSubmit = async (input: string) => {
     setIsProcessing(true);
