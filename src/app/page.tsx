@@ -130,10 +130,6 @@ export default function Home() {
     {
       text: "What's the name of your business?",
       placeholder: "Enter your business name"
-    },
-    {
-      text: "What type of business are you in?",
-      placeholder: "Describe your business or industry"
     }
   ];
 
@@ -160,7 +156,6 @@ export default function Home() {
           body: JSON.stringify({
             targetArea,
             businessName,
-            businessType: "", // Empty at this point
             userLocation: locationData?.city || 'Toronto',
           }),
         });
@@ -173,9 +168,10 @@ export default function Home() {
         if (data.analysis) {
           setBusinessAnalysis(data.analysis);
         }
-      }
-
-      if (step < prompts.length - 1) {
+        
+        // Move to verification step
+        setStep(2);
+      } else if (step < prompts.length - 1) {
         setStep(step + 1);
         setUserInput('');
       }
