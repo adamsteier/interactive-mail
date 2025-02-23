@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect } from 'react';
 import AnimatedBackground from '@/components/AnimatedBackground';
 import TypewriterPrompt from '@/components/TypewriterPrompt';
 import InputField from '@/components/InputField';
@@ -8,31 +8,7 @@ import InfoBox from '@/components/InfoBox';
 import LoadingBar from '@/components/LoadingBar';
 import EditModal from '@/components/EditModal';
 import MarketingResults from '@/components/MarketingResults';
-import { MarketingStrategy } from '@/types/marketing';
 import { useMarketingStore } from '@/store/marketingStore';
-
-interface Answer {
-  label: string;
-  value: string;
-}
-
-interface DisplayInfo {
-  label: string;
-  value: string;
-  type: 'answer' | 'analysis';
-  position?: 'first' | 'inline' | 'below';
-  subInfo?: {
-    industry: string;
-    description: string;
-  };
-}
-
-interface EditableInfo {
-  targetArea: string;
-  businessName: string;
-  industry: string;
-  description: string;
-}
 
 const LoadingSkeleton = () => (
   <div className="w-full rounded-lg border-2 border-electric-teal bg-charcoal/80 px-4 md:px-6 py-3 shadow-glow backdrop-blur-sm">
@@ -45,24 +21,29 @@ const LoadingSkeleton = () => (
 
 export default function Home() {
   const { 
+    // State
     locationData,
     businessInfo,
     currentStep,
-    setLocationData,
-    updateBusinessInfo,
-    setStep,
-    setBusinessAnalysis: setStoreBusinessAnalysis
-  } = useMarketingStore();
+    userInput,
+    isProcessing,
+    inputPosition,
+    displayInfos,
+    isEditModalOpen,
+    isLoadingStrategy,
+    showResults,
+    marketingStrategy,
 
-  const [userInput, setUserInput] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [inputPosition, setInputPosition] = useState<{ top: number; height: number }>();
-  const [answers, setAnswers] = useState<Answer[]>([]);
-  const [displayInfos, setDisplayInfos] = useState<DisplayInfo[]>([]);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [marketingStrategy, setMarketingStrategy] = useState<MarketingStrategy | null>(null);
-  const [isLoadingStrategy, setIsLoadingStrategy] = useState(false);
-  const [showResults, setShowResults] = useState(false);
+    // Actions
+    setLocationData,
+    setUserInput,
+    setInputPosition,
+    setStep,
+    setIsEditModalOpen,
+    setShowResults,
+    handleSubmit,
+    handleSaveEdits
+  } = useMarketingStore();
 
   const welcomeText = "Let's find you some new business. Tell me a little bit about your customers or who you're trying to reach.";
   
@@ -97,126 +78,9 @@ export default function Home() {
     }
   }, [locationData, setLocationData]);
 
-  useEffect(() => {
-    // Update display infos whenever answers or business analysis change
-    const newDisplayInfos: DisplayInfo[] = [
-      ...answers.map((answer, index) => ({
-        ...answer,
-        type: 'answer' as const,
-        position: index === 0 ? 'first' as const : 'inline' as const
-      })),
-      ...(businessInfo.businessAnalysis ? [
-        {
-          label: "Industry & Description",
-          value: businessInfo.businessAnalysis.industry,
-          type: 'analysis' as const,
-          position: 'below' as const,
-          subInfo: {
-            industry: businessInfo.businessAnalysis.industry,
-            description: businessInfo.businessAnalysis.description
-          }
-        }
-      ] : [])
-    ];
-    setDisplayInfos(newDisplayInfos);
-  }, [answers, businessInfo.businessAnalysis]);
-
-  const handleSubmit = async (input: string) => {
-    setIsProcessing(true);
-    try {
-      if (currentStep === 0) {
-        updateBusinessInfo({ targetArea: input });
-        setStep(1);
-      } else if (currentStep === 1) {
-        updateBusinessInfo({ businessName: input });
-        
-        const response = await fetch('/api/openai', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            targetArea: businessInfo.targetArea,
-            businessName: input,
-            userLocation: locationData?.city || 'Toronto',
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to get AI response');
-        }
-
-        const data = await response.json();
-        if (data.analysis) {
-          setStoreBusinessAnalysis(data.analysis);
-        }
-        setStep(2);
-      }
-      setUserInput('');
-    } catch (error) {
-      console.error('Error:', error);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handlePositionChange = useCallback((position: { top: number; height: number }) => {
-    setInputPosition(position);
-  }, []);
-
-  const handleSaveEdits = (editedInfo: EditableInfo) => {
-    // Update answers
-    setAnswers([
-      { label: "Target Area", value: editedInfo.targetArea },
-      { label: "Your Business Name", value: editedInfo.businessName },
-    ]);
-
-    // Update business analysis with proper typing
-    setStoreBusinessAnalysis({
-      ...businessInfo.businessAnalysis!,
-      industry: editedInfo.industry,
-      description: editedInfo.description,
-    });
-  };
-
-  const fetchMarketingStrategy = useCallback(async () => {
-    setIsLoadingStrategy(true);
-    try {
-      const response = await fetch('/api/marketing-strategy', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          targetArea: answers.find(a => a.label === "Target Area")?.value,
-          businessName: answers.find(a => a.label === "Your Business Name")?.value,
-          industry: businessInfo.businessAnalysis?.industry,
-          description: businessInfo.businessAnalysis?.description,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to get marketing strategy');
-      }
-
-      const data = await response.json();
-      setMarketingStrategy(data.analysis);
-    } catch (error) {
-      console.error('Error:', error);
-    } finally {
-      setIsLoadingStrategy(false);
-    }
-  }, [answers, businessInfo.businessAnalysis]);
-
-  useEffect(() => {
-    if (businessInfo.businessAnalysis && answers.length >= 2) {
-      fetchMarketingStrategy();
-    }
-  }, [businessInfo.businessAnalysis, answers, fetchMarketingStrategy]);
-
   return (
     <main className="relative min-h-screen w-full">
-      <AnimatedBackground inputPosition={inputPosition} />
+      <AnimatedBackground inputPosition={inputPosition || undefined} />
       <div className="fixed left-0 top-0 w-full">
         <div className="relative mx-auto max-w-2xl px-4 pt-8">
           <div className="flex flex-col gap-4">
@@ -255,7 +119,7 @@ export default function Home() {
                     subInfo={info.subInfo}
                     onClick={() => {
                       setStep(1);
-                      setUserInput(answers[1].value);
+                      setUserInput(info.value);
                     }}
                   />
                 ))
@@ -277,7 +141,7 @@ export default function Home() {
               onChange={setUserInput}
               onSubmit={handleSubmit}
               disabled={isProcessing}
-              onPositionChange={handlePositionChange}
+              onPositionChange={setInputPosition}
               placeholder={prompts[currentStep].placeholder}
             />
           </div>
@@ -294,7 +158,7 @@ export default function Home() {
             <div className="flex flex-col items-center gap-4">
               <button
                 onClick={() => {
-                  if (marketingStrategy) {
+                  if (marketingStrategy && businessInfo.businessAnalysis) {
                     setShowResults(true);
                   }
                 }}
@@ -328,8 +192,8 @@ export default function Home() {
             onClose={() => setIsEditModalOpen(false)}
             onSave={handleSaveEdits}
             info={{
-              targetArea: answers.find(a => a.label === "Target Area")?.value || "",
-              businessName: answers.find(a => a.label === "Your Business Name")?.value || "",
+              targetArea: businessInfo.targetArea,
+              businessName: businessInfo.businessName,
               industry: businessInfo.businessAnalysis?.industry || "",
               description: businessInfo.businessAnalysis?.description || "",
             }}
