@@ -311,7 +311,6 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
         throw new Error('No bounding box available');
       }
 
-      // Set loading state and show PlacesLeadsCollection
       state.updateSearchResults({
         places: [],
         isLoading: true,
@@ -319,24 +318,19 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
         totalGridPoints: 0,
         currentGridPoint: 0
       });
-      state.setShowResults(true); // Add this to show the collection view
+      state.setShowResults(true);
 
       const allPlacesAcrossTypes: GooglePlace[] = [];
 
       for (const businessType of state.selectedBusinessTypes) {
-        const businessTarget = state.marketingStrategy?.method1Analysis.businessTargets
-          .find(target => target.type === businessType);
-
         const gridConfig = generateHexagonalGrid(
           businessType,
-          state.businessInfo.businessAnalysis.boundingBox,
-          businessTarget?.estimatedReach ?? 100
+          state.businessInfo.businessAnalysis.boundingBox
         );
 
-        console.log('Grid Config:', {
+        console.log('Searching for:', {
           businessType,
-          points: gridConfig.searchPoints.length,
-          estimatedReach: businessTarget?.estimatedReach
+          points: gridConfig.searchPoints.length
         });
 
         state.updateSearchResults({
@@ -345,13 +339,6 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
 
         for (let i = 0; i < gridConfig.searchPoints.length; i++) {
           const point = gridConfig.searchPoints[i];
-          
-          console.log('Searching point:', {
-            lat: point.lat,
-            lng: point.lng,
-            radius: point.radius,
-            type: businessType
-          });
 
           state.updateSearchResults({
             currentGridPoint: i + 1,
@@ -366,8 +353,7 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
                 lat: point.lat,
                 lng: point.lng,
                 radius: point.radius,
-                type: businessType,
-                keyword: businessType // Add this - some business types need keyword search
+                keyword: businessType
               }),
             });
 
@@ -376,8 +362,6 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
             }
 
             const data = await response.json();
-            console.log('API Response:', data);
-
             if (data.places) {
               const newPlaces = data.places
                 .map((place: GooglePlace) => ({
