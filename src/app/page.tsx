@@ -11,6 +11,7 @@ import MarketingResults from '@/components/MarketingResults';
 import { useMarketingStore } from '@/store/marketingStore';
 import PlacesLeadsCollection from '@/components/PlacesLeadsCollection';
 import LocationSelector from '@/components/LocationSelector';
+import TechnoConfetti from '@/components/TechnoConfetti';
 
 const LoadingSkeleton = () => (
   <div className="w-full rounded-lg border-2 border-electric-teal bg-charcoal/80 px-4 md:px-6 py-3 shadow-glow backdrop-blur-sm">
@@ -24,6 +25,7 @@ const LoadingSkeleton = () => (
 export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   const { 
     // State
@@ -129,7 +131,9 @@ export default function Home() {
   // Add new useEffect to handle scrolling when loading finishes
   useEffect(() => {
     if (!isLoadingStrategy && buttonRef.current) {
-      buttonRef.current.scrollIntoView({ behavior: 'smooth' });
+      setShowConfetti(true);
+      // Remove confetti after animation
+      setTimeout(() => setShowConfetti(false), 3000);
     }
   }, [isLoadingStrategy]);
 
@@ -270,48 +274,47 @@ export default function Home() {
 
       {/* Show verification message and buttons after business name */}
       {currentStep > 1 && (
-        <div className="relative z-10 w-full px-4 mt-[400px] pb-20">
-          <div className="flex flex-col items-center">
-            <div className="w-full max-w-2xl">
-              <div className="flex flex-col items-center gap-8">
-                <div className="text-xl font-normal text-electric-teal text-center">
-                  Please verify your information.
-                </div>
-                <div className="flex flex-col items-center gap-4 w-full">
-                  <button
-                    ref={buttonRef}
-                    onClick={() => {
-                      if (marketingStrategy && businessInfo.businessAnalysis) {
-                        setShowResults(true);
-                      }
-                    }}
-                    className="relative z-50 rounded-lg border-2 border-electric-teal bg-charcoal px-8 py-4 
-                      text-lg font-medium text-electric-teal shadow-glow overflow-hidden
-                      transition-all duration-300 hover:border-electric-teal/80 hover:shadow-glow-strong 
-                      active:scale-95 w-full max-w-md text-center"
-                  >
-                    {isLoadingStrategy && (
-                      <div className="absolute inset-0 overflow-hidden">
-                        <div className="absolute inset-y-0 -inset-x-full animate-loading-progress bg-neon-magenta/20" />
-                      </div>
-                    )}
-                    <span className="relative z-10">
-                      {isLoadingStrategy ? 'Analyzing your market...' : 'Looks good, now show me my leads'}
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => setIsEditModalOpen(true)}
-                    className="rounded-lg border-2 border-electric-teal bg-electric-teal/10 px-6 py-3 
-                      text-base font-medium text-electric-teal shadow-glow 
-                      transition-all duration-300 hover:bg-electric-teal/20 hover:shadow-glow-strong 
-                      active:scale-95"
-                  >
-                    Edit my info
-                  </button>
-                </div>
+        <div className="relative z-10 w-full px-4">
+          <div className="flex min-h-screen flex-col items-center justify-center">
+            <div className="w-full max-w-2xl space-y-8">
+              <div className="text-xl font-normal text-electric-teal text-center">
+                Please verify your information.
+              </div>
+              <div className="flex flex-col items-center gap-4 w-full">
+                <button
+                  ref={buttonRef}
+                  onClick={() => {
+                    if (marketingStrategy && businessInfo.businessAnalysis) {
+                      setShowResults(true);
+                    }
+                  }}
+                  className="relative z-50 rounded-lg border-2 border-electric-teal bg-charcoal px-8 py-4 
+                    text-lg font-medium text-electric-teal shadow-glow overflow-hidden
+                    transition-all duration-300 hover:border-electric-teal/80 hover:shadow-glow-strong 
+                    active:scale-95 w-full max-w-md text-center"
+                >
+                  {isLoadingStrategy && (
+                    <div className="absolute inset-0 overflow-hidden">
+                      <div className="absolute inset-y-0 -inset-x-full animate-loading-progress bg-neon-magenta/20" />
+                    </div>
+                  )}
+                  <span className="relative z-10">
+                    {isLoadingStrategy ? 'Analyzing your market...' : 'Looks good, now show me my leads'}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="rounded-lg border-2 border-electric-teal bg-electric-teal/10 px-6 py-3 
+                    text-base font-medium text-electric-teal shadow-glow 
+                    transition-all duration-300 hover:bg-electric-teal/20 hover:shadow-glow-strong 
+                    active:scale-95"
+                >
+                  Edit my info
+                </button>
               </div>
             </div>
           </div>
+          <TechnoConfetti isActive={showConfetti} />
           <EditModal
             isOpen={isEditModalOpen}
             onClose={() => setIsEditModalOpen(false)}

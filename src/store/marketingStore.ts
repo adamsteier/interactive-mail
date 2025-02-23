@@ -265,6 +265,7 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
     
     try {
       if (state.currentStep === 0) {
+        // First step - handle geocoding and target area
         const geocodeResponse = await fetch('/api/geocode', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -283,34 +284,36 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
         
         if (geocodeData.results.length === 1) {
           state.setSelectedLocation(geocodeData.results[0]);
-          state.updateBusinessInfo({ targetArea: input });
-          
-          const openAIResponse = await fetch('/api/openai', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              targetArea: input,
-              businessName: state.businessInfo.businessName,
-              userLocation: state.locationData?.city || 'Toronto',
-              geocodeResult: geocodeData.results[0]
-            }),
-          });
-
-          if (!openAIResponse.ok) {
-            throw new Error('Failed to get AI response');
-          }
-
-          const data = await openAIResponse.json();
-          if (data.analysis) {
-            state.setBusinessAnalysis(data.analysis);
-          }
+          state.updateBusinessInfo({ targetArea: geocodeData.results[0].formatted_address });
           state.setStep(1);
         } else {
           state.setGeocodeResults(geocodeData.results);
+          // Don't advance step or update business info here - let LocationSelector handle it
         }
       } else if (state.currentStep === 1) {
-        // Handle business name submission as before
+        // Second step - now we have both target area and business name
         state.updateBusinessInfo({ businessName: input });
+        
+        // Now make the OpenAI call with both pieces of info
+        const openAIResponse = await fetch('/api/openai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            targetArea: state.businessInfo.targetArea,
+            businessName: input,
+            userLocation: state.locationData?.city || 'Toronto',
+            geocodeResult: state.selectedLocation
+          }),
+        });
+
+        if (!openAIResponse.ok) {
+          throw new Error('Failed to get AI response');
+        }
+
+        const data = await openAIResponse.json();
+        if (data.analysis) {
+          state.setBusinessAnalysis(data.analysis);
+        }
         state.setStep(2);
       }
       

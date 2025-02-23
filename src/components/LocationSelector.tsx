@@ -8,14 +8,17 @@ const LocationSelector = () => {
     geocodeResults, 
     setSelectedLocation, 
     setGeocodeResults,
-    handleSubmit,
-    userInput
+    setStep,
+    updateBusinessInfo,
+    setUserInput
   } = useMarketingStore();
 
   const handleLocationSelect = async (location: GeocodeResult) => {
     setSelectedLocation(location);
+    updateBusinessInfo({ targetArea: location.formatted_address });
     setGeocodeResults([]); // Clear results after selection
-    await handleSubmit(userInput); // Resubmit with selected location
+    setStep(1); // Move to next step
+    setUserInput(''); // Clear input
   };
 
   if (geocodeResults.length === 0) return null;
