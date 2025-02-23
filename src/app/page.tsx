@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import AnimatedBackground from '@/components/AnimatedBackground';
 import TypewriterPrompt from '@/components/TypewriterPrompt';
 import InputField from '@/components/InputField';
@@ -21,6 +21,8 @@ const LoadingSkeleton = () => (
 );
 
 export default function Home() {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
   const { 
     // State
     locationData,
@@ -126,9 +128,30 @@ export default function Home() {
   if (showResults && searchResults.places.length > 0) {
     return (
       <div className="flex min-h-screen bg-charcoal">
-        {/* Sticky Sidebar */}
-        <div className="w-80 flex-shrink-0">
-          <div className="fixed w-80 h-screen overflow-y-auto border-r border-electric-teal/20 p-4">
+        {/* Collapsible Sidebar */}
+        <div 
+          className={`fixed top-0 left-0 h-screen bg-charcoal transition-all duration-300 z-20
+            ${isSidebarOpen ? 'w-80' : 'w-16'} border-r border-electric-teal/20`}
+        >
+          {/* Toggle Button */}
+          <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="absolute -right-4 top-4 bg-charcoal border-2 border-electric-teal 
+              rounded-full p-2 text-electric-teal hover:text-electric-teal/80 z-30"
+          >
+            {isSidebarOpen ? (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            )}
+          </button>
+
+          {/* Sidebar Content */}
+          <div className={`h-full overflow-y-auto p-4 ${isSidebarOpen ? 'opacity-100' : 'opacity-0'}`}>
             <h2 className="text-xl font-semibold text-electric-teal mb-4">
               Marketing Strategy
             </h2>
@@ -142,13 +165,20 @@ export default function Home() {
               </div>
             </div>
           </div>
+
+          {/* Icon-only view when collapsed */}
+          <div className={`p-4 ${isSidebarOpen ? 'hidden' : 'block'}`}>
+            <svg className="w-8 h-8 text-electric-teal" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" 
+              />
+            </svg>
+          </div>
         </div>
 
-        {/* Main Content */}
-        <div className="flex-grow">
-          <PlacesLeadsCollection 
-            onClose={() => setShowResults(false)} 
-          />
+        {/* Main Content - adjusted margin for sidebar */}
+        <div className={`flex-grow transition-all duration-300 ${isSidebarOpen ? 'ml-80' : 'ml-16'}`}>
+          <PlacesLeadsCollection onClose={() => setShowResults(false)} />
         </div>
       </div>
     );

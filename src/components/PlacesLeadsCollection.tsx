@@ -99,9 +99,9 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
   return (
     <div className="min-h-screen bg-charcoal p-4">
       <div className="rounded-lg border-2 border-electric-teal bg-charcoal shadow-glow">
-        {/* Header with close button */}
-        <div className="border-b border-electric-teal/20 p-6 flex justify-between items-center">
-          <h2 className="text-2xl font-semibold text-electric-teal">
+        {/* Header - made responsive */}
+        <div className="border-b border-electric-teal/20 p-4 sm:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <h2 className="text-xl sm:text-2xl font-semibold text-electric-teal">
             Found Places ({places.length}) {isLoading && <span>- Searching...</span>}
           </h2>
           <button 
@@ -115,9 +115,9 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
         {/* Loading Progress */}
         {isLoading && <LoadingBar progress={progress} />}
 
-        {/* Filters */}
-        <div className="border-b border-electric-teal/20 p-4">
-          <div className="flex gap-2">
+        {/* Filters - made scrollable for mobile */}
+        <div className="border-b border-electric-teal/20 p-4 overflow-x-auto">
+          <div className="flex gap-2 min-w-max">
             <button
               onClick={() => setActiveFilter('all')}
               className={`rounded px-3 py-1 ${
@@ -144,9 +144,9 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
           </div>
         </div>
 
-        {/* Results Table */}
-        <div className="p-4">
-          <table className="w-full">
+        {/* Results Table - made responsive */}
+        <div className="p-4 overflow-x-auto">
+          <table className="w-full min-w-[800px]">
             <thead>
               <tr className="text-left text-electric-teal/60">
                 <th className="p-2">Select</th>
@@ -181,7 +181,7 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
                     className="text-electric-teal/80 hover:bg-electric-teal/5 cursor-pointer"
                     onClick={(e) => handleSelectPlace(place.place_id, e.shiftKey)}
                   >
-                    <td className="p-2">
+                    <td className="p-2 whitespace-nowrap">
                       <input
                         type="checkbox"
                         checked={selectedPlaces.has(place.place_id)}
@@ -189,11 +189,11 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
                         className="rounded border-electric-teal text-electric-teal focus:ring-electric-teal"
                       />
                     </td>
-                    <td className="p-2">{place.name}</td>
-                    <td className="p-2">{place.vicinity}</td>
-                    <td className="p-2">{place.businessType}</td>
-                    <td className="p-2">{place.rating || 'N/A'}</td>
-                    <td className="p-2">
+                    <td className="p-2 whitespace-nowrap">{place.name}</td>
+                    <td className="p-2 whitespace-nowrap">{place.vicinity}</td>
+                    <td className="p-2 whitespace-nowrap">{place.businessType}</td>
+                    <td className="p-2 whitespace-nowrap">{place.rating || 'N/A'}</td>
+                    <td className="p-2 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className={`h-2 w-2 rounded-full mr-2 ${
                           place.relevanceScore >= 15 ? 'bg-green-500' :
@@ -210,7 +210,7 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
           </table>
         </div>
 
-        {/* Selection Summary */}
+        {/* Selection Summary - made responsive */}
         <SelectionSummary
           selectedPlaces={selectedPlaces}
           onStartCampaign={() => {
