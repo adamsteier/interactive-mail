@@ -10,6 +10,7 @@ import EditModal from '@/components/EditModal';
 import MarketingResults from '@/components/MarketingResults';
 import { useMarketingStore } from '@/store/marketingStore';
 import PlacesLeadsCollection from '@/components/PlacesLeadsCollection';
+import LocationSelector from '@/components/LocationSelector';
 
 const LoadingSkeleton = () => (
   <div className="w-full rounded-lg border-2 border-electric-teal bg-charcoal/80 px-4 md:px-6 py-3 shadow-glow backdrop-blur-sm">
@@ -196,6 +197,10 @@ export default function Home() {
   return (
     <main className="relative min-h-screen w-full">
       <AnimatedBackground inputPosition={inputPosition || undefined} />
+      
+      {/* Add LocationSelector before other content */}
+      <LocationSelector />
+      
       <div className="fixed left-0 top-0 w-full">
         <div className="relative mx-auto max-w-2xl px-4 pt-8 pb-4">
           <div className="flex flex-col gap-4">

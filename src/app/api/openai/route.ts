@@ -7,20 +7,32 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
-    const { targetArea, businessName, businessType, userLocation } = await req.json();
+    const { targetArea, businessName, businessType, userLocation, geocodeResult } = await req.json();
+
+    // Extract bounding box from geocode result, preferring bounds over viewport
+    const boundingBox = geocodeResult.geometry.bounds || geocodeResult.geometry.viewport;
 
     const prompt = `I need to analyze a business and its target market:
       Business Name: ${businessName}
       Target Area: ${targetArea}
       Business Type: ${businessType}
       User Location: ${userLocation}
+      Geocoded Address: ${geocodeResult.formatted_address}
+      
+      Google Maps provided this bounding box for the area:
+      {
+        "northeast": { "lat": ${boundingBox.northeast.lat}, "lng": ${boundingBox.northeast.lng} },
+        "southwest": { "lat": ${boundingBox.southwest.lat}, "lng": ${boundingBox.southwest.lng} }
+      }
 
       Analyze this business and provide:
       1. The specific industry classification for this business
       2. A clear, factual description of what this business does (avoid words like "likely" or "probably")
       3. The primary customer types for this business
-      4. A bounding box for ${targetArea} that would work well for Google Maps searches
-         (provide coordinates that encompass the target area)
+      4. A bounding box for the target area that would work well for Google Maps searches.
+         Use the provided Google Maps bounding box as a starting point, but adjust it if needed.
+         For example, if the user specified "North ${geocodeResult.formatted_address}", 
+         modify the bounding box to only cover the northern portion.
 
       Format your response as JSON:
       {
@@ -28,15 +40,9 @@ export async function POST(req: Request) {
         "description": "clear, factual description",
         "customerTypes": ["type1", "type2", "type3"],
         "boundingBox": {
-          "southwest": { "lat": 53.4, "lng": -113.7 },
-          "northeast": { "lat": 53.7, "lng": -113.2 }
+          "southwest": { "lat": number, "lng": number },
+          "northeast": { "lat": number, "lng": number }
         }
-      }
-
-      Example for Edmonton:
-      "boundingBox": {
-        "southwest": { "lat": 53.4, "lng": -113.7 },
-        "northeast": { "lat": 53.7, "lng": -113.2 }
       }`;
 
     const completion = await openai.chat.completions.create({
@@ -44,7 +50,7 @@ export async function POST(req: Request) {
       messages: [
         {
           role: "system",
-          content: "You are a business analyst who specializes in industry classification and business analysis. Always respond in valid JSON format."
+          content: "You are a business analyst who specializes in industry classification and business analysis. Always respond in valid JSON format. When adjusting bounding boxes, ensure they logically match the user's target area description (e.g., 'North Edmonton' should only cover the northern portion of Edmonton's bounding box)."
         },
         {
           role: "user",

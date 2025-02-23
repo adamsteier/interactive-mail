@@ -79,6 +79,28 @@ interface MarketingState {
   }) => void;
   fetchMarketingStrategy: () => Promise<void>;
   handleGoogleSearch: () => Promise<void>;
+
+  // Add these new properties to the interface
+  geocodeResults: GeocodeResult[];
+  selectedLocation: GeocodeResult | null;
+  
+  // Add new actions
+  setGeocodeResults: (results: GeocodeResult[]) => void;
+  setSelectedLocation: (location: GeocodeResult | null) => void;
+}
+
+interface GeocodeResult {
+  formatted_address: string;
+  geometry: {
+    bounds?: {
+      northeast: { lat: number; lng: number };
+      southwest: { lat: number; lng: number };
+    };
+    viewport: {
+      northeast: { lat: number; lng: number };
+      southwest: { lat: number; lng: number };
+    };
+  };
 }
 
 const handleDuplicates = (place: GooglePlace, existingPlaces: GooglePlace[]): boolean => {
@@ -189,6 +211,10 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
   showResults: false,
   displayInfos: [],
 
+  // Add new state
+  geocodeResults: [],
+  selectedLocation: null,
+
   // Actions
   setLocationData: (data) => set({ locationData: data }),
   
@@ -249,31 +275,58 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
   handleSubmit: async (input) => {
     const state = get();
     state.setIsProcessing(true);
+    
     try {
       if (state.currentStep === 0) {
-        state.updateBusinessInfo({ targetArea: input });
-        state.setStep(1);
-      } else if (state.currentStep === 1) {
-        state.updateBusinessInfo({ businessName: input });
-        
-        const response = await fetch('/api/openai', {
+        const geocodeResponse = await fetch('/api/geocode', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            targetArea: state.businessInfo.targetArea,
-            businessName: input,
-            userLocation: state.locationData?.city || 'Toronto',
-          }),
+          body: JSON.stringify({ targetArea: input }),
         });
 
-        if (!response.ok) throw new Error('Failed to get AI response');
-
-        const data = await response.json();
-        if (data.analysis) {
-          state.setBusinessAnalysis(data.analysis);
+        if (!geocodeResponse.ok) {
+          throw new Error('Failed to geocode location');
         }
+
+        const geocodeData = await geocodeResponse.json();
+        
+        if (geocodeData.results.length === 0) {
+          throw new Error('No locations found');
+        }
+        
+        if (geocodeData.results.length === 1) {
+          state.setSelectedLocation(geocodeData.results[0]);
+          state.updateBusinessInfo({ targetArea: input });
+          
+          const openAIResponse = await fetch('/api/openai', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              targetArea: input,
+              businessName: state.businessInfo.businessName,
+              userLocation: state.locationData?.city || 'Toronto',
+              geocodeResult: geocodeData.results[0]
+            }),
+          });
+
+          if (!openAIResponse.ok) {
+            throw new Error('Failed to get AI response');
+          }
+
+          const data = await openAIResponse.json();
+          if (data.analysis) {
+            state.setBusinessAnalysis(data.analysis);
+          }
+          state.setStep(1);
+        } else {
+          state.setGeocodeResults(geocodeData.results);
+        }
+      } else if (state.currentStep === 1) {
+        // Handle business name submission as before
+        state.updateBusinessInfo({ businessName: input });
         state.setStep(2);
       }
+      
       state.setUserInput('');
     } catch (error) {
       console.error('Error:', error);
@@ -447,5 +500,8 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
         isLoading: false
       });
     }
-  }
+  },
+
+  setGeocodeResults: (results) => set({ geocodeResults: results }),
+  setSelectedLocation: (location) => set({ selectedLocation: location }),
 })); 
