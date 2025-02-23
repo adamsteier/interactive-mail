@@ -12,6 +12,10 @@ export interface DatabaseTarget {
 }
 
 export interface MarketingStrategy {
+  businessName: string;
+  targetArea: string;
+  industry: string;
+  description: string;
   recommendedMethods: string[];
   primaryRecommendation: string;
   totalEstimatedReach: number;

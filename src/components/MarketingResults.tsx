@@ -6,6 +6,7 @@ import { BusinessAnalysis } from '@/types/businessAnalysis';
 import LeadsCollection from '@/components/LeadsCollection';
 import PlacesLeadsCollection from '@/components/PlacesLeadsCollection';
 import { GooglePlace } from '@/types/places';
+import { Answer } from '@/types/answers';
 
 interface MarketingResultsProps {
   strategy: MarketingStrategy;
@@ -141,6 +142,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
   const [selectedTargets, setSelectedTargets] = useState<Set<string>>(new Set());
   const [showLeadsCollection, setShowLeadsCollection] = useState(false);
   const [taskInfos, setTaskInfos] = useState<TaskInfo[]>([]);
+  const [answers, setAnswers] = useState<Answer[]>([]);
 
   const handleCheckboxChange = (targetType: string) => {
     setSelectedTargets(prev => {
@@ -477,10 +479,10 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
           <PlacesLeadsCollection
             places={taskInfos[0].places || []}
             businessContext={{
-              businessName: answers.find(a => a.label === "Your Business Name")?.value || "",
-              targetArea: answers.find(a => a.label === "Target Area")?.value || "",
-              industry: businessAnalysis?.industry || "",
-              description: businessAnalysis?.description || "",
+              businessName: strategy.method1Analysis.businessTargets[0]?.businessName || "",
+              targetArea: strategy.method1Analysis.businessTargets[0]?.targetArea || "",
+              industry: boundingBox.industry || "",
+              description: boundingBox.description || "",
               targetingRationale: strategy.method1Analysis.businessTargets.map(target => ({
                 businessType: target.type,
                 reasoning: target.reasoning,
