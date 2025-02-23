@@ -78,7 +78,81 @@ interface MarketingState {
     description: string;
   }) => void;
   fetchMarketingStrategy: () => Promise<void>;
+  handleGoogleSearch: () => Promise<void>;
 }
+
+const calculateRadius = (boundingBox: BusinessAnalysis['boundingBox']) => {
+  const R = 6371e3; // Earth's radius in meters
+  const lat1 = boundingBox.southwest.lat * Math.PI / 180;
+  const lat2 = boundingBox.northeast.lat * Math.PI / 180;
+  const lon1 = boundingBox.southwest.lng * Math.PI / 180;
+  const lon2 = boundingBox.northeast.lng * Math.PI / 180;
+
+  const dLat = lat2 - lat1;
+  const dLon = lon2 - lon1;
+
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+          Math.cos(lat1) * Math.cos(lat2) *
+          Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+  return R * c; // Returns radius in meters
+};
+
+const handleDuplicates = (place: GooglePlace, existingPlaces: GooglePlace[]): boolean => {
+  return !existingPlaces.some(p => p.place_id === place.place_id);
+};
+
+const generateHexagonalGrid = (businessType: string, boundingBox: BusinessAnalysis['boundingBox'], estimatedReach = 100) => {
+  // Calculate grid density based on estimated reach
+  const gridDensity = Math.min(Math.ceil(estimatedReach / 25), 4); // Max 4x4 grid
+  
+  const totalRadius = calculateRadius(boundingBox);
+  const areaWidth = totalRadius * 2;
+  
+  // Adjust base radius based on estimated reach and area size
+  const baseRadius = Math.min(
+    Math.max(500, areaWidth / (gridDensity * 2)), // Scale with grid density
+    25000 // Cap at 25km
+  );
+
+  const hexSpacing = baseRadius * 1.732;
+  
+  const latCount = Math.min(
+    Math.ceil((boundingBox.northeast.lat - boundingBox.southwest.lat) / (hexSpacing / 111111)),
+    4
+  );
+  const lngCount = Math.min(
+    Math.ceil((boundingBox.northeast.lng - boundingBox.southwest.lng) / (hexSpacing / (111111 * Math.cos(boundingBox.southwest.lat * Math.PI / 180)))),
+    4
+  );
+
+  const searchPoints: Array<{
+    lat: number;
+    lng: number;
+    radius: number;
+  }> = [];
+
+  for (let row = 0; row < latCount; row++) {
+    for (let col = 0; col < lngCount; col++) {
+      const latOffset = row * (hexSpacing / 111111);
+      const lngOffset = col * (hexSpacing / (111111 * Math.cos(boundingBox.southwest.lat * Math.PI / 180)));
+      
+      const lat = boundingBox.southwest.lat + latOffset;
+      const lng = boundingBox.southwest.lng + lngOffset + (row % 2 ? hexSpacing / (2 * 111111) : 0);
+
+      if (lat <= boundingBox.northeast.lat && lng <= boundingBox.northeast.lng) {
+        searchPoints.push({ lat, lng, radius: baseRadius });
+      }
+    }
+  }
+
+  return {
+    businessType,
+    searchPoints,
+    totalPoints: searchPoints.length
+  };
+};
 
 export const useMarketingStore = create<MarketingState>((set, get) => ({
   // Initial State
@@ -227,6 +301,91 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
       console.error('Error:', error);
     } finally {
       state.setIsLoadingStrategy(false);
+    }
+  },
+
+  handleGoogleSearch: async () => {
+    const state = get();
+    try {
+      if (!state.businessInfo.businessAnalysis?.boundingBox) {
+        throw new Error('No bounding box available');
+      }
+
+      state.updateSearchResults({
+        places: [],
+        isLoading: true,
+        progress: 0,
+        totalGridPoints: 0,
+        currentGridPoint: 0
+      });
+
+      const allPlacesAcrossTypes: GooglePlace[] = [];
+
+      for (const businessType of state.selectedBusinessTypes) {
+        // Get estimated reach for this business type
+        const businessTarget = state.marketingStrategy?.method1Analysis.businessTargets
+          .find(target => target.type === businessType);
+
+        const gridConfig = generateHexagonalGrid(
+          businessType,
+          state.businessInfo.businessAnalysis.boundingBox,
+          businessTarget?.estimatedReach ?? 100
+        );
+
+        state.updateSearchResults({
+          totalGridPoints: gridConfig.searchPoints.length
+        });
+
+        for (let i = 0; i < gridConfig.searchPoints.length; i++) {
+          const point = gridConfig.searchPoints[i];
+          
+          state.updateSearchResults({
+            currentGridPoint: i + 1,
+            progress: 5 + ((i + 1) / gridConfig.searchPoints.length * 95)
+          });
+
+          const response = await fetch('/api/google-places', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              lat: point.lat,
+              lng: point.lng,
+              radius: point.radius,
+              type: businessType
+            }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.places) {
+              const newPlaces = data.places
+                .map((place: GooglePlace) => ({
+                  ...place,
+                  businessType
+                }))
+                .filter((place: GooglePlace) => handleDuplicates(place, allPlacesAcrossTypes));
+
+              allPlacesAcrossTypes.push(...newPlaces);
+              
+              state.updateSearchResults({
+                places: allPlacesAcrossTypes
+              });
+            }
+          }
+        }
+      }
+
+      state.updateSearchResults({
+        places: allPlacesAcrossTypes,
+        isLoading: false,
+        progress: 100
+      });
+
+    } catch (error) {
+      console.error('Google Places search error:', error);
+      state.updateSearchResults({
+        isLoading: false
+      });
     }
   }
 })); 
