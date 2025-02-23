@@ -34,6 +34,7 @@ export default function Home() {
     isLoadingStrategy,
     showResults,
     marketingStrategy,
+    searchResults,
 
     // Actions
     setLocationData,
@@ -244,17 +245,21 @@ export default function Home() {
       )}
 
       {showResults && marketingStrategy && businessInfo.businessAnalysis && (
-        <MarketingResults 
-          strategy={marketingStrategy} 
-          boundingBox={businessInfo.businessAnalysis.boundingBox}
-          onClose={() => setShowResults(false)}
-        />
-      )}
-
-      {showResults && (
-        <PlacesLeadsCollection 
-          onClose={() => setShowResults(false)} 
-        />
+        <>
+          {/* Show MarketingResults for business type selection */}
+          {!searchResults.isLoading ? (
+            <MarketingResults 
+              strategy={marketingStrategy} 
+              boundingBox={businessInfo.businessAnalysis.boundingBox}
+              onClose={() => setShowResults(false)}
+            />
+          ) : (
+            /* Show PlacesLeadsCollection as soon as search starts */
+            <PlacesLeadsCollection 
+              onClose={() => setShowResults(false)} 
+            />
+          )}
+        </>
       )}
     </main>
   );

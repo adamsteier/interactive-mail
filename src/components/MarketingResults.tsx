@@ -60,7 +60,8 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
     setMarketingStrategy,
     setSelectedBusinessTypes,
     selectedBusinessTypes,
-    handleGoogleSearch
+    handleGoogleSearch,
+    updateSearchResults
   } = useMarketingStore();
 
   const [showLeadsCollection, setShowLeadsCollection] = useState(false);
@@ -133,6 +134,22 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       setShowLeadsCollection(true);
     } catch (error) {
       console.error('Error:', error);
+    }
+  };
+
+  const handleSearch = () => {
+    if (selectedBusinessTypes.size > 0) {
+      // Start loading state immediately
+      updateSearchResults({
+        places: [],
+        isLoading: true,
+        progress: 0,
+        totalGridPoints: 0,
+        currentGridPoint: 0
+      });
+      
+      // Then trigger the search
+      handleGoogleSearch();
     }
   };
 
@@ -271,18 +288,17 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
                     {selectedBusinessTypes.size === 0 ? 'Select some businesses to get data' : 'Scrape Data'}
                   </button>
                   <button
-                    onClick={() => {
-                      console.log('Starting search with selected types:', Array.from(selectedBusinessTypes));
-                      console.log('Bounding box:', boundingBox);
-                      handleGoogleSearch();
-                      setShowLeadsCollection(true);
-                    }}
+                    onClick={handleSearch}
                     disabled={selectedBusinessTypes.size === 0}
-                    className="rounded border-2 border-electric-teal bg-electric-teal/10 px-6 py-2 
+                    className={`rounded border-2 border-electric-teal bg-electric-teal/10 px-6 py-2 
                       text-electric-teal shadow-glow hover:bg-electric-teal/20 hover:shadow-glow-strong 
-                      active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                      active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
+                        selectedBusinessTypes.size > 0
+                          ? 'border-2 border-electric-teal bg-electric-teal text-charcoal hover:bg-electric-teal/90'
+                          : 'border-2 border-electric-teal/50 bg-transparent text-electric-teal/50'
+                      }`}
                   >
-                    {selectedBusinessTypes.size === 0 ? 'Select some businesses to get data' : 'Google Search'}
+                    Search Selected Types
                   </button>
                 </div>
               </div>
