@@ -18,11 +18,17 @@ export class GooglePlacesService {
   private apiKey: string;
 
   constructor() {
-    this.apiKey = process.env.GOOGLE_MAPS_API_KEY || '';
+    this.apiKey = process.env.GOOGLE_PLACES_API_KEY || '';
     if (!this.apiKey) {
       console.error('Google Places API key is missing!');
       throw new Error('Google Places API key is not configured');
     }
+
+    console.log('API Key status:', {
+      hasKey: !!this.apiKey,
+      keyLength: this.apiKey.length,
+      firstFive: this.apiKey.slice(0, 5)
+    });
   }
 
   async searchPlaces({
