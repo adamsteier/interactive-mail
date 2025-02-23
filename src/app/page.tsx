@@ -122,6 +122,39 @@ export default function Home() {
     }
   }, [businessInfo.businessAnalysis, fetchMarketingStrategy]);
 
+  // If we're showing places collection view, render only that
+  if (showResults && searchResults.places.length > 0) {
+    return (
+      <div className="flex min-h-screen bg-charcoal">
+        {/* Sticky Sidebar */}
+        <div className="w-80 flex-shrink-0">
+          <div className="fixed w-80 h-screen overflow-y-auto border-r border-electric-teal/20 p-4">
+            <h2 className="text-xl font-semibold text-electric-teal mb-4">
+              Marketing Strategy
+            </h2>
+            <div className="text-electric-teal/80 space-y-4">
+              <p>{marketingStrategy?.primaryRecommendation}</p>
+              <div className="border-t border-electric-teal/20 pt-4">
+                <h3 className="font-medium mb-2">Selected Business Types:</h3>
+                {Array.from(selectedBusinessTypes).map((type: string) => (
+                  <div key={type} className="text-sm py-1">{type}</div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="flex-grow">
+          <PlacesLeadsCollection 
+            onClose={() => setShowResults(false)} 
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Original page content
   return (
     <main className="relative min-h-screen w-full">
       <AnimatedBackground inputPosition={inputPosition || undefined} />
@@ -245,44 +278,12 @@ export default function Home() {
         </div>
       )}
 
-      {showResults && marketingStrategy && businessInfo.businessAnalysis && (
-        <>
-          {!searchResults.places.length ? (
-            <MarketingResults 
-              strategy={marketingStrategy} 
-              boundingBox={businessInfo.businessAnalysis.boundingBox}
-              onClose={() => setShowResults(false)}
-            />
-          ) : (
-            /* Show PlacesLeadsCollection with full width layout */
-            <div className="flex min-h-screen bg-charcoal">
-              {/* Sticky Sidebar */}
-              <div className="w-80 flex-shrink-0">
-                <div className="fixed w-80 h-screen overflow-y-auto border-r border-electric-teal/20 p-4">
-                  <h2 className="text-xl font-semibold text-electric-teal mb-4">
-                    Marketing Strategy
-                  </h2>
-                  <div className="text-electric-teal/80 space-y-4">
-                    <p>{marketingStrategy.primaryRecommendation}</p>
-                    <div className="border-t border-electric-teal/20 pt-4">
-                      <h3 className="font-medium mb-2">Selected Business Types:</h3>
-                      {Array.from(selectedBusinessTypes).map((type: string) => (
-                        <div key={type} className="text-sm py-1">{type}</div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Main Content */}
-              <div className="flex-grow">
-                <PlacesLeadsCollection 
-                  onClose={() => setShowResults(false)} 
-                />
-              </div>
-            </div>
-          )}
-        </>
+      {showResults && marketingStrategy && businessInfo.businessAnalysis && !searchResults.places.length && (
+        <MarketingResults 
+          strategy={marketingStrategy} 
+          boundingBox={businessInfo.businessAnalysis.boundingBox}
+          onClose={() => setShowResults(false)}
+        />
       )}
     </main>
   );
