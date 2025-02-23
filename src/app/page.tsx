@@ -11,25 +11,9 @@ import MarketingResults from '@/components/MarketingResults';
 import { MarketingStrategy } from '@/types/marketing';
 import { useMarketingStore } from '@/store/marketingStore';
 
-interface LocationData {
-  city: string;
-  region: string;
-  country: string;
-}
-
 interface Answer {
   label: string;
   value: string;
-}
-
-interface BusinessAnalysis {
-  industry: string;
-  description: string;
-  customerTypes: string[];
-  boundingBox: {
-    southwest: { lat: number; lng: number };
-    northeast: { lat: number; lng: number };
-  };
 }
 
 interface DisplayInfo {
