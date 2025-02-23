@@ -9,6 +9,7 @@ import LoadingBar from '@/components/LoadingBar';
 import EditModal from '@/components/EditModal';
 import MarketingResults from '@/components/MarketingResults';
 import { useMarketingStore } from '@/store/marketingStore';
+import PlacesLeadsCollection from '@/components/PlacesLeadsCollection';
 
 const LoadingSkeleton = () => (
   <div className="w-full rounded-lg border-2 border-electric-teal bg-charcoal/80 px-4 md:px-6 py-3 shadow-glow backdrop-blur-sm">
@@ -247,6 +248,12 @@ export default function Home() {
           strategy={marketingStrategy} 
           boundingBox={businessInfo.businessAnalysis.boundingBox}
           onClose={() => setShowResults(false)}
+        />
+      )}
+
+      {showResults && (
+        <PlacesLeadsCollection 
+          onClose={() => setShowResults(false)} 
         />
       )}
     </main>
