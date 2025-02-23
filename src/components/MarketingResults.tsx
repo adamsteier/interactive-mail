@@ -7,8 +7,11 @@ import LeadsCollection from '@/components/LeadsCollection';
 import PlacesLeadsCollection from '@/components/PlacesLeadsCollection';
 import { GooglePlace } from '@/types/places';
 import { useMarketingStore } from '@/store/marketingStore';
+import { MarketingStrategy } from '@/types/marketing';
 
 interface MarketingResultsProps {
+  strategy: MarketingStrategy;
+  boundingBox: BusinessAnalysis['boundingBox'];
   onClose: () => void;
 }
 
@@ -136,13 +139,11 @@ const generateHexagonalGrid = (businessType: string, boundingBox: BusinessAnalys
   };
 };
 
-const MarketingResults = ({ onClose }: MarketingResultsProps) => {
+const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsProps) => {
   const { 
-    marketingStrategy,
-    businessInfo,
-    selectedBusinessTypes,
     setMarketingStrategy,
     setSelectedBusinessTypes,
+    selectedBusinessTypes,
     updateSearchResults
   } = useMarketingStore();
 
@@ -151,10 +152,10 @@ const MarketingResults = ({ onClose }: MarketingResultsProps) => {
 
   useEffect(() => {
     // Only update if marketingStrategy exists
-    if (marketingStrategy) {
-      setMarketingStrategy(marketingStrategy);
+    if (strategy) {
+      setMarketingStrategy(strategy);
     }
-  }, [marketingStrategy, setMarketingStrategy]);
+  }, [strategy, setMarketingStrategy]);
 
   const handleCheckboxChange = (targetType: string) => {
     setSelectedBusinessTypes((prev: Set<string>) => {
@@ -174,10 +175,7 @@ const MarketingResults = ({ onClose }: MarketingResultsProps) => {
       
       // Create tasks for each selected business type
       for (const businessType of selectedBusinessTypes) {
-        const query = generateSearchQuery(businessType, businessInfo.businessAnalysis?.boundingBox || {
-          southwest: { lat: 0, lng: 0 },
-          northeast: { lat: 0, lng: 0 }
-        });
+        const query = generateSearchQuery(businessType, boundingBox);
         console.log(`\nProcessing ${businessType}:`);
         console.log('Search URLs:', query.searchUrls);
 
@@ -238,7 +236,7 @@ const MarketingResults = ({ onClose }: MarketingResultsProps) => {
 
       for (const businessType of selectedBusinessTypes) {
         // Get the estimated reach for this specific business type
-        const businessTypeConfig = marketingStrategy?.method1Analysis.businessTargets.find(
+        const businessTypeConfig = strategy?.method1Analysis.businessTargets.find(
           (bt: BusinessTarget) => bt.type === businessType
         );
 
@@ -251,10 +249,7 @@ const MarketingResults = ({ onClose }: MarketingResultsProps) => {
 
         const gridConfig = generateHexagonalGrid(
           businessType, 
-          businessInfo.businessAnalysis?.boundingBox || {
-            southwest: { lat: 0, lng: 0 },
-            northeast: { lat: 0, lng: 0 }
-          },
+          boundingBox,
           businessTypeConfig.estimatedReach ?? 100
         );
 
@@ -352,11 +347,11 @@ const MarketingResults = ({ onClose }: MarketingResultsProps) => {
             <div className="px-8">
               <div className="mb-8">
                 <h3 className="text-lg text-electric-teal mb-2">Primary Recommendation</h3>
-                <p className="text-electric-teal/80">{marketingStrategy?.primaryRecommendation}</p>
+                <p className="text-electric-teal/80">{strategy?.primaryRecommendation}</p>
                 <p className="mt-2 text-sm text-electric-teal/60">
                   Estimated total reach: {
-                    marketingStrategy?.totalEstimatedReach != null 
-                      ? marketingStrategy.totalEstimatedReach.toLocaleString() 
+                    strategy?.totalEstimatedReach != null 
+                      ? strategy.totalEstimatedReach.toLocaleString() 
                       : 'Unknown'
                   } potential leads
                 </p>
@@ -364,15 +359,15 @@ const MarketingResults = ({ onClose }: MarketingResultsProps) => {
 
               <div className="space-y-8 mb-8">
                 {/* Direct Mail to Businesses with checkboxes */}
-                {marketingStrategy?.recommendedMethods.includes('method1') && (
+                {strategy?.recommendedMethods.includes('method1') && (
                   <div className="space-y-4">
                     <h3 className="text-xl font-medium text-electric-teal border-b border-electric-teal/20 pb-2">
                       Direct Mail to Businesses
                     </h3>
-                    <p className="text-electric-teal/80 mb-4">{marketingStrategy.method1Analysis.overallReasoning}</p>
+                    <p className="text-electric-teal/80 mb-4">{strategy.method1Analysis.overallReasoning}</p>
                     
                     <div className="space-y-4">
-                      {marketingStrategy.method1Analysis.businessTargets.map((target: BusinessTarget) => (
+                      {strategy.method1Analysis.businessTargets.map((target: BusinessTarget) => (
                         <div 
                           key={target.type}
                           className="rounded-lg border border-electric-teal/30 p-4 hover:bg-electric-teal/5 transition-colors"
@@ -414,15 +409,15 @@ const MarketingResults = ({ onClose }: MarketingResultsProps) => {
                 )}
 
                 {/* Database Targeting */}
-                {marketingStrategy?.recommendedMethods.includes('method2') && (
+                {strategy?.recommendedMethods.includes('method2') && (
                   <div className="space-y-4">
                     <h3 className="text-xl font-medium text-electric-teal border-b border-electric-teal/20 pb-2">
                       Database Targeting
                     </h3>
-                    <p className="text-electric-teal/80 mb-4">{marketingStrategy.method2Analysis.overallReasoning}</p>
+                    <p className="text-electric-teal/80 mb-4">{strategy.method2Analysis.overallReasoning}</p>
                     
                     <div className="space-y-4">
-                      {marketingStrategy.method2Analysis.databaseTargets.map((database: DatabaseTarget) => (
+                      {strategy.method2Analysis.databaseTargets.map((database: DatabaseTarget) => (
                         <div 
                           key={database.name}
                           className="rounded-lg border border-electric-teal/30 p-4 hover:bg-electric-teal/5 transition-colors"
@@ -440,12 +435,12 @@ const MarketingResults = ({ onClose }: MarketingResultsProps) => {
                 )}
 
                 {/* Mass Flyer Drop */}
-                {marketingStrategy?.recommendedMethods.includes('method3') && (
+                {strategy?.recommendedMethods.includes('method3') && (
                   <div className="space-y-4">
                     <h3 className="text-xl font-medium text-electric-teal border-b border-electric-teal/20 pb-2">
                       Mass Flyer Drop
                     </h3>
-                    <p className="text-electric-teal/80">{marketingStrategy.method3Analysis.reasoning}</p>
+                    <p className="text-electric-teal/80">{strategy.method3Analysis.reasoning}</p>
                   </div>
                 )}
               </div>

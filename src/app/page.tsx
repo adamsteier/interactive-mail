@@ -171,12 +171,12 @@ export default function Home() {
       { label: "Your Business Name", value: editedInfo.businessName },
     ]);
 
-    // Update business analysis
-    setStoreBusinessAnalysis(prev => ({
-      ...prev!,
+    // Update business analysis with proper typing
+    setStoreBusinessAnalysis({
+      ...businessInfo.businessAnalysis!,
       industry: editedInfo.industry,
       description: editedInfo.description,
-    }));
+    });
   };
 
   const fetchMarketingStrategy = useCallback(async () => {
