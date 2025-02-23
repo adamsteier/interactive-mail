@@ -19,10 +19,10 @@ interface MarketingState {
   businessInfo: {
     targetArea: string;
     businessName: string;
+    businessAnalysis: BusinessAnalysis | null;
   };
 
   // Step 3: Analysis & Strategy
-  businessAnalysis: BusinessAnalysis | null;
   marketingStrategy: MarketingStrategy | null;
 
   // Step 4: Lead Collection
@@ -33,10 +33,10 @@ interface MarketingState {
   setLocationData: (data: MarketingState['locationData']) => void;
   setStep: (step: number) => void;
   updateBusinessInfo: (info: Partial<MarketingState['businessInfo']>) => void;
-  setBusinessAnalysis: (analysis: BusinessAnalysis) => void;
   setMarketingStrategy: (strategy: MarketingStrategy) => void;
   setSelectedBusinessTypes: (types: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
   setCollectedLeads: (leads: GooglePlace[]) => void;
+  setBusinessAnalysis: (analysis: BusinessAnalysis | null) => void;
 }
 
 export const useMarketingStore = create<MarketingState>((set) => ({
@@ -47,8 +47,8 @@ export const useMarketingStore = create<MarketingState>((set) => ({
   businessInfo: {
     targetArea: '',
     businessName: '',
+    businessAnalysis: null,
   },
-  businessAnalysis: null,
   marketingStrategy: null,
   selectedBusinessTypes: new Set<string>(),
   collectedLeads: [],
@@ -65,8 +65,6 @@ export const useMarketingStore = create<MarketingState>((set) => ({
     businessInfo: { ...state.businessInfo, ...info }
   })),
 
-  setBusinessAnalysis: (analysis) => set({ businessAnalysis: analysis }),
-  
   setMarketingStrategy: (strategy) => set({ marketingStrategy: strategy }),
 
   setSelectedBusinessTypes: (types) => set((state) => ({ 
@@ -75,5 +73,12 @@ export const useMarketingStore = create<MarketingState>((set) => ({
       : types
   })),
 
-  setCollectedLeads: (leads) => set({ collectedLeads: leads })
+  setCollectedLeads: (leads) => set({ collectedLeads: leads }),
+
+  setBusinessAnalysis: (analysis) => set((state) => ({
+    businessInfo: {
+      ...state.businessInfo,
+      businessAnalysis: analysis
+    }
+  }))
 })); 

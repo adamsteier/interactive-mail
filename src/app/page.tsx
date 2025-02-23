@@ -67,14 +67,13 @@ export default function Home() {
     setLocationData,
     updateBusinessInfo,
     setStep,
-    setBusinessAnalysis
+    setBusinessAnalysis: setStoreBusinessAnalysis
   } = useMarketingStore();
 
   const [userInput, setUserInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [inputPosition, setInputPosition] = useState<{ top: number; height: number }>();
   const [answers, setAnswers] = useState<Answer[]>([]);
-  const [businessAnalysis, setBusinessAnalysis] = useState<BusinessAnalysis | null>(null);
   const [displayInfos, setDisplayInfos] = useState<DisplayInfo[]>([]);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [marketingStrategy, setMarketingStrategy] = useState<MarketingStrategy | null>(null);
@@ -115,21 +114,21 @@ export default function Home() {
         type: 'answer' as const,
         position: index === 0 ? 'first' as const : 'inline' as const
       })),
-      ...(businessAnalysis ? [
+      ...(businessInfo.businessAnalysis ? [
         {
           label: "Industry & Description",
-          value: businessAnalysis.industry,
+          value: businessInfo.businessAnalysis.industry,
           type: 'analysis' as const,
           position: 'below' as const,
           subInfo: {
-            industry: businessAnalysis.industry,
-            description: businessAnalysis.description
+            industry: businessInfo.businessAnalysis.industry,
+            description: businessInfo.businessAnalysis.description
           }
         }
       ] : [])
     ];
     setDisplayInfos(newDisplayInfos);
-  }, [answers, businessAnalysis]);
+  }, [answers, businessInfo.businessAnalysis]);
 
   const welcomeText = "Let's find you some new business. Tell me a little bit about your customers or who you're trying to reach.";
   
@@ -148,11 +147,9 @@ export default function Home() {
     setIsProcessing(true);
     try {
       if (currentStep === 0) {
-        // Store target area
         updateBusinessInfo({ targetArea: input });
         setStep(1);
       } else if (currentStep === 1) {
-        // Store business name and get analysis
         updateBusinessInfo({ businessName: input });
         
         const response = await fetch('/api/openai', {
@@ -173,7 +170,7 @@ export default function Home() {
 
         const data = await response.json();
         if (data.analysis) {
-          setBusinessAnalysis(data.analysis);
+          setStoreBusinessAnalysis(data.analysis);
         }
         setStep(2);
       }
@@ -197,7 +194,7 @@ export default function Home() {
     ]);
 
     // Update business analysis
-    setBusinessAnalysis(prev => ({
+    setStoreBusinessAnalysis(prev => ({
       ...prev!,
       industry: editedInfo.industry,
       description: editedInfo.description,
@@ -215,8 +212,8 @@ export default function Home() {
         body: JSON.stringify({
           targetArea: answers.find(a => a.label === "Target Area")?.value,
           businessName: answers.find(a => a.label === "Your Business Name")?.value,
-          industry: businessAnalysis?.industry,
-          description: businessAnalysis?.description,
+          industry: businessInfo.businessAnalysis?.industry,
+          description: businessInfo.businessAnalysis?.description,
         }),
       });
 
@@ -231,13 +228,13 @@ export default function Home() {
     } finally {
       setIsLoadingStrategy(false);
     }
-  }, [answers, businessAnalysis]);
+  }, [answers, businessInfo.businessAnalysis]);
 
   useEffect(() => {
-    if (businessAnalysis && answers.length >= 2) {
+    if (businessInfo.businessAnalysis && answers.length >= 2) {
       fetchMarketingStrategy();
     }
-  }, [businessAnalysis, answers, fetchMarketingStrategy]);
+  }, [businessInfo.businessAnalysis, answers, fetchMarketingStrategy]);
 
   return (
     <main className="relative min-h-screen w-full">
@@ -355,17 +352,17 @@ export default function Home() {
             info={{
               targetArea: answers.find(a => a.label === "Target Area")?.value || "",
               businessName: answers.find(a => a.label === "Your Business Name")?.value || "",
-              industry: businessAnalysis?.industry || "",
-              description: businessAnalysis?.description || "",
+              industry: businessInfo.businessAnalysis?.industry || "",
+              description: businessInfo.businessAnalysis?.description || "",
             }}
           />
         </div>
       )}
 
-      {showResults && marketingStrategy && businessAnalysis && (
+      {showResults && marketingStrategy && businessInfo.businessAnalysis && (
         <MarketingResults 
           strategy={marketingStrategy} 
-          boundingBox={businessAnalysis.boundingBox}
+          boundingBox={businessInfo.businessAnalysis.boundingBox}
           onClose={() => setShowResults(false)}
         />
       )}
