@@ -20,6 +20,7 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
 
   const [selectedPlaces, setSelectedPlaces] = useState<Set<string>>(new Set());
   const [activeFilter, setActiveFilter] = useState<string>('all');
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
 
   // Get unique business types for filtering
   const businessTypes = useMemo(() => {
@@ -62,16 +63,37 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
     });
   }, [places, isLoading, progress, filteredPlaces, businessTypes, activeFilter]);
 
-  const handleSelectPlace = (placeId: string) => {
-    setSelectedPlaces(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(placeId)) {
-        newSet.delete(placeId);
-      } else {
-        newSet.add(placeId);
+  const handleSelectPlace = (placeId: string, shiftKey: boolean) => {
+    if (!shiftKey) {
+      // Normal selection
+      setSelectedPlaces(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(placeId)) {
+          newSet.delete(placeId);
+        } else {
+          newSet.add(placeId);
+        }
+        setLastSelectedId(placeId);
+        return newSet;
+      });
+    } else if (lastSelectedId) {
+      // Shift selection
+      const currentIndex = filteredPlaces.findIndex(p => p.place_id === placeId);
+      const lastIndex = filteredPlaces.findIndex(p => p.place_id === lastSelectedId);
+      
+      if (currentIndex !== -1 && lastIndex !== -1) {
+        const start = Math.min(currentIndex, lastIndex);
+        const end = Math.max(currentIndex, lastIndex);
+        
+        setSelectedPlaces(prev => {
+          const newSet = new Set(prev);
+          for (let i = start; i <= end; i++) {
+            newSet.add(filteredPlaces[i].place_id);
+          }
+          return newSet;
+        });
       }
-      return newSet;
-    });
+    }
   };
 
   return (
@@ -156,13 +178,14 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    className="text-electric-teal/80 hover:bg-electric-teal/5"
+                    className="text-electric-teal/80 hover:bg-electric-teal/5 cursor-pointer"
+                    onClick={(e) => handleSelectPlace(place.place_id, e.shiftKey)}
                   >
                     <td className="p-2">
                       <input
                         type="checkbox"
                         checked={selectedPlaces.has(place.place_id)}
-                        onChange={() => handleSelectPlace(place.place_id)}
+                        onChange={() => {}} // Handled by row click
                         className="rounded border-electric-teal text-electric-teal focus:ring-electric-teal"
                       />
                     </td>
