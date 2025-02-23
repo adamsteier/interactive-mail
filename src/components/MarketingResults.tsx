@@ -272,6 +272,8 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
                   </button>
                   <button
                     onClick={() => {
+                      console.log('Starting search with selected types:', Array.from(selectedBusinessTypes));
+                      console.log('Bounding box:', boundingBox);
                       handleGoogleSearch();
                       setShowLeadsCollection(true);
                     }}

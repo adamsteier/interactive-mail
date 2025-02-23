@@ -36,7 +36,12 @@ export class GooglePlacesService {
     keyword: string;
   }) {
     try {
-      console.log('Making Places API request with key:', this.apiKey.slice(0, 5) + '...');
+      console.log('Making Places API request:', {
+        location,
+        radius,
+        keyword,
+        hasKey: !!this.apiKey
+      });
       
       const url = new URL('https://maps.googleapis.com/maps/api/place/textsearch/json');
       url.searchParams.append('query', keyword);
@@ -47,7 +52,10 @@ export class GooglePlacesService {
       const response = await fetch(url.toString());
       const data = await response.json() as PlacesResponse;
 
-      console.log('Places API response status:', data.status);
+      console.log('Google API response:', {
+        status: data.status,
+        resultsCount: data.results?.length || 0
+      });
 
       if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
         throw new Error(`Places API Error: ${data.status}`);

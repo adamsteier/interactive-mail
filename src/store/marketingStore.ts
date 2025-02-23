@@ -311,6 +311,11 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
         throw new Error('No bounding box available');
       }
 
+      console.log('Starting search with:', {
+        boundingBox: state.businessInfo.businessAnalysis.boundingBox,
+        selectedTypes: Array.from(state.selectedBusinessTypes)
+      });
+
       state.updateSearchResults({
         places: [],
         isLoading: true,
@@ -328,9 +333,10 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
           state.businessInfo.businessAnalysis.boundingBox
         );
 
-        console.log('Searching for:', {
+        console.log('Grid search config:', {
           businessType,
-          points: gridConfig.searchPoints.length
+          pointCount: gridConfig.searchPoints.length,
+          points: gridConfig.searchPoints
         });
 
         state.updateSearchResults({
@@ -339,6 +345,13 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
 
         for (let i = 0; i < gridConfig.searchPoints.length; i++) {
           const point = gridConfig.searchPoints[i];
+
+          console.log('Searching point:', {
+            businessType,
+            lat: point.lat,
+            lng: point.lng,
+            radius: point.radius
+          });
 
           state.updateSearchResults({
             currentGridPoint: i + 1,
@@ -362,6 +375,11 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
             }
 
             const data = await response.json();
+            console.log('API Response:', {
+              status: response.status,
+              places: data.places?.length || 0,
+              error: data.error
+            });
             if (data.places) {
               const newPlaces = data.places
                 .map((place: GooglePlace) => ({
@@ -390,7 +408,7 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
       });
 
     } catch (error) {
-      console.error('Google Places search error:', error);
+      console.error('Search failed:', error);
       state.updateSearchResults({
         isLoading: false
       });
