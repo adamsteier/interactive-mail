@@ -4,13 +4,14 @@ import { useEffect, useRef } from 'react';
 
 interface TechnoConfettiProps {
   isActive: boolean;
+  sourceElement: HTMLElement | null;
 }
 
-const TechnoConfetti = ({ isActive }: TechnoConfettiProps) => {
+const TechnoConfetti = ({ isActive, sourceElement }: TechnoConfettiProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    if (!isActive || !canvasRef.current) return;
+    if (!isActive || !canvasRef.current || !sourceElement) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
@@ -24,7 +25,13 @@ const TechnoConfetti = ({ isActive }: TechnoConfettiProps) => {
     updateSize();
     window.addEventListener('resize', updateSize);
 
-    // Particle class
+    // Get button position
+    const buttonRect = sourceElement.getBoundingClientRect();
+    const buttonCenter = {
+      x: buttonRect.left + buttonRect.width / 2,
+      y: buttonRect.top + buttonRect.height / 2
+    };
+
     class Particle {
       x: number;
       y: number;
@@ -33,24 +40,33 @@ const TechnoConfetti = ({ isActive }: TechnoConfettiProps) => {
       color: string;
       size: number;
       life: number;
+      fadeOut: boolean;
+      fadeSpeed: number;
 
       constructor() {
-        this.x = canvas.width / 2;
-        this.y = canvas.height / 2;
-        const angle = Math.random() * Math.PI * 2;
-        const velocity = 2 + Math.random() * 4;
+        // Start from behind the button
+        this.x = buttonCenter.x;
+        this.y = buttonCenter.y;
+        const angle = (Math.random() * Math.PI) - (Math.PI / 2);
+        const velocity = 5 + Math.random() * 7;
         this.vx = Math.cos(angle) * velocity;
-        this.vy = Math.sin(angle) * velocity - 2; // Initial upward boost
-        this.color = Math.random() > 0.5 ? '#00F0FF' : '#FF00B8'; // Electric Teal or Neon Magenta
+        this.vy = Math.sin(angle) * velocity - 4;
+        this.color = Math.random() > 0.5 ? '#00F0FF' : '#FF00B8';
         this.size = 2 + Math.random() * 3;
         this.life = 1;
+        this.fadeOut = false;
+        this.fadeSpeed = 0.02;
       }
 
       update() {
         this.x += this.vx;
         this.y += this.vy;
-        this.vy += 0.1; // Gravity
-        this.life -= 0.01;
+        this.vy += 0.2;
+        
+        // Only decrease life if fadeOut is true
+        if (this.fadeOut) {
+          this.life -= this.fadeSpeed;
+        }
       }
 
       draw() {
@@ -61,9 +77,8 @@ const TechnoConfetti = ({ isActive }: TechnoConfettiProps) => {
         ctx.globalAlpha = this.life;
         ctx.fill();
         
-        // Add glow effect
         ctx.shadowColor = this.color;
-        ctx.shadowBlur = 10;
+        ctx.shadowBlur = 15;
         ctx.fill();
         ctx.shadowBlur = 0;
       }
@@ -71,14 +86,28 @@ const TechnoConfetti = ({ isActive }: TechnoConfettiProps) => {
 
     const particles: Particle[] = [];
     let animationFrame: number;
+    let isEmitting = true;
 
-    // Animation loop
+    // Stop emitting new particles after 3 seconds
+    setTimeout(() => {
+      isEmitting = false;
+    }, 3000);
+
+    // Start fade out after 3 seconds
+    setTimeout(() => {
+      particles.forEach(particle => {
+        particle.fadeOut = true;
+      });
+    }, 3000);
+
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      // Add new particles
-      if (particles.length < 200) {
-        particles.push(new Particle());
+      // Add new particles while emitting
+      if (isEmitting && particles.length < 200) {
+        for (let i = 0; i < 5; i++) {
+          particles.push(new Particle());
+        }
       }
 
       // Update and draw particles
@@ -86,7 +115,6 @@ const TechnoConfetti = ({ isActive }: TechnoConfettiProps) => {
         particles[i].update();
         particles[i].draw();
         
-        // Remove dead particles
         if (particles[i].life <= 0) {
           particles.splice(i, 1);
         }
@@ -94,6 +122,8 @@ const TechnoConfetti = ({ isActive }: TechnoConfettiProps) => {
 
       if (particles.length > 0) {
         animationFrame = requestAnimationFrame(animate);
+      } else {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
     };
 
@@ -102,8 +132,11 @@ const TechnoConfetti = ({ isActive }: TechnoConfettiProps) => {
     return () => {
       cancelAnimationFrame(animationFrame);
       window.removeEventListener('resize', updateSize);
+      if (canvas && ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
     };
-  }, [isActive]);
+  }, [isActive, sourceElement]);
 
   return (
     <canvas

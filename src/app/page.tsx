@@ -314,7 +314,7 @@ export default function Home() {
               </div>
             </div>
           </div>
-          <TechnoConfetti isActive={showConfetti} />
+          <TechnoConfetti isActive={showConfetti} sourceElement={buttonRef.current} />
           <EditModal
             isOpen={isEditModalOpen}
             onClose={() => setIsEditModalOpen(false)}
