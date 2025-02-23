@@ -1,22 +1,6 @@
 import { NextResponse } from 'next/server';
 import { GooglePlacesService } from '@/services/googlePlaces';
 
-interface PlaceSearchResult {
-  place_id: string;
-  name: string;
-  geometry: {
-    location: {
-      lat: number;
-      lng: number;
-    };
-  };
-  types: string[];
-  business_status?: string;
-  vicinity?: string;
-  rating?: number;
-  user_ratings_total?: number;
-}
-
 export async function POST(request: Request) {
   try {
     const body = await request.json();
