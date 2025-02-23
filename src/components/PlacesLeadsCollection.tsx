@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { GooglePlace } from '@/types/places';
+import { BusinessTarget } from '@/types/marketing';
 import SelectionSummary from './SelectionSummary';
 
 interface PlacesLeadsCollectionProps {
@@ -12,6 +13,11 @@ interface PlacesLeadsCollectionProps {
   progress?: number;
   totalGridPoints?: number;
   currentGridPoint?: number;
+  businessTargets: BusinessTarget[];
+  strategy: {
+    primaryRecommendation: string;
+    overallReasoning: string;
+  };
 }
 
 const PlacesLeadsCollection = ({ places, onClose, isLoading, progress, totalGridPoints, currentGridPoint }: PlacesLeadsCollectionProps) => {

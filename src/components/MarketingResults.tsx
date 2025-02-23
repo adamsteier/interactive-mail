@@ -482,6 +482,11 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
               setShowLeadsCollection(false);
               onClose();
             }}
+            businessTargets={strategy.method1Analysis.businessTargets}
+            strategy={{
+              primaryRecommendation: strategy.primaryRecommendation,
+              overallReasoning: strategy.method1Analysis.overallReasoning
+            }}
           />
         ) : (
           <LeadsCollection
