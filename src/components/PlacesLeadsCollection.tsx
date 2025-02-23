@@ -96,6 +96,30 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
     }
   };
 
+  const handleBulkSelect = (filter: string = activeFilter) => {
+    setSelectedPlaces(prev => {
+      const newSet = new Set(prev);
+      const placesToSelect = filter === 'all' 
+        ? places 
+        : places.filter(place => place.businessType === filter);
+      
+      placesToSelect.forEach(place => newSet.add(place.place_id));
+      return newSet;
+    });
+  };
+
+  const handleBulkDeselect = (filter: string = activeFilter) => {
+    setSelectedPlaces(prev => {
+      const newSet = new Set(prev);
+      const placesToDeselect = filter === 'all' 
+        ? places 
+        : places.filter(place => place.businessType === filter);
+      
+      placesToDeselect.forEach(place => newSet.delete(place.place_id));
+      return newSet;
+    });
+  };
+
   return (
     <div className="min-h-screen bg-charcoal p-4">
       <div className="rounded-lg border-2 border-electric-teal bg-charcoal shadow-glow">
@@ -114,6 +138,46 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
 
         {/* Loading Progress */}
         {isLoading && <LoadingBar progress={progress} />}
+
+        {/* Bulk Selection Controls */}
+        <div className="border-b border-electric-teal/20 p-4">
+          <div className="flex flex-wrap gap-3 items-center">
+            <span className="text-electric-teal/80">Quick Select:</span>
+            <button
+              onClick={() => handleBulkSelect('all')}
+              className="px-4 py-2 rounded-lg border border-electric-teal/50 bg-electric-teal/10 
+                text-electric-teal hover:bg-electric-teal/20 transition-colors duration-200"
+            >
+              Select All ({places.length})
+            </button>
+            <button
+              onClick={() => handleBulkDeselect('all')}
+              className="px-4 py-2 rounded-lg border border-electric-teal/50 bg-electric-teal/10 
+                text-electric-teal hover:bg-electric-teal/20 transition-colors duration-200"
+            >
+              Deselect All
+            </button>
+            {activeFilter !== 'all' && (
+              <>
+                <div className="w-px h-6 bg-electric-teal/20" /> {/* Divider */}
+                <button
+                  onClick={() => handleBulkSelect(activeFilter)}
+                  className="px-4 py-2 rounded-lg border border-electric-teal text-electric-teal 
+                    bg-electric-teal/10 hover:bg-electric-teal/20 transition-colors duration-200"
+                >
+                  Select All {activeFilter} ({filteredPlaces.length})
+                </button>
+                <button
+                  onClick={() => handleBulkDeselect(activeFilter)}
+                  className="px-4 py-2 rounded-lg border border-electric-teal/50 bg-electric-teal/10 
+                    text-electric-teal hover:bg-electric-teal/20 transition-colors duration-200"
+                >
+                  Deselect All {activeFilter}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
 
         {/* Filters - made scrollable for mobile */}
         <div className="border-b border-electric-teal/20 p-4 overflow-x-auto">
