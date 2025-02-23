@@ -9,6 +9,7 @@ import LoadingBar from '@/components/LoadingBar';
 import EditModal from '@/components/EditModal';
 import MarketingResults from '@/components/MarketingResults';
 import { MarketingStrategy } from '@/types/marketing';
+import { useMarketingStore } from '@/store/marketingStore';
 
 interface LocationData {
   city: string;
@@ -59,11 +60,19 @@ const LoadingSkeleton = () => (
 );
 
 export default function Home() {
+  const { 
+    locationData,
+    businessInfo,
+    currentStep,
+    setLocationData,
+    updateBusinessInfo,
+    setStep,
+    setBusinessAnalysis
+  } = useMarketingStore();
+
   const [userInput, setUserInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [inputPosition, setInputPosition] = useState<{ top: number; height: number }>();
-  const [step, setStep] = useState(0);
-  const [locationData, setLocationData] = useState<LocationData | null>(null);
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [businessAnalysis, setBusinessAnalysis] = useState<BusinessAnalysis | null>(null);
   const [displayInfos, setDisplayInfos] = useState<DisplayInfo[]>([]);
@@ -93,8 +102,10 @@ export default function Home() {
       }
     };
 
-    fetchLocation();
-  }, []);
+    if (!locationData) {
+      fetchLocation();
+    }
+  }, [locationData, setLocationData]);
 
   useEffect(() => {
     // Update display infos whenever answers or business analysis change
@@ -136,26 +147,22 @@ export default function Home() {
   const handleSubmit = async (input: string) => {
     setIsProcessing(true);
     try {
-      const newAnswer: Answer = {
-        label: labels[step],
-        value: input
-      };
-      setAnswers(prev => [...prev, newAnswer]);
-      
-      // Make API call after business name is entered (step 1)
-      if (step === 1) {
-        const allAnswers = [...answers, newAnswer];
-        const targetArea = allAnswers.find(a => a.label === "Target Area")?.value || "";
-        const businessName = allAnswers.find(a => a.label === "Your Business Name")?.value || "";
-
+      if (currentStep === 0) {
+        // Store target area
+        updateBusinessInfo({ targetArea: input });
+        setStep(1);
+      } else if (currentStep === 1) {
+        // Store business name and get analysis
+        updateBusinessInfo({ businessName: input });
+        
         const response = await fetch('/api/openai', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            targetArea,
-            businessName,
+            targetArea: businessInfo.targetArea,
+            businessName: input,
             userLocation: locationData?.city || 'Toronto',
           }),
         });
@@ -168,13 +175,9 @@ export default function Home() {
         if (data.analysis) {
           setBusinessAnalysis(data.analysis);
         }
-        
-        // Move to verification step
         setStep(2);
-      } else if (step < prompts.length - 1) {
-        setStep(step + 1);
-        setUserInput('');
       }
+      setUserInput('');
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -262,7 +265,7 @@ export default function Home() {
             </div>
             
             {/* Show loading skeleton or analysis */}
-            {(isProcessing && step === 1) ? (
+            {(isProcessing && currentStep === 1) ? (
               <LoadingSkeleton />
             ) : (
               displayInfos
@@ -287,12 +290,12 @@ export default function Home() {
       </div>
 
       {/* Show input and prompt only before business name is submitted */}
-      {step <= 1 && !isProcessing && (
+      {currentStep <= 1 && !isProcessing && (
         <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-4 py-8">
           <div className="max-w-4xl">
             <TypewriterPrompt 
-              text={prompts[step].text}
-              key={step}
+              text={prompts[currentStep].text}
+              key={currentStep}
             />
             <InputField 
               value={userInput}
@@ -300,14 +303,14 @@ export default function Home() {
               onSubmit={handleSubmit}
               disabled={isProcessing}
               onPositionChange={handlePositionChange}
-              placeholder={prompts[step].placeholder}
+              placeholder={prompts[currentStep].placeholder}
             />
           </div>
         </div>
       )}
 
       {/* Show verification message and buttons after business name */}
-      {step > 1 && (
+      {currentStep > 1 && (
         <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-4">
           <div className="flex flex-col items-center gap-8 mt-32">
             <div className="text-xl font-normal text-electric-teal">

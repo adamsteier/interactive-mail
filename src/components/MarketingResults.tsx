@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MarketingStrategy, BusinessTarget, DatabaseTarget } from '@/types/marketing';
 import { BusinessAnalysis } from '@/types/businessAnalysis';
 import LeadsCollection from '@/components/LeadsCollection';
 import PlacesLeadsCollection from '@/components/PlacesLeadsCollection';
 import { GooglePlace } from '@/types/places';
+import { useMarketingStore } from '@/store/marketingStore';
 
 interface MarketingResultsProps {
   strategy: MarketingStrategy;
@@ -138,12 +139,23 @@ const generateHexagonalGrid = (businessType: string, boundingBox: BusinessAnalys
 };
 
 const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsProps) => {
-  const [selectedTargets, setSelectedTargets] = useState<Set<string>>(new Set());
+  const { 
+    setMarketingStrategy,
+    setSelectedBusinessTypes,
+    selectedBusinessTypes 
+  } = useMarketingStore();
+
+  // Keep local state during transition
   const [showLeadsCollection, setShowLeadsCollection] = useState(false);
   const [taskInfos, setTaskInfos] = useState<TaskInfo[]>([]);
 
+  useEffect(() => {
+    // Store the strategy when component mounts
+    setMarketingStrategy(strategy);
+  }, [strategy, setMarketingStrategy]);
+
   const handleCheckboxChange = (targetType: string) => {
-    setSelectedTargets(prev => {
+    setSelectedBusinessTypes((prev: Set<string>) => {
       const newSet = new Set(prev);
       if (newSet.has(targetType)) {
         newSet.delete(targetType);
@@ -159,7 +171,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       const newTaskInfos: TaskInfo[] = [];
       
       // Create tasks for each selected business type
-      for (const businessType of selectedTargets) {
+      for (const businessType of selectedBusinessTypes) {
         const query = generateSearchQuery(businessType, boundingBox);
         console.log(`\nProcessing ${businessType}:`);
         console.log('Search URLs:', query.searchUrls);
@@ -221,8 +233,8 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
       let allPlacesAcrossTypes: GooglePlace[] = [];
 
-      // Start grid-based search for each business type
-      for (const businessType of selectedTargets) {
+      // Use selectedBusinessTypes from store
+      for (const businessType of selectedBusinessTypes) {
         // Get the estimated reach for this specific business type
         const businessTypeConfig = strategy.method1Analysis.businessTargets.find(
           (bt: BusinessTarget) => bt.type === businessType
@@ -369,7 +381,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
                             <input
                               type="checkbox"
                               id={target.type}
-                              checked={selectedTargets.has(target.type)}
+                              checked={selectedBusinessTypes.has(target.type)}
                               onChange={() => handleCheckboxChange(target.type)}
                               className="w-4 h-4 rounded border-electric-teal text-electric-teal 
                                 focus:ring-electric-teal focus:ring-offset-charcoal bg-charcoal"
@@ -390,13 +402,13 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
                     <button
                       onClick={handleGetData}
-                      disabled={selectedTargets.size === 0}
+                      disabled={selectedBusinessTypes.size === 0}
                       className="w-full mt-4 rounded-lg border-2 border-electric-teal bg-electric-teal/10 
                         px-6 py-3 text-base font-medium text-electric-teal shadow-glow 
                         transition-all duration-300 hover:bg-electric-teal/20 hover:shadow-glow-strong 
                         active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {selectedTargets.size === 0 ? 'Select some businesses to get data' : 'Get Data'}
+                      {selectedBusinessTypes.size === 0 ? 'Select some businesses to get data' : 'Get Data'}
                     </button>
                   </div>
                 )}
@@ -451,21 +463,21 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
                   </button>
                   <button
                     onClick={handleGetData}
-                    disabled={selectedTargets.size === 0}
+                    disabled={selectedBusinessTypes.size === 0}
                     className="rounded border-2 border-electric-teal bg-electric-teal/10 px-6 py-2 
                       text-electric-teal shadow-glow hover:bg-electric-teal/20 hover:shadow-glow-strong 
                       active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {selectedTargets.size === 0 ? 'Select some businesses to get data' : 'Scrape Data'}
+                    {selectedBusinessTypes.size === 0 ? 'Select some businesses to get data' : 'Scrape Data'}
                   </button>
                   <button
                     onClick={handleGoogleSearch}
-                    disabled={selectedTargets.size === 0}
+                    disabled={selectedBusinessTypes.size === 0}
                     className="rounded border-2 border-electric-teal bg-electric-teal/10 px-6 py-2 
                       text-electric-teal shadow-glow hover:bg-electric-teal/20 hover:shadow-glow-strong 
                       active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {selectedTargets.size === 0 ? 'Select some businesses to get data' : 'Google Search'}
+                    {selectedBusinessTypes.size === 0 ? 'Select some businesses to get data' : 'Google Search'}
                   </button>
                 </div>
               </div>
@@ -481,11 +493,6 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
             onClose={() => {
               setShowLeadsCollection(false);
               onClose();
-            }}
-            businessTargets={strategy.method1Analysis.businessTargets}
-            strategy={{
-              primaryRecommendation: strategy.primaryRecommendation,
-              overallReasoning: strategy.method1Analysis.overallReasoning
             }}
           />
         ) : (

@@ -3,8 +3,8 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { GooglePlace } from '@/types/places';
-import { BusinessTarget } from '@/types/marketing';
 import SelectionSummary from './SelectionSummary';
+import { useMarketingStore } from '@/store/marketingStore';
 
 interface PlacesLeadsCollectionProps {
   places: GooglePlace[];
@@ -13,16 +13,14 @@ interface PlacesLeadsCollectionProps {
   progress?: number;
   totalGridPoints?: number;
   currentGridPoint?: number;
-  businessTargets: BusinessTarget[];
-  strategy: {
-    primaryRecommendation: string;
-    overallReasoning: string;
-  };
 }
 
 const PlacesLeadsCollection = ({ places, onClose, isLoading, progress, totalGridPoints, currentGridPoint }: PlacesLeadsCollectionProps) => {
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [selectedPlaces, setSelectedPlaces] = useState<Set<string>>(new Set());
+  
+  // Get data from store
+  const { setCollectedLeads } = useMarketingStore();
   
   // Calculate business type counts
   const businessTypes = useMemo(() => {
@@ -198,6 +196,13 @@ const PlacesLeadsCollection = ({ places, onClose, isLoading, progress, totalGrid
       <SelectionSummary
         selectedPlaces={selectedPlaces}
         onStartCampaign={() => {
+          const selectedBusinesses = filteredPlaces.filter(place => 
+            selectedPlaces.has(place.place_id)
+          );
+          
+          // Store selected places in the store
+          setCollectedLeads(selectedBusinesses);
+          
           console.log('Starting campaign with', selectedPlaces.size, 'places');
           // Add campaign start logic here
         }}
