@@ -47,23 +47,23 @@ const TechnoConfetti = ({ isActive, sourceElement }: TechnoConfettiProps) => {
         // Start from behind the button
         this.x = buttonCenter.x;
         this.y = buttonCenter.y;
-        const angle = (Math.random() * Math.PI) - (Math.PI / 2);
-        const velocity = 5 + Math.random() * 7;
+        // Adjust angle to be more vertical (closer to -PI/2)
+        const angle = (-Math.PI/2) + (Math.random() * Math.PI/3 - Math.PI/6); // This makes particles go mostly upward
+        const velocity = 3 + Math.random() * 4; // Reduced velocity
         this.vx = Math.cos(angle) * velocity;
-        this.vy = Math.sin(angle) * velocity - 4;
+        this.vy = Math.sin(angle) * velocity - 2; // Reduced initial boost
         this.color = Math.random() > 0.5 ? '#00F0FF' : '#FF00B8';
         this.size = 2 + Math.random() * 3;
         this.life = 1;
         this.fadeOut = false;
-        this.fadeSpeed = 0.02;
+        this.fadeSpeed = 0.01; // Slower fade
       }
 
       update() {
         this.x += this.vx;
         this.y += this.vy;
-        this.vy += 0.2;
+        this.vy += 0.1; // Reduced gravity
         
-        // Only decrease life if fadeOut is true
         if (this.fadeOut) {
           this.life -= this.fadeSpeed;
         }

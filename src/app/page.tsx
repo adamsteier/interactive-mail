@@ -202,10 +202,10 @@ export default function Home() {
     <main className="relative min-h-screen w-full">
       <AnimatedBackground inputPosition={inputPosition || undefined} />
       
-      {/* Add LocationSelector before other content */}
       <LocationSelector />
       
-      <div className="fixed left-0 top-0 w-full">
+      {/* Info Boxes Container - Make it relative instead of fixed */}
+      <div className="w-full">
         <div className="relative mx-auto max-w-2xl px-4 pt-8 pb-4">
           <div className="flex flex-col gap-4">
             {/* Top row for Target Area and Business Name */}
@@ -274,8 +274,8 @@ export default function Home() {
 
       {/* Show verification message and buttons after business name */}
       {currentStep > 1 && (
-        <div className="relative z-10 w-full px-4">
-          <div className="flex min-h-screen flex-col items-center justify-center">
+        <div className="relative z-10 w-full px-4 mt-32">
+          <div className="flex flex-col items-center">
             <div className="w-full max-w-2xl space-y-8">
               <div className="text-xl font-normal text-electric-teal text-center">
                 Please verify your information.
