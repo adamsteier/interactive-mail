@@ -18,7 +18,12 @@ export class GooglePlacesService {
   private apiKey: string;
 
   constructor() {
-    this.apiKey = process.env.GOOGLE_MAPS_API_KEY || '';
+    this.apiKey = process.env.GOOGLE_PLACES_API_KEY || '';
+    
+    if (!this.apiKey) {
+      console.error('Google Places API key is missing!');
+      throw new Error('Google Places API key is not configured');
+    }
   }
 
   async searchPlaces({
@@ -31,14 +36,18 @@ export class GooglePlacesService {
     keyword: string;
   }) {
     try {
-      const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?` + 
-        `query=${encodeURIComponent(keyword)}` +
-        `&location=${location.lat},${location.lng}` +
-        `&radius=${radius}` +
-        `&key=${this.apiKey}`;
+      console.log('Making Places API request with key:', this.apiKey.slice(0, 5) + '...');
+      
+      const url = new URL('https://maps.googleapis.com/maps/api/place/textsearch/json');
+      url.searchParams.append('query', keyword);
+      url.searchParams.append('location', `${location.lat},${location.lng}`);
+      url.searchParams.append('radius', radius.toString());
+      url.searchParams.append('key', this.apiKey);
 
-      const response = await fetch(url);
+      const response = await fetch(url.toString());
       const data = await response.json() as PlacesResponse;
+
+      console.log('Places API response status:', data.status);
 
       if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
         throw new Error(`Places API Error: ${data.status}`);
