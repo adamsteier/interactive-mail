@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useMarketingStore } from '@/store/marketingStore';
 
@@ -10,7 +10,6 @@ interface AudienceSegmentationProps {
 
 const AudienceSegmentation = ({ onComplete }: AudienceSegmentationProps) => {
   const selectedBusinessTypes = useMarketingStore(state => state.selectedBusinessTypes);
-  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
     console.log('Selected Business Types:', {
@@ -18,17 +17,6 @@ const AudienceSegmentation = ({ onComplete }: AudienceSegmentationProps) => {
       count: selectedBusinessTypes.size
     });
   }, [selectedBusinessTypes]);
-
-  // Check if we have multiple business types
-  useEffect(() => {
-    if (!initialized && selectedBusinessTypes.size > 0) {
-      // Only auto-complete if there's exactly one type
-      if (selectedBusinessTypes.size === 1) {
-        onComplete(false, Array.from(selectedBusinessTypes));
-      }
-      setInitialized(true);
-    }
-  }, [selectedBusinessTypes, onComplete, initialized]);
 
   // If no business types, show an error
   if (selectedBusinessTypes.size === 0) {
@@ -48,37 +36,33 @@ const AudienceSegmentation = ({ onComplete }: AudienceSegmentationProps) => {
     );
   }
 
-  // If only one type, return null (handled by useEffect)
-  if (selectedBusinessTypes.size === 1) {
-    return null;
-  }
-
-  // Show choice for multiple business types
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="max-w-2xl mx-auto p-6"
     >
-      <h2 className="text-3xl font-bold text-electric-teal mb-8 text-center">
-        Let&apos;s Design Your Campaign
-      </h2>
-      
-      <div className="text-electric-teal/80 text-center mb-12">
-        <p>We noticed you&apos;ve selected leads from different business types:</p>
-        <div className="mt-4 flex flex-wrap gap-2 justify-center">
+      <div className="mb-12">
+        <h2 className="text-3xl font-bold text-electric-teal mb-4 text-center">
+          Selected Business Types
+        </h2>
+        <div className="flex flex-wrap gap-3 justify-center">
           {Array.from(selectedBusinessTypes).map(type => (
-            <span
+            <div
               key={type}
-              className="px-3 py-1 rounded-full border border-electric-teal/30 
-                bg-electric-teal/10 text-electric-teal text-sm"
+              className="px-4 py-2 rounded-lg border-2 border-electric-teal/30 
+                bg-electric-teal/10 text-electric-teal"
             >
               {type}
-            </span>
+            </div>
           ))}
         </div>
       </div>
 
+      <h3 className="text-2xl font-bold text-electric-teal mb-8 text-center">
+        How would you like to design your campaign?
+      </h3>
+      
       <div className="grid md:grid-cols-2 gap-6">
         <motion.button
           whileHover={{ scale: 1.02 }}
