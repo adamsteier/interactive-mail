@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AudienceSegmentation from './AudienceSegmentation';
 import BrandIdentity from './BrandIdentity';
@@ -10,6 +10,7 @@ import BusinessDetails from './BusinessDetails';
 import VisualElements from './VisualElements';
 import ReviewGenerate from './ReviewGenerate';
 import { ImageStyle, ImageSource, LayoutStyle } from './VisualElements';
+import { useMarketingStore } from '@/store/marketingStore';
 
 // Define types locally to avoid import issues
 type BrandStylePreference = 'playful' | 'professional' | 'modern' | 'traditional';
@@ -33,6 +34,8 @@ type ComponentBrandData = {
   accentColor: string;
   stylePreferences: BrandStylePreference[];
   additionalNotes: string;
+  logoUrl: string;
+  brandName: string;
 };
 
 type ComponentMarketingData = {
@@ -145,6 +148,8 @@ const toComponentBrandData = (wizardBrandData: WizardBrandData): ComponentBrandD
   accentColor: wizardBrandData.accentColor,
   stylePreferences: wizardBrandData.stylePreferences,
   additionalNotes: wizardBrandData.guidelinesNotes,
+  logoUrl: wizardBrandData.logoUrl,
+  brandName: wizardBrandData.brandName,
 });
 
 const toWizardBrandData = (componentBrandData: ComponentBrandData, current: WizardBrandData): WizardBrandData => ({
@@ -154,6 +159,8 @@ const toWizardBrandData = (componentBrandData: ComponentBrandData, current: Wiza
   accentColor: componentBrandData.accentColor,
   stylePreferences: componentBrandData.stylePreferences,
   guidelinesNotes: componentBrandData.additionalNotes,
+  logoUrl: componentBrandData.logoUrl,
+  brandName: componentBrandData.brandName,
 });
 
 const toComponentMarketingData = (wizardMarketingData: WizardMarketingData): ComponentMarketingData => ({
@@ -212,6 +219,10 @@ const toWizardBusinessData = (componentBusinessData: ComponentBusinessData, curr
 });
 
 const AIDesignWizard = ({ onBack }: AIDesignWizardProps) => {
+  // Import marketing store to access business name and marketing strategy
+  const businessName = useMarketingStore((state) => state.businessInfo.businessName);
+  const marketingStrategy = useMarketingStore((state) => state.marketingStrategy);
+  
   const [wizardState, setWizardState] = useState<WizardState>({
     currentStep: 'method',
     selectedDesignMethod: null,
@@ -270,6 +281,33 @@ const AIDesignWizard = ({ onBack }: AIDesignWizardProps) => {
     },
   });
 
+  // Update brandName whenever businessName changes
+  useEffect(() => {
+    if (businessName) {
+      setWizardState(prev => ({
+        ...prev,
+        brandData: {
+          ...prev.brandData,
+          brandName: businessName
+        }
+      }));
+    }
+  }, [businessName]);
+
+  // Get target description from marketing strategy
+  const getTargetDescription = () => {
+    if (!marketingStrategy) return '';
+    
+    // Look for reasoning in business targets
+    if (marketingStrategy.method1Analysis.businessTargets.length > 0) {
+      const target = marketingStrategy.method1Analysis.businessTargets[0];
+      return target.reasoning || '';
+    }
+    
+    // If not found, return the overall reasoning
+    return marketingStrategy.method1Analysis.overallReasoning || '';
+  };
+
   const stepTitles: Record<WizardStep, string> = {
     method: 'Design Method',
     segmentation: 'Audience Segmentation',
@@ -304,7 +342,11 @@ const AIDesignWizard = ({ onBack }: AIDesignWizardProps) => {
   const handleBrandComplete = (componentBrandData: ComponentBrandData) => {
     setWizardState(prev => ({
       ...prev,
-      brandData: toWizardBrandData(componentBrandData, prev.brandData),
+      brandData: {
+        ...toWizardBrandData(componentBrandData, prev.brandData),
+        brandName: componentBrandData.brandName || prev.brandData.brandName,
+        logoUrl: componentBrandData.logoUrl || prev.brandData.logoUrl
+      },
       currentStep: 'marketing'
     }));
   };
@@ -415,10 +457,16 @@ const AIDesignWizard = ({ onBack }: AIDesignWizardProps) => {
         );
         
       case 'brand':
+        const brandInitialData = {
+          ...toComponentBrandData(wizardState.brandData),
+          brandName: businessName || wizardState.brandData.brandName,
+          logoUrl: wizardState.brandData.logoUrl
+        };
+        
         return (
           <BrandIdentity
             onComplete={handleBrandComplete}
-            initialData={toComponentBrandData(wizardState.brandData)}
+            initialData={brandInitialData}
           />
         );
         
@@ -431,10 +479,16 @@ const AIDesignWizard = ({ onBack }: AIDesignWizardProps) => {
         );
         
       case 'audience':
+        const targetDescription = getTargetDescription();
+        const audienceInitialData = {
+          ...wizardState.audienceData,
+          targetDescription: targetDescription || wizardState.audienceData.targetDescription
+        };
+        
         return (
           <TargetAudience
             onComplete={handleAudienceComplete}
-            initialData={wizardState.audienceData}
+            initialData={audienceInitialData}
             segment={wizardState.currentSegment || undefined}
           />
         );
