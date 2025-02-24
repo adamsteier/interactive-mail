@@ -1,5 +1,5 @@
-import PostcardDesigner from '@/components/PostcardDesigner';
+import AIDesignWizard from '@/components/AIDesignWizard';
 
 export default function DesignPage() {
-  return <PostcardDesigner />;
+  return <AIDesignWizard />;
 } 
