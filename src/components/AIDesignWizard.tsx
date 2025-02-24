@@ -3,6 +3,12 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AudienceSegmentation from './AudienceSegmentation';
+import BrandIdentity from './BrandIdentity';
+import MarketingGoals from './MarketingGoals';
+
+// Import BrandStylePreference type from BrandIdentity
+type BrandStylePreference = 'playful' | 'professional' | 'modern' | 'traditional';
+type MarketingObjective = 'awareness' | 'promotion' | 'traffic' | 'event' | 'other';
 
 export type WizardStep = 
   | 'segmentation'
@@ -13,11 +19,32 @@ export type WizardStep =
   | 'visual'
   | 'review';
 
+// Define BrandData type to match the one in BrandIdentity component
+interface BrandData {
+  hasBrandGuidelines: boolean;
+  primaryColor: string;
+  accentColor: string;
+  stylePreferences: BrandStylePreference[];
+  additionalNotes: string;
+}
+
+// Define MarketingData type to match the one in MarketingGoals component
+interface MarketingData {
+  objectives: MarketingObjective[];
+  otherObjective: string;
+  callToAction: string;
+  useAiCta: boolean;
+}
+
 interface WizardState {
   currentStep: WizardStep;
   isSegmented: boolean;
   segments: string[];
   currentSegment?: string;
+  // Brand data
+  brandData?: BrandData;
+  // Marketing data
+  marketingData?: MarketingData;
   // ... other state will be added as we build more steps
 }
 
@@ -60,6 +87,22 @@ const AIDesignWizard = ({ onBack }: AIDesignWizardProps) => {
       segments: segments || [],
       currentSegment: segments?.[0],
       currentStep: 'brand'
+    }));
+  };
+
+  const handleBrandComplete = (brandData: BrandData) => {
+    setWizardState(prev => ({
+      ...prev,
+      brandData,
+      currentStep: 'marketing'
+    }));
+  };
+
+  const handleMarketingComplete = (marketingData: MarketingData) => {
+    setWizardState(prev => ({
+      ...prev,
+      marketingData,
+      currentStep: 'audience'
     }));
   };
 
@@ -123,9 +166,19 @@ const AIDesignWizard = ({ onBack }: AIDesignWizardProps) => {
         >
           {wizardState.currentStep === 'segmentation' ? (
             <AudienceSegmentation onComplete={handleSegmentationComplete} />
+          ) : wizardState.currentStep === 'brand' ? (
+            <BrandIdentity 
+              onComplete={handleBrandComplete} 
+              initialData={wizardState.brandData}
+            />
+          ) : wizardState.currentStep === 'marketing' ? (
+            <MarketingGoals
+              onComplete={handleMarketingComplete}
+              initialData={wizardState.marketingData}
+            />
           ) : (
             <>
-              {/* Step Title - only show for non-segmentation steps */}
+              {/* Step Title - only show for other steps */}
               <div className="pt-8 px-4 mb-8">
                 <motion.h1
                   key={wizardState.currentStep}
@@ -138,6 +191,9 @@ const AIDesignWizard = ({ onBack }: AIDesignWizardProps) => {
               </div>
               
               {/* We'll add other steps here */}
+              <div className="max-w-3xl mx-auto py-12 text-center text-electric-teal">
+                <p>This step is under development.</p>
+              </div>
             </>
           )}
         </motion.div>
