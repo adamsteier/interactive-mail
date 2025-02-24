@@ -7,12 +7,17 @@ import BrandIdentity from './BrandIdentity';
 import MarketingGoals from './MarketingGoals';
 import TargetAudience from './TargetAudience';
 import BusinessDetails from './BusinessDetails';
+import VisualElements from './VisualElements';
+import ReviewGenerate from './ReviewGenerate';
+import { ImageStyle, ImageSource, LayoutStyle } from './VisualElements';
 
-// Import BrandStylePreference type from BrandIdentity
+// Define types locally to avoid import issues
 type BrandStylePreference = 'playful' | 'professional' | 'modern' | 'traditional';
 type MarketingObjective = 'awareness' | 'promotion' | 'traffic' | 'event' | 'other';
+type DesignMethod = 'single' | 'multiple';
 
 export type WizardStep = 
+  | 'method'
   | 'segmentation'
   | 'brand'
   | 'marketing'
@@ -21,17 +26,16 @@ export type WizardStep =
   | 'visual'
   | 'review';
 
-// Define BrandData type to match the one in BrandIdentity component
-interface BrandData {
+// Create type aliases that match component interfaces
+type ComponentBrandData = {
   hasBrandGuidelines: boolean;
   primaryColor: string;
   accentColor: string;
   stylePreferences: BrandStylePreference[];
   additionalNotes: string;
-}
+};
 
-// Define MarketingData type to match the one in MarketingGoals component
-interface MarketingData {
+type ComponentMarketingData = {
   objectives: MarketingObjective[];
   otherObjective: string;
   callToAction: string;
@@ -43,21 +47,9 @@ interface MarketingData {
     event: string;
     other: string;
   };
-}
+};
 
-// Define AudienceData type to match the one in TargetAudience component
-interface AudienceData {
-  industry: string;
-  targetDescription: string;
-  audienceAgeRange: string[];
-  incomeLevel: string[];
-  interests: string[];
-  customAudience: boolean;
-  customAudienceDescription: string;
-}
-
-// Define BusinessData type to match the one in BusinessDetails component
-interface BusinessData {
+type ComponentBusinessData = {
   tagline: string;
   useAiTagline: boolean;
   contactInfo: {
@@ -71,82 +63,262 @@ interface BusinessData {
   extraInfo: string;
   includeQrCode: boolean;
   qrCodeUrl: string;
+};
+
+// Define wizard state interfaces
+interface WizardBrandData {
+  brandName: string;
+  logoUrl: string;
+  primaryColor: string;
+  accentColor: string;
+  brandValues: string[];
+  stylePreferences: BrandStylePreference[];
+  useExistingGuidelines: boolean;
+  guidelinesNotes: string;
+}
+
+interface WizardMarketingData {
+  objectives: MarketingObjective[];
+  callToAction: string;
+  promotionDetails: string;
+  eventDate: string;
+  offerDetails: string;
+  marketingObjectives: string;
+}
+
+interface AudienceData {
+  industry: string;
+  targetDescription: string;
+  audienceAgeRange: string[];
+  incomeLevel: string[];
+  interests: string[];
+  customAudience: boolean;
+  customAudienceDescription: string;
+}
+
+interface WizardBusinessData {
+  tagline: string;
+  useAiTagline: boolean;
+  contactInfo: {
+    phone: string;
+    email: string;
+    website: string;
+    address: string;
+    includeQR: boolean;
+  };
+  disclaimer: string;
+  includeDisclaimer: boolean;
+  extraInfo: string;
+}
+
+interface VisualData {
+  imageStyle: ImageStyle[];
+  imageSource: ImageSource;
+  imagePrimarySubject: string;
+  useCustomImage: boolean;
+  customImageDescription: string;
+  layoutStyle: LayoutStyle;
+  colorSchemeConfirmed: boolean;
+  customColorNotes: string;
 }
 
 interface WizardState {
   currentStep: WizardStep;
-  isSegmented: boolean;
+  selectedDesignMethod: DesignMethod | null;
   segments: string[];
-  currentSegment?: string;
-  // Brand data
-  brandData?: BrandData;
-  // Marketing data
-  marketingData?: MarketingData;
-  // Audience data
-  audienceData?: AudienceData;
-  // Business data
-  businessData?: BusinessData;
-  // ... other state will be added as we build more steps
+  currentSegment: string | null;
+  brandData: WizardBrandData;
+  marketingData: WizardMarketingData;
+  audienceData: AudienceData;
+  businessData: WizardBusinessData;
+  visualData: VisualData;
 }
 
 interface AIDesignWizardProps {
-  onBack: () => void;
+  onBack?: () => void;
 }
 
-const steps: WizardStep[] = [
-  'segmentation',
-  'brand',
-  'marketing',
-  'audience',
-  'business',
-  'visual',
-  'review'
-];
+// Type conversion functions
+const toComponentBrandData = (wizardBrandData: WizardBrandData): ComponentBrandData => ({
+  hasBrandGuidelines: wizardBrandData.useExistingGuidelines,
+  primaryColor: wizardBrandData.primaryColor,
+  accentColor: wizardBrandData.accentColor,
+  stylePreferences: wizardBrandData.stylePreferences,
+  additionalNotes: wizardBrandData.guidelinesNotes,
+});
 
-const stepTitles: Record<WizardStep, string> = {
-  segmentation: 'Audience Segmentation',
-  brand: 'Brand Identity',
-  marketing: 'Marketing Goals',
-  audience: 'Target Audience',
-  business: 'Business Details',
-  visual: 'Visual Elements',
-  review: 'Review & Generate'
-};
+const toWizardBrandData = (componentBrandData: ComponentBrandData, current: WizardBrandData): WizardBrandData => ({
+  ...current,
+  useExistingGuidelines: componentBrandData.hasBrandGuidelines,
+  primaryColor: componentBrandData.primaryColor,
+  accentColor: componentBrandData.accentColor,
+  stylePreferences: componentBrandData.stylePreferences,
+  guidelinesNotes: componentBrandData.additionalNotes,
+});
+
+const toComponentMarketingData = (wizardMarketingData: WizardMarketingData): ComponentMarketingData => ({
+  objectives: wizardMarketingData.objectives,
+  otherObjective: '',
+  callToAction: wizardMarketingData.callToAction,
+  useAiCta: true,
+  objectiveDetails: {
+    awareness: '',
+    promotion: wizardMarketingData.promotionDetails,
+    traffic: '',
+    event: wizardMarketingData.eventDate,
+    other: '',
+  },
+});
+
+const toWizardMarketingData = (componentMarketingData: ComponentMarketingData, current: WizardMarketingData): WizardMarketingData => ({
+  ...current,
+  objectives: componentMarketingData.objectives,
+  callToAction: componentMarketingData.callToAction,
+  promotionDetails: componentMarketingData.objectiveDetails.promotion,
+  eventDate: componentMarketingData.objectiveDetails.event,
+});
+
+const toComponentBusinessData = (wizardBusinessData: WizardBusinessData): ComponentBusinessData => ({
+  tagline: wizardBusinessData.tagline,
+  useAiTagline: wizardBusinessData.useAiTagline,
+  contactInfo: {
+    phone: wizardBusinessData.contactInfo.phone,
+    website: wizardBusinessData.contactInfo.website,
+    email: wizardBusinessData.contactInfo.email,
+    address: wizardBusinessData.contactInfo.address,
+  },
+  disclaimer: wizardBusinessData.disclaimer,
+  includeDisclaimer: wizardBusinessData.includeDisclaimer,
+  extraInfo: wizardBusinessData.extraInfo,
+  includeQrCode: wizardBusinessData.contactInfo.includeQR,
+  qrCodeUrl: '',
+});
+
+const toWizardBusinessData = (componentBusinessData: ComponentBusinessData, current: WizardBusinessData): WizardBusinessData => ({
+  ...current,
+  tagline: componentBusinessData.tagline,
+  useAiTagline: componentBusinessData.useAiTagline,
+  contactInfo: {
+    ...current.contactInfo,
+    phone: componentBusinessData.contactInfo.phone,
+    website: componentBusinessData.contactInfo.website,
+    email: componentBusinessData.contactInfo.email,
+    address: componentBusinessData.contactInfo.address,
+    includeQR: componentBusinessData.includeQrCode,
+  },
+  disclaimer: componentBusinessData.disclaimer,
+  includeDisclaimer: componentBusinessData.includeDisclaimer,
+  extraInfo: componentBusinessData.extraInfo,
+});
 
 const AIDesignWizard = ({ onBack }: AIDesignWizardProps) => {
   const [wizardState, setWizardState] = useState<WizardState>({
-    currentStep: 'segmentation',
-    isSegmented: false,
+    currentStep: 'method',
+    selectedDesignMethod: null,
     segments: [],
-    currentSegment: undefined,
+    currentSegment: null,
+    brandData: {
+      brandName: '',
+      logoUrl: '',
+      primaryColor: '#00c2a8',
+      accentColor: '#00858a',
+      brandValues: [],
+      stylePreferences: [],
+      useExistingGuidelines: false,
+      guidelinesNotes: '',
+    },
+    marketingData: {
+      objectives: [],
+      callToAction: '',
+      promotionDetails: '',
+      eventDate: '',
+      offerDetails: '',
+      marketingObjectives: '',
+    },
+    audienceData: {
+      industry: '',
+      targetDescription: '',
+      audienceAgeRange: [],
+      incomeLevel: [],
+      interests: [],
+      customAudience: false,
+      customAudienceDescription: '',
+    },
+    businessData: {
+      tagline: '',
+      useAiTagline: true,
+      contactInfo: {
+        phone: '',
+        email: '',
+        website: '',
+        address: '',
+        includeQR: true,
+      },
+      disclaimer: '',
+      includeDisclaimer: false,
+      extraInfo: '',
+    },
+    visualData: {
+      imageStyle: [],
+      imageSource: 'ai',
+      imagePrimarySubject: '',
+      useCustomImage: false,
+      customImageDescription: '',
+      layoutStyle: 'clean',
+      colorSchemeConfirmed: true,
+      customColorNotes: '',
+    },
   });
 
+  const stepTitles: Record<WizardStep, string> = {
+    method: 'Design Method',
+    segmentation: 'Audience Segmentation',
+    brand: 'Brand Identity',
+    marketing: 'Marketing Goals',
+    audience: 'Target Audience',
+    business: 'Business Details',
+    visual: 'Visual Elements',
+    review: 'Review & Generate'
+  };
+
+  // Handler for method selection
+  const handleMethodSelect = (method: DesignMethod) => {
+    setWizardState(prev => ({
+      ...prev,
+      selectedDesignMethod: method,
+      currentStep: method === 'multiple' ? 'segmentation' : 'brand'
+    }));
+  };
+
+  // Handler for segmentation completion
   const handleSegmentationComplete = (isSegmented: boolean, segments?: string[]) => {
     setWizardState(prev => ({
       ...prev,
-      isSegmented,
       segments: segments || [],
-      currentSegment: segments?.[0],
+      currentSegment: segments && segments.length > 0 ? segments[0] : null,
       currentStep: 'brand'
     }));
   };
 
-  const handleBrandComplete = (brandData: BrandData) => {
+  // Handler for brand identity completion
+  const handleBrandComplete = (componentBrandData: ComponentBrandData) => {
     setWizardState(prev => ({
       ...prev,
-      brandData,
+      brandData: toWizardBrandData(componentBrandData, prev.brandData),
       currentStep: 'marketing'
     }));
   };
 
-  const handleMarketingComplete = (marketingData: MarketingData) => {
+  // Handler for marketing goals completion
+  const handleMarketingComplete = (componentMarketingData: ComponentMarketingData) => {
     setWizardState(prev => ({
       ...prev,
-      marketingData,
+      marketingData: toWizardMarketingData(componentMarketingData, prev.marketingData),
       currentStep: 'audience'
     }));
   };
 
+  // Handler for audience completion
   const handleAudienceComplete = (audienceData: AudienceData) => {
     setWizardState(prev => ({
       ...prev,
@@ -155,145 +327,203 @@ const AIDesignWizard = ({ onBack }: AIDesignWizardProps) => {
     }));
   };
 
-  const handleBusinessComplete = (businessData: BusinessData) => {
+  // Handler for business details completion
+  const handleBusinessComplete = (componentBusinessData: ComponentBusinessData) => {
     setWizardState(prev => ({
       ...prev,
-      businessData,
+      businessData: toWizardBusinessData(componentBusinessData, prev.businessData),
       currentStep: 'visual'
     }));
   };
 
-  const handleNextStep = () => {
-    const currentIndex = steps.indexOf(wizardState.currentStep);
-    if (currentIndex < steps.length - 1) {
-      setWizardState(prev => ({
-        ...prev,
-        currentStep: steps[currentIndex + 1]
-      }));
+  // Handler for visual elements completion
+  const handleVisualComplete = (visualData: VisualData) => {
+    setWizardState(prev => ({
+      ...prev,
+      visualData,
+      currentStep: 'review'
+    }));
+  };
+
+  // Handler for generate action
+  const handleGenerate = () => {
+    // Implementation for generating postcards would go here
+    console.log('Generating postcards with data:', wizardState);
+  };
+
+  // Handler to go back to editing
+  const handleBackToEdit = () => {
+    setWizardState(prev => ({
+      ...prev,
+      currentStep: 'visual'
+    }));
+  };
+
+  // Render the current step
+  const renderStep = () => {
+    switch (wizardState.currentStep) {
+      case 'method':
+        return (
+          <div className="p-8 bg-charcoal rounded-lg shadow-lg max-w-3xl mx-auto">
+            <h2 className="text-2xl font-bold text-electric-teal mb-4">Choose Your Design Method</h2>
+            <p className="text-white mb-6">How would you like to approach your postcard campaign?</p>
+            
+            <div className="grid md:grid-cols-2 gap-6">
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => handleMethodSelect('single')}
+                className="p-6 border-2 border-electric-teal rounded-lg text-left hover:bg-charcoal-light transition-colors"
+              >
+                <h3 className="text-xl font-semibold text-electric-teal mb-2">Single Design</h3>
+                <p className="text-electric-teal/80">
+                  Create one design for all your audience. Simple and straightforward.
+                </p>
+              </motion.button>
+              
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => handleMethodSelect('multiple')}
+                className="p-6 border-2 border-electric-teal rounded-lg text-left hover:bg-charcoal-light transition-colors"
+              >
+                <h3 className="text-xl font-semibold text-electric-teal mb-2">Multiple Designs</h3>
+                <p className="text-electric-teal/80">
+                  Create unique designs for different audience segments. More targeted approach.
+                </p>
+              </motion.button>
+            </div>
+
+            {onBack && (
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={onBack}
+                className="mt-8 px-6 py-2 border border-electric-teal/50 text-electric-teal rounded-lg hover:border-electric-teal transition-colors"
+              >
+                ← Back
+              </motion.button>
+            )}
+          </div>
+        );
+        
+      case 'segmentation':
+        return (
+          <AudienceSegmentation 
+            onComplete={handleSegmentationComplete} 
+          />
+        );
+        
+      case 'brand':
+        return (
+          <BrandIdentity
+            onComplete={handleBrandComplete}
+            initialData={toComponentBrandData(wizardState.brandData)}
+          />
+        );
+        
+      case 'marketing':
+        return (
+          <MarketingGoals
+            onComplete={handleMarketingComplete}
+            initialData={toComponentMarketingData(wizardState.marketingData)}
+          />
+        );
+        
+      case 'audience':
+        return (
+          <TargetAudience
+            onComplete={handleAudienceComplete}
+            initialData={wizardState.audienceData}
+            segment={wizardState.currentSegment || undefined}
+          />
+        );
+        
+      case 'business':
+        return (
+          <BusinessDetails
+            onComplete={handleBusinessComplete}
+            initialData={toComponentBusinessData(wizardState.businessData)}
+            segment={wizardState.currentSegment || undefined}
+          />
+        );
+        
+      case 'visual':
+        return (
+          <VisualElements
+            onComplete={handleVisualComplete}
+            initialData={wizardState.visualData}
+            brandColors={{
+              primaryColor: wizardState.brandData.primaryColor,
+              accentColor: wizardState.brandData.accentColor,
+            }}
+            segment={wizardState.currentSegment || undefined}
+          />
+        );
+        
+      case 'review':
+        return (
+          <ReviewGenerate
+            brandData={wizardState.brandData}
+            marketingData={wizardState.marketingData}
+            audienceData={wizardState.audienceData}
+            businessData={wizardState.businessData}
+            visualData={wizardState.visualData}
+            segment={wizardState.currentSegment || undefined}
+            onGenerate={handleGenerate}
+            onBack={handleBackToEdit}
+          />
+        );
+        
+      default:
+        return null;
     }
   };
 
-  const handlePrevStep = () => {
-    const currentIndex = steps.indexOf(wizardState.currentStep);
-    if (currentIndex > 0) {
-      setWizardState(prev => ({
-        ...prev,
-        currentStep: steps[currentIndex - 1]
-      }));
-    } else {
-      // If we're at the first step, go back to the design method selection
-      onBack();
-    }
-  };
+  // Progress indicator
+  const stepOrder: WizardStep[] = wizardState.selectedDesignMethod === 'multiple'
+    ? ['method', 'segmentation', 'brand', 'marketing', 'audience', 'business', 'visual', 'review']
+    : ['method', 'brand', 'marketing', 'audience', 'business', 'visual', 'review'];
+    
+  const currentStepIndex = stepOrder.indexOf(wizardState.currentStep);
+  const progress = (currentStepIndex / (stepOrder.length - 1)) * 100;
 
   return (
-    <div className="min-h-screen bg-charcoal">
-      {/* Add back button */}
-      <button
-        onClick={onBack}
-        className="fixed top-4 left-4 text-electric-teal hover:text-electric-teal/80"
-      >
-        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-        </svg>
-      </button>
-
-      {/* Only show progress bar after segmentation is complete */}
-      {wizardState.currentStep !== 'segmentation' && (
-        <div className="fixed top-0 left-0 right-0 h-1 bg-electric-teal/20">
-          <motion.div
-            className="h-full bg-electric-teal"
-            initial={{ width: '0%' }}
-            animate={{
-              width: `${((steps.indexOf(wizardState.currentStep) + 1) / steps.length) * 100}%`
-            }}
-            transition={{ duration: 0.5 }}
-          />
-        </div>
-      )}
-
-      {/* Step Content */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={wizardState.currentStep}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          className="p-4"
-        >
-          {wizardState.currentStep === 'segmentation' ? (
-            <AudienceSegmentation onComplete={handleSegmentationComplete} />
-          ) : wizardState.currentStep === 'brand' ? (
-            <BrandIdentity 
-              onComplete={handleBrandComplete} 
-              initialData={wizardState.brandData}
+    <div className="min-h-screen bg-gradient-to-b from-charcoal to-charcoal-dark p-4 md:p-8">
+      <div className="max-w-5xl mx-auto">
+        {/* Step title and progress */}
+        <div className="mb-8">
+          <div className="flex justify-between items-center mb-2">
+            <h1 className="text-3xl font-bold text-electric-teal">
+              {stepTitles[wizardState.currentStep]}
+            </h1>
+            <span className="text-electric-teal">
+              Step {currentStepIndex + 1} of {stepOrder.length}
+            </span>
+          </div>
+          
+          {/* Progress bar */}
+          <div className="w-full h-2 bg-charcoal-light rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-electric-teal rounded-full transition-all duration-300"
+              style={{ width: `${progress}%` }}
             />
-          ) : wizardState.currentStep === 'marketing' ? (
-            <MarketingGoals
-              onComplete={handleMarketingComplete}
-              initialData={wizardState.marketingData}
-            />
-          ) : wizardState.currentStep === 'audience' ? (
-            <TargetAudience
-              onComplete={handleAudienceComplete}
-              initialData={wizardState.audienceData}
-              segment={wizardState.currentSegment}
-            />
-          ) : wizardState.currentStep === 'business' ? (
-            <BusinessDetails
-              onComplete={handleBusinessComplete}
-              initialData={wizardState.businessData}
-              segment={wizardState.currentSegment}
-            />
-          ) : (
-            <>
-              {/* Step Title - only show for other steps */}
-              <div className="pt-8 px-4 mb-8">
-                <motion.h1
-                  key={wizardState.currentStep}
-                  initial={{ opacity: 0, y: -20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-2xl text-electric-teal text-center font-bold"
-                >
-                  {stepTitles[wizardState.currentStep]}
-                </motion.h1>
-              </div>
-              
-              {/* We'll add other steps here */}
-              <div className="max-w-3xl mx-auto py-12 text-center text-electric-teal">
-                <p>This step is under development.</p>
-              </div>
-            </>
-          )}
-        </motion.div>
-      </AnimatePresence>
-
-      {/* Only show navigation after segmentation */}
-      {wizardState.currentStep !== 'segmentation' && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-charcoal border-t border-electric-teal/20">
-          <div className="max-w-2xl mx-auto flex justify-between items-center">
-            <button
-              onClick={handlePrevStep}
-              className="px-6 py-2 rounded-lg border-2 border-electric-teal text-electric-teal
-                hover:bg-electric-teal/10 transition-colors duration-200"
-            >
-              Previous
-            </button>
-            <div className="text-electric-teal/60">
-              Step {steps.indexOf(wizardState.currentStep)} of {steps.length - 1}
-            </div>
-            <button
-              onClick={handleNextStep}
-              disabled={wizardState.currentStep === 'review'}
-              className="px-6 py-2 rounded-lg bg-electric-teal text-charcoal
-                disabled:opacity-50 disabled:cursor-not-allowed
-                hover:bg-electric-teal/90 transition-colors duration-200"
-            >
-              Next
-            </button>
           </div>
         </div>
-      )}
+        
+        {/* Current step content */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={wizardState.currentStep}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+          >
+            {renderStep()}
+          </motion.div>
+        </AnimatePresence>
+      </div>
     </div>
   );
 };

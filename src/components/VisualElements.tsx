@@ -1,153 +1,137 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useMarketingStore } from '@/store/marketingStore';
 
-type ImageStyle = 'photo-realistic' | 'illustration' | 'abstract' | 'none';
+export type ImageStyle = 'photograph' | 'illustration' | 'abstract' | 'minimal';
+export type ImageSource = 'ai' | 'stock' | 'upload';
+export type LayoutStyle = 'clean' | 'bold' | 'elegant' | 'playful';
 
-interface VisualElementsData {
-  imageStyle: ImageStyle;
-  useAiGenerated: boolean;
-  imagePrompt: string;
-  uploadedImage?: File | null;
-  includeProductImage: boolean;
-  layoutPreference: string;
-  colorTheme: string;
+interface VisualData {
+  imageStyle: ImageStyle[];
+  imageSource: ImageSource;
+  imagePrimarySubject: string;
+  useCustomImage: boolean;
+  customImageDescription: string;
+  layoutStyle: LayoutStyle;
+  colorSchemeConfirmed: boolean;
+  customColorNotes: string;
 }
 
 interface VisualElementsProps {
-  onComplete: (visualData: VisualElementsData) => void;
-  initialData?: Partial<VisualElementsData>;
-  currentSegment?: string;
-  brandColors?: { primary: string; accent: string };
+  onComplete: (visualData: VisualData) => void;
+  initialData?: Partial<VisualData>;
+  brandColors?: { primaryColor: string; accentColor: string };
+  segment?: string;
 }
 
 const imageStyleOptions = [
   {
-    id: 'photo-realistic',
-    label: 'Photo-Realistic',
-    description: 'Realistic photography style images'
+    id: 'photograph',
+    label: 'Photography',
+    description: 'Real-world photos with authentic appeal'
   },
   {
     id: 'illustration',
-    label: 'Illustrated / Vector',
-    description: 'Digital artwork and vector-style illustrations'
+    label: 'Illustration',
+    description: 'Creative, drawn visuals with a distinct style'
   },
   {
     id: 'abstract',
-    label: 'Abstract / Artistic',
-    description: 'Creative, abstract imagery and designs'
+    label: 'Abstract',
+    description: 'Non-representational shapes, patterns, and colors'
   },
   {
-    id: 'none',
-    label: 'No Image',
-    description: 'Focus on text and design elements only'
+    id: 'minimal',
+    label: 'Minimal',
+    description: 'Clean, simple designs with plenty of space'
   }
 ];
 
-const layoutOptions = [
-  'Balanced (equal text and imagery)',
-  'Image Dominant (large imagery, minimal text)',
-  'Text Dominant (large text, small or no imagery)',
-  'Minimalist (clean with lots of whitespace)'
+const layoutStyleOptions = [
+  {
+    id: 'clean',
+    label: 'Clean & Organized',
+    description: 'Well-structured layout with clear hierarchy'
+  },
+  {
+    id: 'bold',
+    label: 'Bold & Attention-Grabbing',
+    description: 'High-contrast design that stands out'
+  },
+  {
+    id: 'elegant',
+    label: 'Elegant & Refined',
+    description: 'Sophisticated layout with thoughtful spacing'
+  },
+  {
+    id: 'playful',
+    label: 'Playful & Dynamic',
+    description: 'Fun, energetic layout with creative elements'
+  }
 ];
 
-const colorThemeOptions = [
-  'Match Brand Colors',
-  'Bold and Vibrant',
-  'Soft and Muted',
-  'Monochromatic',
-  'High Contrast'
-];
+// Fix apostrophe issue in placeholder
+const colorNotesPlaceholder = "Provide any color scheme notes or adjustments (e.g., 'I&apos;d like a darker shade of the primary color' or 'Please add some green accents')";
 
-const VisualElements = ({ 
-  onComplete, 
-  initialData = {}, 
-  currentSegment,
-  brandColors = { primary: '#1ecbe1', accent: '#e11e64' }  
-}: VisualElementsProps) => {
-  const [visualData, setVisualData] = useState<VisualElementsData>({
-    imageStyle: initialData.imageStyle ?? 'photo-realistic',
-    useAiGenerated: initialData.useAiGenerated ?? false,
-    imagePrompt: initialData.imagePrompt ?? '',
-    uploadedImage: initialData.uploadedImage ?? null,
-    includeProductImage: initialData.includeProductImage ?? false,
-    layoutPreference: initialData.layoutPreference ?? 'Balanced (equal text and imagery)',
-    colorTheme: initialData.colorTheme ?? 'Match Brand Colors'
+const VisualElements = ({ onComplete, initialData = {}, brandColors, segment }: VisualElementsProps) => {
+  const businessAnalysis = useMarketingStore(state => state.businessInfo?.businessAnalysis);
+
+  const [visualData, setVisualData] = useState<VisualData>({
+    imageStyle: initialData.imageStyle || [],
+    imageSource: initialData.imageSource || 'ai',
+    imagePrimarySubject: initialData.imagePrimarySubject || '',
+    useCustomImage: initialData.useCustomImage || false,
+    customImageDescription: initialData.customImageDescription || '',
+    layoutStyle: initialData.layoutStyle || 'clean',
+    colorSchemeConfirmed: initialData.colorSchemeConfirmed || false,
+    customColorNotes: initialData.customColorNotes || '',
   });
-  
-  const [showImageUpload, setShowImageUpload] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  
+
+  useEffect(() => {
+    // Pre-populate image subject based on business type if available
+    if (businessAnalysis?.industry && !visualData.imagePrimarySubject) {
+      let suggestedSubject = '';
+      
+      switch(businessAnalysis.industry.toLowerCase()) {
+        case 'restaurant':
+        case 'food':
+          suggestedSubject = 'Food, dining atmosphere, signature dishes';
+          break;
+        case 'real estate':
+          suggestedSubject = 'Homes, properties, neighborhoods';
+          break;
+        case 'healthcare':
+          suggestedSubject = 'Medical professionals, caring environment, health';
+          break;
+        default:
+          suggestedSubject = businessAnalysis.industry + ' related imagery';
+      }
+      
+      setVisualData(prev => ({
+        ...prev,
+        imagePrimarySubject: suggestedSubject
+      }));
+    }
+  }, [businessAnalysis, visualData.imagePrimarySubject]);
+
+  const toggleImageStyle = (style: ImageStyle) => {
+    setVisualData(prev => {
+      const newStyles = prev.imageStyle.includes(style)
+        ? prev.imageStyle.filter(s => s !== style)
+        : [...prev.imageStyle, style];
+      
+      return {
+        ...prev,
+        imageStyle: newStyles
+      };
+    });
+  };
+
   const handleSubmit = () => {
     onComplete(visualData);
   };
-
-  const handleImageStyleChange = (style: ImageStyle) => {
-    setVisualData(prev => ({
-      ...prev,
-      imageStyle: style,
-      // Reset to false if they select no image
-      useAiGenerated: style === 'none' ? false : prev.useAiGenerated
-    }));
-
-    // Show upload section if they don't want AI-generated and didn't select "none"
-    if (!visualData.useAiGenerated && style !== 'none') {
-      setShowImageUpload(true);
-    } else {
-      setShowImageUpload(false);
-    }
-  };
-
-  const handleImageSourceChange = (useAi: boolean) => {
-    setVisualData(prev => ({
-      ...prev,
-      useAiGenerated: useAi,
-      // Clear uploaded image if they switch to AI
-      uploadedImage: useAi ? null : prev.uploadedImage
-    }));
-    
-    setShowImageUpload(!useAi);
-    
-    // Clear preview if switching to AI
-    if (useAi && previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(null);
-    }
-  };
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setVisualData(prev => ({
-        ...prev,
-        uploadedImage: file
-      }));
-      
-      // Create preview URL
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
-      const newPreviewUrl = URL.createObjectURL(file);
-      setPreviewUrl(newPreviewUrl);
-    }
-  };
-
-  // If we're focused on a specific business segment, show it
-  const segmentHeader = currentSegment && (
-    <motion.div
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="mb-6 p-3 border-l-4 border-electric-teal bg-electric-teal/5 rounded-r-lg"
-    >
-      <p className="text-electric-teal text-sm">
-        Creating postcard for segment:
-      </p>
-      <h3 className="text-electric-teal text-lg font-semibold">
-        {currentSegment}
-      </h3>
-    </motion.div>
-  );
 
   const imageStyleSection = (
     <motion.div 
@@ -155,9 +139,9 @@ const VisualElements = ({
       animate={{ opacity: 1, y: 0 }}
       className="mb-10"
     >
-      <h3 className="text-xl font-semibold text-electric-teal mb-4">Image Style Preference</h3>
+      <h3 className="text-xl font-semibold text-electric-teal mb-4">Image Style</h3>
       <p className="text-electric-teal/70 mb-6">
-        What type of imagery would you like for your postcard?
+        What style of imagery would you prefer? (Select one or more)
       </p>
       
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -166,19 +150,19 @@ const VisualElements = ({
             key={option.id}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => handleImageStyleChange(option.id as ImageStyle)}
+            onClick={() => toggleImageStyle(option.id as ImageStyle)}
             className={`rounded-lg border-2 p-4 cursor-pointer transition-colors ${
-              visualData.imageStyle === option.id
+              visualData.imageStyle.includes(option.id as ImageStyle)
                 ? 'border-electric-teal bg-electric-teal/10'
                 : 'border-electric-teal/30 hover:border-electric-teal/70'
             }`}
           >
             <div className="flex items-center gap-2 mb-2">
               <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center
-                ${visualData.imageStyle === option.id 
+                ${visualData.imageStyle.includes(option.id as ImageStyle) 
                   ? 'border-electric-teal' 
                   : 'border-electric-teal/50'}`}>
-                {visualData.imageStyle === option.id && (
+                {visualData.imageStyle.includes(option.id as ImageStyle) && (
                   <div className="w-3 h-3 rounded-full bg-electric-teal"></div>
                 )}
               </div>
@@ -191,8 +175,7 @@ const VisualElements = ({
     </motion.div>
   );
 
-  // Only show image source options if image style is not 'none'
-  const imageSourceSection = visualData.imageStyle !== 'none' && (
+  const imageSourceSection = (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -201,248 +184,304 @@ const VisualElements = ({
     >
       <h3 className="text-xl font-semibold text-electric-teal mb-4">Image Source</h3>
       <p className="text-electric-teal/70 mb-6">
-        How would you like to source the imagery for your postcard?
+        How would you like to source images for your postcard?
       </p>
       
-      <div className="flex flex-wrap gap-4 mb-6">
-        <button
-          onClick={() => handleImageSourceChange(true)}
-          className={`px-6 py-3 rounded-lg border-2 transition-colors duration-200 ${
-            visualData.useAiGenerated 
-              ? 'bg-electric-teal text-charcoal border-electric-teal' 
-              : 'border-electric-teal/50 text-electric-teal hover:border-electric-teal'
-          }`}
-        >
-          Use AI-Generated Image
-        </button>
-        <button
-          onClick={() => handleImageSourceChange(false)}
-          className={`px-6 py-3 rounded-lg border-2 transition-colors duration-200 ${
-            !visualData.useAiGenerated 
-              ? 'bg-electric-teal text-charcoal border-electric-teal' 
-              : 'border-electric-teal/50 text-electric-teal hover:border-electric-teal'
-          }`}
-        >
-          Upload My Own Image
-        </button>
+      <div className="flex items-center space-x-4 my-2">
+        <input
+          type="radio"
+          id="source-ai"
+          name="imageSource"
+          checked={visualData.imageSource === 'ai'}
+          onChange={() => setVisualData(prev => ({ ...prev, imageSource: 'ai' }))}
+          className="form-radio text-electric-teal h-5 w-5"
+        />
+        <label htmlFor="source-ai" className="text-white">
+          AI-generated (let&apos;s create something unique)
+        </label>
+      </div>
+      <div className="flex items-center space-x-4 my-2">
+        <input
+          type="radio"
+          id="source-stock"
+          name="imageSource"
+          checked={visualData.imageSource === 'stock'}
+          onChange={() => setVisualData(prev => ({ ...prev, imageSource: 'stock' }))}
+          className="form-radio text-electric-teal h-5 w-5"
+        />
+        <label htmlFor="source-stock" className="text-white">
+          Stock Photos
+        </label>
+      </div>
+      <div className="flex items-center space-x-4 my-2">
+        <input
+          type="radio"
+          id="source-upload"
+          name="imageSource"
+          checked={visualData.imageSource === 'upload'}
+          onChange={() => setVisualData(prev => ({ ...prev, imageSource: 'upload' }))}
+          className="form-radio text-electric-teal h-5 w-5"
+        />
+        <label htmlFor="source-upload" className="text-white">
+          Upload My Own
+        </label>
       </div>
 
-      {visualData.useAiGenerated ? (
+      {visualData.imageSource === 'upload' && (
         <motion.div
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: 'auto' }}
           className="mt-6"
         >
-          <label className="block text-electric-teal mb-2">
-            Describe what you want in the AI-generated image:
-          </label>
-          <textarea
-            value={visualData.imagePrompt}
-            onChange={(e) => setVisualData(prev => ({ ...prev, imagePrompt: e.target.value }))}
-            placeholder="E.g., 'A modern office space with people collaborating' or 'A close-up of a beautiful flower arrangement'"
-            className="w-full h-32 bg-charcoal border-2 border-electric-teal/50 rounded-lg p-4
-              text-electric-teal placeholder:text-electric-teal/40 focus:border-electric-teal
-              focus:outline-none transition-colors"
-          />
-          <p className="text-sm text-electric-teal/60 mt-2">
-            The more detailed your description, the better the result. Mention style, colors, and subject matter.
-          </p>
-        </motion.div>
-      ) : showImageUpload && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
-          className="mt-6"
-        >
-          <div 
-            className="p-4 border-2 border-dashed border-electric-teal/50 rounded-lg text-center cursor-pointer"
-            onClick={() => document.getElementById('image-upload')?.click()}
-          >
-            {previewUrl ? (
-              <div className="relative">
-                <img 
-                  src={previewUrl} 
-                  alt="Preview" 
-                  className="max-h-64 mx-auto rounded-lg object-contain" 
-                />
-                <div className="absolute inset-0 bg-charcoal bg-opacity-70 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                  <p className="text-electric-teal">Click to replace</p>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="text-electric-teal mb-2">
-                  <svg className="w-10 h-10 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                  </svg>
-                </div>
-                <p className="text-electric-teal/70">
-                  Click to upload an image (JPEG, PNG, SVG)
-                </p>
-              </>
-            )}
+          <div className="p-4 border-2 border-dashed border-electric-teal/50 rounded-lg text-center cursor-pointer">
+            <div className="text-electric-teal mb-2">
+              <svg className="w-10 h-10 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+            </div>
+            <p className="text-electric-teal/70">
+              Upload your images (JPG, PNG, SVG)
+            </p>
             <input 
-              id="image-upload"
               type="file" 
               className="hidden" 
               accept=".jpg,.jpeg,.png,.svg"
-              onChange={handleImageUpload}
+              multiple
             />
           </div>
           <p className="text-sm text-electric-teal/60 mt-2">
-            For best results, use high-quality images with clear subjects
+            For best results, upload high-resolution images (at least 300 DPI)
           </p>
         </motion.div>
       )}
     </motion.div>
   );
 
-  const layoutPreferenceSection = (
+  const imageSubjectSection = (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.2 }}
       className="mb-10"
     >
-      <h3 className="text-xl font-semibold text-electric-teal mb-4">Layout Preference</h3>
-      <p className="text-electric-teal/70 mb-6">
-        What kind of layout would you prefer for your postcard design?
-      </p>
+      <h3 className="text-xl font-semibold text-electric-teal mb-4">Image Subject</h3>
       
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {layoutOptions.map(option => (
-          <motion.div
-            key={option}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => setVisualData(prev => ({ ...prev, layoutPreference: option }))}
-            className={`p-3 rounded-lg border-2 cursor-pointer ${
-              visualData.layoutPreference === option
-                ? 'border-electric-teal bg-electric-teal/10' 
-                : 'border-electric-teal/30 hover:border-electric-teal/70'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center
-                ${visualData.layoutPreference === option 
-                  ? 'border-electric-teal' 
-                  : 'border-electric-teal/50'}`}>
-                {visualData.layoutPreference === option && (
-                  <div className="w-3 h-3 rounded-full bg-electric-teal"></div>
-                )}
-              </div>
-              <p className="text-electric-teal">{option}</p>
-            </div>
-          </motion.div>
-        ))}
-      </div>
+      {visualData.imageSource !== 'upload' && (
+        <>
+          <p className="text-electric-teal/70 mb-6">
+            What should be the main subject of your images?
+          </p>
+          
+          <textarea
+            value={visualData.imagePrimarySubject}
+            onChange={(e) => setVisualData(prev => ({ ...prev, imagePrimarySubject: e.target.value }))}
+            placeholder="E.g., 'Our products, happy customers, services in action'"
+            className="w-full h-24 bg-charcoal border-2 border-electric-teal/50 rounded-lg p-4
+              text-electric-teal placeholder:text-electric-teal/40 focus:border-electric-teal
+              focus:outline-none transition-colors"
+          />
+
+          <div className="flex items-center gap-3 mt-6">
+            <button
+              onClick={() => setVisualData(prev => ({ 
+                ...prev, 
+                useCustomImage: !prev.useCustomImage,
+                customImageDescription: !prev.useCustomImage ? prev.customImageDescription : ''
+              }))}
+              className="w-6 h-6 rounded-md border-2 border-electric-teal flex items-center justify-center"
+            >
+              {visualData.useCustomImage && (
+                <motion.div 
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="w-3 h-3 bg-electric-teal rounded-sm"
+                />
+              )}
+            </button>
+            <p className="text-electric-teal">
+              I want to describe a specific custom image
+            </p>
+          </div>
+          
+          {visualData.useCustomImage && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="mt-4"
+            >
+              <textarea
+                value={visualData.customImageDescription}
+                onChange={(e) => setVisualData(prev => ({ ...prev, customImageDescription: e.target.value }))}
+                placeholder="Describe in detail the specific image you'd like (e.g., 'A family enjoying a meal at an outdoor restaurant table with our signature dish in the center')"
+                className="w-full h-32 bg-charcoal border-2 border-electric-teal/50 rounded-lg p-4
+                  text-electric-teal placeholder:text-electric-teal/40 focus:border-electric-teal
+                  focus:outline-none transition-colors"
+              />
+            </motion.div>
+          )}
+        </>
+      )}
     </motion.div>
   );
 
-  const colorThemeSection = (
+  const layoutStyleSection = (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.3 }}
       className="mb-10"
     >
-      <h3 className="text-xl font-semibold text-electric-teal mb-4">Color Theme</h3>
+      <h3 className="text-xl font-semibold text-electric-teal mb-4">Layout Style</h3>
       <p className="text-electric-teal/70 mb-6">
-        What color palette would you like for your postcard design?
+        What layout style do you prefer for your postcard?
       </p>
       
-      <div className="grid grid-cols-1 gap-3">
-        {colorThemeOptions.map(option => (
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {layoutStyleOptions.map(option => (
           <motion.div
-            key={option}
+            key={option.id}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => setVisualData(prev => ({ ...prev, colorTheme: option }))}
-            className={`p-3 rounded-lg border-2 cursor-pointer ${
-              visualData.colorTheme === option
-                ? 'border-electric-teal bg-electric-teal/10' 
+            onClick={() => setVisualData(prev => ({ ...prev, layoutStyle: option.id as LayoutStyle }))}
+            className={`rounded-lg border-2 p-4 cursor-pointer transition-colors ${
+              visualData.layoutStyle === option.id
+                ? 'border-electric-teal bg-electric-teal/10'
                 : 'border-electric-teal/30 hover:border-electric-teal/70'
             }`}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mb-2">
               <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center
-                ${visualData.colorTheme === option 
+                ${visualData.layoutStyle === option.id 
                   ? 'border-electric-teal' 
                   : 'border-electric-teal/50'}`}>
-                {visualData.colorTheme === option && (
+                {visualData.layoutStyle === option.id && (
                   <div className="w-3 h-3 rounded-full bg-electric-teal"></div>
                 )}
               </div>
-              <p className="text-electric-teal">{option}</p>
+              <h4 className="text-lg font-medium text-electric-teal">{option.label}</h4>
             </div>
+            <p className="text-electric-teal/70 text-sm pl-7">{option.description}</p>
           </motion.div>
         ))}
       </div>
+    </motion.div>
+  );
 
-      {visualData.colorTheme === 'Match Brand Colors' && (
-        <div className="mt-4 p-3 bg-charcoal/30 border border-electric-teal/30 rounded-lg">
-          <p className="text-electric-teal/70 mb-2">Your brand colors:</p>
+  const colorSection = (
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.4 }}
+      className="mb-10"
+    >
+      <h3 className="text-xl font-semibold text-electric-teal mb-4">Color Scheme</h3>
+      
+      {brandColors && (
+        <div className="mb-6">
+          <p className="text-electric-teal/70 mb-4">
+            Your selected brand colors will be used in the design:
+          </p>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <div 
-                className="w-6 h-6 rounded-full"
-                style={{ backgroundColor: brandColors.primary }}
+                className="w-8 h-8 rounded-full border border-white/20"
+                style={{ backgroundColor: brandColors.primaryColor }}
               ></div>
-              <span className="text-electric-teal text-sm">Primary</span>
+              <span className="text-electric-teal text-sm">Primary: {brandColors.primaryColor}</span>
             </div>
             <div className="flex items-center gap-2">
               <div 
-                className="w-6 h-6 rounded-full"
-                style={{ backgroundColor: brandColors.accent }}
+                className="w-8 h-8 rounded-full border border-white/20"
+                style={{ backgroundColor: brandColors.accentColor }}
               ></div>
-              <span className="text-electric-teal text-sm">Accent</span>
+              <span className="text-electric-teal text-sm">Accent: {brandColors.accentColor}</span>
             </div>
           </div>
         </div>
+      )}
+
+      <div className="flex items-center gap-3 mb-4">
+        <button
+          onClick={() => setVisualData(prev => ({ 
+            ...prev, 
+            colorSchemeConfirmed: !prev.colorSchemeConfirmed 
+          }))}
+          className="w-6 h-6 rounded-md border-2 border-electric-teal flex items-center justify-center"
+        >
+          {visualData.colorSchemeConfirmed && (
+            <motion.div 
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className="w-3 h-3 bg-electric-teal rounded-sm"
+            />
+          )}
+        </button>
+        <p className="text-electric-teal">
+          I confirm these colors for my design
+        </p>
+      </div>
+
+      {!visualData.colorSchemeConfirmed && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          className="mt-4"
+        >
+          <textarea
+            value={visualData.customColorNotes}
+            onChange={(e) => setVisualData(prev => ({ ...prev, customColorNotes: e.target.value }))}
+            placeholder={colorNotesPlaceholder}
+            className="w-full h-24 bg-charcoal border-2 border-electric-teal/50 rounded-lg p-4
+              text-electric-teal placeholder:text-electric-teal/40 focus:border-electric-teal
+              focus:outline-none transition-colors"
+          />
+        </motion.div>
       )}
     </motion.div>
   );
 
   const isValid = 
-    (visualData.imageStyle !== 'none' && visualData.useAiGenerated ? visualData.imagePrompt.trim() !== '' : true) &&
-    (visualData.imageStyle !== 'none' && !visualData.useAiGenerated ? !!visualData.uploadedImage : true);
+    visualData.imageStyle.length > 0 && 
+    (visualData.imageSource !== 'ai' && visualData.imageSource !== 'stock' || 
+      visualData.imagePrimarySubject.trim() !== '') &&
+    (!visualData.useCustomImage || (visualData.useCustomImage && visualData.customImageDescription.trim() !== '')) &&
+    (!visualData.colorSchemeConfirmed || (visualData.colorSchemeConfirmed || visualData.customColorNotes.trim() !== ''));
 
   return (
-    <div className="max-w-3xl mx-auto px-4 pb-20">
+    <div className="max-w-3xl mx-auto px-4">
       <motion.div 
         className="mb-8"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
       >
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-electric-teal mb-2">
-            Visual Elements
+          <h2 className="text-white text-2xl font-semibold mb-2">
+            Visual Elements {segment ? `for ${segment}` : ''}
           </h2>
           <p className="text-electric-teal/70">
-            Choose the visual style and imagery for your postcard design.
+            Let&apos;s define the visual style and imagery for your postcard design.
           </p>
         </div>
       </motion.div>
 
-      {segmentHeader}
       {imageStyleSection}
       {imageSourceSection}
-      {layoutPreferenceSection}
-      {colorThemeSection}
+      {imageSubjectSection}
+      {layoutStyleSection}
+      {colorSection}
 
       <div className="flex justify-end mt-8">
-        <button
+        <motion.button
           onClick={handleSubmit}
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.98 }}
+          className={`w-full py-3 px-6 mt-8 rounded-lg bg-electric-teal text-charcoal font-semibold
+            ${isValid ? 'opacity-100' : 'opacity-60 cursor-not-allowed'}`}
           disabled={!isValid}
-          className={`px-8 py-3 rounded-lg font-medium transition-colors duration-200 
-            ${isValid
-              ? 'bg-electric-teal text-charcoal hover:bg-electric-teal/90'
-              : 'bg-electric-teal/40 text-charcoal/70 cursor-not-allowed'
-            }`}
         >
-          Continue
-        </button>
+          Looking good! Let&apos;s review
+        </motion.button>
       </div>
     </div>
   );

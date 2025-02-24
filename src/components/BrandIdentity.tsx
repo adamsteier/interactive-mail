@@ -11,6 +11,8 @@ interface BrandData {
   accentColor: string;
   stylePreferences: BrandStylePreference[];
   additionalNotes: string;
+  logoUrl: string;
+  brandName: string;
 }
 
 interface BrandIdentityProps {
@@ -47,8 +49,12 @@ const BrandIdentity = ({ onComplete, initialData = {} }: BrandIdentityProps) => 
     primaryColor: initialData.primaryColor ?? '#1ecbe1', // Default to electric-teal
     accentColor: initialData.accentColor ?? '#e11e64', // Default to a contrasting color
     stylePreferences: initialData.stylePreferences ?? [],
-    additionalNotes: initialData.additionalNotes ?? ''
+    additionalNotes: initialData.additionalNotes ?? '',
+    logoUrl: initialData.logoUrl ?? '',
+    brandName: initialData.brandName ?? ''
   });
+
+  const [logoPreview, setLogoPreview] = useState<string>(initialData.logoUrl ?? '');
 
   const toggleStylePreference = (style: BrandStylePreference) => {
     setBrandData(prev => {
@@ -293,6 +299,101 @@ const BrandIdentity = ({ onComplete, initialData = {} }: BrandIdentityProps) => 
     </motion.div>
   );
 
+  const logoUploadSection = (
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mb-10"
+    >
+      <h3 className="text-xl font-semibold text-electric-teal mb-4">Brand Identity</h3>
+      
+      <div className="mb-6">
+        <label className="block text-electric-teal mb-2" htmlFor="brandName">
+          Brand Name
+        </label>
+        <input
+          type="text"
+          id="brandName"
+          value={brandData.brandName}
+          onChange={(e) => setBrandData(prev => ({ ...prev, brandName: e.target.value }))}
+          className="w-full p-3 bg-charcoal border-2 border-electric-teal/50 rounded-lg
+            text-electric-teal placeholder:text-electric-teal/40 focus:border-electric-teal
+            focus:outline-none transition-colors"
+          placeholder="Enter your brand name"
+        />
+      </div>
+      
+      <div className="mb-6">
+        <label className="block text-electric-teal mb-2">
+          Logo Upload
+        </label>
+        <div className="border-2 border-dashed border-electric-teal/50 rounded-lg p-4 text-center">
+          {logoPreview ? (
+            <div className="mb-3">
+              <img 
+                src={logoPreview} 
+                alt="Logo preview" 
+                className="max-h-32 mx-auto bg-white/10 p-2 rounded-lg"
+              />
+              <button 
+                onClick={() => {
+                  setLogoPreview('');
+                  setBrandData(prev => ({ ...prev, logoUrl: '' }));
+                }}
+                className="mt-2 text-electric-teal/70 hover:text-electric-teal text-sm"
+              >
+                Remove logo
+              </button>
+            </div>
+          ) : (
+            <div className="py-8">
+              <svg className="w-12 h-12 mx-auto text-electric-teal/50 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+              <p className="text-electric-teal mb-2">
+                Drag and drop your logo or click to browse
+              </p>
+              <p className="text-electric-teal/60 text-sm">
+                Recommended: PNG file with transparent background
+              </p>
+            </div>
+          )}
+          
+          <input 
+            type="file"
+            id="logo-upload"
+            accept="image/png,image/jpeg,image/svg+xml"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                // Create a URL for preview
+                const objectUrl = URL.createObjectURL(file);
+                setLogoPreview(objectUrl);
+                // In a real app, you would upload the file to a server here
+                // For now, we'll just simulate it by setting the logoUrl to the object URL
+                setBrandData(prev => ({ ...prev, logoUrl: objectUrl }));
+              }
+            }}
+          />
+          
+          <label 
+            htmlFor="logo-upload"
+            className="inline-block px-4 py-2 bg-electric-teal/20 border border-electric-teal/50
+              rounded-lg text-electric-teal cursor-pointer hover:bg-electric-teal/30 transition-colors"
+          >
+            {logoPreview ? 'Choose a different logo' : 'Select file'}
+          </label>
+        </div>
+        
+        <p className="mt-2 text-electric-teal/70 text-sm">
+          For best results, upload a high-resolution logo (PNG or SVG) with a transparent background.
+          This will appear on your postcards and ensure your brand stands out.
+        </p>
+      </div>
+    </motion.div>
+  );
+
   const isValid = brandData.stylePreferences.length > 0;
 
   return (
@@ -313,6 +414,7 @@ const BrandIdentity = ({ onComplete, initialData = {} }: BrandIdentityProps) => 
       </motion.div>
 
       {guidelinesSection}
+      {logoUploadSection}
       {colorSection}
       {styleSection}
       {notesSection}
