@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import AudienceSegmentation from './AudienceSegmentation';
 import BrandIdentity from './BrandIdentity';
 import MarketingGoals from './MarketingGoals';
+import TargetAudience from './TargetAudience';
+import BusinessDetails from './BusinessDetails';
 
 // Import BrandStylePreference type from BrandIdentity
 type BrandStylePreference = 'playful' | 'professional' | 'modern' | 'traditional';
@@ -36,6 +38,32 @@ interface MarketingData {
   useAiCta: boolean;
 }
 
+// Define AudienceData type to match the one in TargetAudience component
+interface AudienceData {
+  industry: string;
+  targetDescription: string;
+  audienceAgeRange: string[];
+  incomeLevel: string[];
+  interests: string[];
+  customAudience: boolean;
+  customAudienceDescription: string;
+}
+
+// Define BusinessData type to match the one in BusinessDetails component
+interface BusinessData {
+  tagline: string;
+  useAiTagline: boolean;
+  contactInfo: {
+    phone: string;
+    website: string;
+    email: string;
+    address: string;
+  };
+  disclaimer: string;
+  includeDisclaimer: boolean;
+  extraInfo: string;
+}
+
 interface WizardState {
   currentStep: WizardStep;
   isSegmented: boolean;
@@ -45,6 +73,10 @@ interface WizardState {
   brandData?: BrandData;
   // Marketing data
   marketingData?: MarketingData;
+  // Audience data
+  audienceData?: AudienceData;
+  // Business data
+  businessData?: BusinessData;
   // ... other state will be added as we build more steps
 }
 
@@ -103,6 +135,22 @@ const AIDesignWizard = ({ onBack }: AIDesignWizardProps) => {
       ...prev,
       marketingData,
       currentStep: 'audience'
+    }));
+  };
+
+  const handleAudienceComplete = (audienceData: AudienceData) => {
+    setWizardState(prev => ({
+      ...prev,
+      audienceData,
+      currentStep: 'business'
+    }));
+  };
+
+  const handleBusinessComplete = (businessData: BusinessData) => {
+    setWizardState(prev => ({
+      ...prev,
+      businessData,
+      currentStep: 'visual'
     }));
   };
 
@@ -175,6 +223,18 @@ const AIDesignWizard = ({ onBack }: AIDesignWizardProps) => {
             <MarketingGoals
               onComplete={handleMarketingComplete}
               initialData={wizardState.marketingData}
+            />
+          ) : wizardState.currentStep === 'audience' ? (
+            <TargetAudience
+              onComplete={handleAudienceComplete}
+              initialData={wizardState.audienceData}
+              segment={wizardState.currentSegment}
+            />
+          ) : wizardState.currentStep === 'business' ? (
+            <BusinessDetails
+              onComplete={handleBusinessComplete}
+              initialData={wizardState.businessData}
+              segment={wizardState.currentSegment}
             />
           ) : (
             <>

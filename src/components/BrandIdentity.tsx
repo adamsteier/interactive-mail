@@ -75,7 +75,7 @@ const BrandIdentity = ({ onComplete, initialData = {} }: BrandIdentityProps) => 
     >
       <h3 className="text-xl font-semibold text-electric-teal mb-4">Brand Guidelines</h3>
       <p className="text-electric-teal/70 mb-6">
-        Do you have existing brand guidelines (logo, color palette, fonts) you'd like us to use?
+        Do you have existing brand guidelines (logo, color palette, fonts) you&apos;d like us to use?
       </p>
       
       <div className="flex gap-4">
@@ -125,7 +125,7 @@ const BrandIdentity = ({ onComplete, initialData = {} }: BrandIdentityProps) => 
             />
           </div>
           <p className="text-sm text-electric-teal/60 mt-2">
-            We'll use these to match your brand's look and feel
+            We&apos;ll use these to match your brand&apos;s look and feel
           </p>
         </motion.div>
       )}
@@ -192,7 +192,7 @@ const BrandIdentity = ({ onComplete, initialData = {} }: BrandIdentityProps) => 
     >
       <h3 className="text-xl font-semibold text-electric-teal mb-4">Style Preferences</h3>
       <p className="text-electric-teal/70 mb-6">
-        What best describes the style you're going for? (Select one or more)
+        What best describes the style you&apos;re going for? (Select one or more)
       </p>
       
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -263,7 +263,7 @@ const BrandIdentity = ({ onComplete, initialData = {} }: BrandIdentityProps) => 
             Brand Identity & Style
           </h2>
           <p className="text-electric-teal/70">
-            Let's make sure your postcards align with your brand identity and aesthetic preferences.
+            Let&apos;s make sure your postcards align with your brand identity and aesthetic preferences.
           </p>
         </div>
       </motion.div>
