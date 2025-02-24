@@ -21,6 +21,10 @@ interface WizardState {
   // ... other state will be added as we build more steps
 }
 
+interface AIDesignWizardProps {
+  onBack: () => void;
+}
+
 const steps: WizardStep[] = [
   'segmentation',
   'brand',
@@ -41,7 +45,7 @@ const stepTitles: Record<WizardStep, string> = {
   review: 'Review & Generate'
 };
 
-const AIDesignWizard = () => {
+const AIDesignWizard = ({ onBack }: AIDesignWizardProps) => {
   const [wizardState, setWizardState] = useState<WizardState>({
     currentStep: 'segmentation',
     isSegmented: false,
@@ -81,6 +85,16 @@ const AIDesignWizard = () => {
 
   return (
     <div className="min-h-screen bg-charcoal">
+      {/* Add back button */}
+      <button
+        onClick={onBack}
+        className="fixed top-4 left-4 text-electric-teal hover:text-electric-teal/80"
+      >
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+      </button>
+
       {/* Progress Bar */}
       <div className="fixed top-0 left-0 right-0 h-1 bg-electric-teal/20">
         <motion.div
