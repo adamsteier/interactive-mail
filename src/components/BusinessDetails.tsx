@@ -16,6 +16,8 @@ interface BusinessData {
   disclaimer: string;
   includeDisclaimer: boolean;
   extraInfo: string;
+  includeQrCode: boolean;
+  qrCodeUrl: string;
 }
 
 interface BusinessDetailsProps {
@@ -49,7 +51,9 @@ const BusinessDetails = ({ onComplete, initialData = {}, segment }: BusinessDeta
     },
     disclaimer: initialData.disclaimer ?? '',
     includeDisclaimer: initialData.includeDisclaimer ?? false,
-    extraInfo: initialData.extraInfo ?? ''
+    extraInfo: initialData.extraInfo ?? '',
+    includeQrCode: initialData.includeQrCode ?? false,
+    qrCodeUrl: initialData.qrCodeUrl ?? ''
   });
 
   const [showTaglineSuggestions, setShowTaglineSuggestions] = useState(false);
@@ -249,6 +253,64 @@ const BusinessDetails = ({ onComplete, initialData = {}, segment }: BusinessDeta
     </motion.div>
   );
 
+  const qrCodeSection = (
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.25 }}
+      className="mb-10"
+    >
+      <div className="flex items-center gap-3 mb-4">
+        <button
+          onClick={() => setBusinessData(prev => ({ 
+            ...prev, 
+            includeQrCode: !prev.includeQrCode,
+            qrCodeUrl: !prev.includeQrCode ? prev.qrCodeUrl : ''
+          }))}
+          className="w-6 h-6 rounded-md border-2 border-electric-teal flex items-center justify-center"
+        >
+          {businessData.includeQrCode && (
+            <motion.div 
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className="w-3 h-3 bg-electric-teal rounded-sm"
+            />
+          )}
+        </button>
+        <h3 className="text-xl font-semibold text-electric-teal">
+          Include QR code on postcard
+        </h3>
+      </div>
+      
+      {businessData.includeQrCode && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          className="pl-9"
+        >
+          <p className="text-electric-teal/70 mb-4">
+            Enter the URL you want your QR code to link to
+          </p>
+          <input
+            type="url"
+            value={businessData.qrCodeUrl}
+            onChange={(e) => setBusinessData(prev => ({ 
+              ...prev, 
+              qrCodeUrl: e.target.value 
+            }))}
+            placeholder="https://yourbusiness.com/special-offer"
+            className="w-full bg-charcoal border-2 border-electric-teal/50 rounded-lg p-3
+              text-electric-teal placeholder:text-electric-teal/40 focus:border-electric-teal
+              focus:outline-none transition-colors"
+          />
+          <p className="text-sm text-electric-teal/60 mt-2">
+            We&apos;ll generate a QR code that links to this URL
+          </p>
+        </motion.div>
+      )}
+    </motion.div>
+  );
+
   const disclaimerSection = (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
@@ -332,7 +394,8 @@ const BusinessDetails = ({ onComplete, initialData = {}, segment }: BusinessDeta
      businessData.contactInfo.website.trim() !== '' ||
      businessData.contactInfo.email.trim() !== '' ||
      businessData.contactInfo.address.trim() !== '') &&
-    (!businessData.includeDisclaimer || (businessData.includeDisclaimer && businessData.disclaimer.trim() !== ''));
+    (!businessData.includeDisclaimer || (businessData.includeDisclaimer && businessData.disclaimer.trim() !== '')) &&
+    (!businessData.includeQrCode || (businessData.includeQrCode && businessData.qrCodeUrl.trim() !== ''));
 
   return (
     <div className="max-w-3xl mx-auto px-4">
@@ -353,6 +416,7 @@ const BusinessDetails = ({ onComplete, initialData = {}, segment }: BusinessDeta
 
       {taglineSection}
       {contactInfoSection}
+      {qrCodeSection}
       {disclaimerSection}
       {extraInfoSection}
 

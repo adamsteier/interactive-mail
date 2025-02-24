@@ -36,6 +36,13 @@ interface MarketingData {
   otherObjective: string;
   callToAction: string;
   useAiCta: boolean;
+  objectiveDetails: {
+    awareness: string;
+    promotion: string;
+    traffic: string;
+    event: string;
+    other: string;
+  };
 }
 
 // Define AudienceData type to match the one in TargetAudience component
@@ -62,6 +69,8 @@ interface BusinessData {
   disclaimer: string;
   includeDisclaimer: boolean;
   extraInfo: string;
+  includeQrCode: boolean;
+  qrCodeUrl: string;
 }
 
 interface WizardState {

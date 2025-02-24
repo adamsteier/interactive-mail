@@ -150,7 +150,7 @@ const BrandIdentity = ({ onComplete, initialData = {} }: BrandIdentityProps) => 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="block text-electric-teal mb-2">Primary Color</label>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 mb-2">
             <div 
               className="w-10 h-10 rounded-full border border-white/20"
               style={{ backgroundColor: brandData.primaryColor }}
@@ -162,11 +162,33 @@ const BrandIdentity = ({ onComplete, initialData = {} }: BrandIdentityProps) => 
               className="w-full"
             />
           </div>
+          <div className="mt-2">
+            <label className="block text-electric-teal text-sm mb-1">Hex Code</label>
+            <input
+              type="text"
+              value={brandData.primaryColor}
+              onChange={(e) => {
+                // Validate hex code format (with or without #)
+                const hexValue = e.target.value.startsWith('#') 
+                  ? e.target.value 
+                  : `#${e.target.value}`;
+                
+                // Basic validation for hex color format
+                if (/^#([0-9A-F]{3}){1,2}$/i.test(hexValue) || e.target.value === '' || e.target.value === '#') {
+                  setBrandData(prev => ({ ...prev, primaryColor: hexValue }));
+                }
+              }}
+              placeholder="#1ecbe1"
+              className="w-full bg-charcoal border-2 border-electric-teal/50 rounded-lg p-2
+                text-electric-teal placeholder:text-electric-teal/40 focus:border-electric-teal
+                focus:outline-none transition-colors"
+            />
+          </div>
         </div>
         
         <div>
           <label className="block text-electric-teal mb-2">Accent Color</label>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 mb-2">
             <div 
               className="w-10 h-10 rounded-full border border-white/20"
               style={{ backgroundColor: brandData.accentColor }}
@@ -176,6 +198,28 @@ const BrandIdentity = ({ onComplete, initialData = {} }: BrandIdentityProps) => 
               value={brandData.accentColor}
               onChange={(e) => setBrandData(prev => ({ ...prev, accentColor: e.target.value }))}
               className="w-full"
+            />
+          </div>
+          <div className="mt-2">
+            <label className="block text-electric-teal text-sm mb-1">Hex Code</label>
+            <input
+              type="text"
+              value={brandData.accentColor}
+              onChange={(e) => {
+                // Validate hex code format (with or without #)
+                const hexValue = e.target.value.startsWith('#') 
+                  ? e.target.value 
+                  : `#${e.target.value}`;
+                
+                // Basic validation for hex color format
+                if (/^#([0-9A-F]{3}){1,2}$/i.test(hexValue) || e.target.value === '' || e.target.value === '#') {
+                  setBrandData(prev => ({ ...prev, accentColor: hexValue }));
+                }
+              }}
+              placeholder="#e11e64"
+              className="w-full bg-charcoal border-2 border-electric-teal/50 rounded-lg p-2
+                text-electric-teal placeholder:text-electric-teal/40 focus:border-electric-teal
+                focus:outline-none transition-colors"
             />
           </div>
         </div>

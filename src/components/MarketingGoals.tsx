@@ -10,6 +10,13 @@ interface MarketingData {
   otherObjective: string;
   callToAction: string;
   useAiCta: boolean;
+  objectiveDetails: {
+    awareness: string;
+    promotion: string;
+    traffic: string;
+    event: string;
+    other: string;
+  };
 }
 
 interface MarketingGoalsProps {
@@ -78,7 +85,14 @@ const MarketingGoals = ({ onComplete, initialData = {} }: MarketingGoalsProps) =
     objectives: initialData.objectives ?? [],
     otherObjective: initialData.otherObjective ?? '',
     callToAction: initialData.callToAction ?? '',
-    useAiCta: initialData.useAiCta ?? false
+    useAiCta: initialData.useAiCta ?? false,
+    objectiveDetails: {
+      awareness: initialData.objectiveDetails?.awareness ?? '',
+      promotion: initialData.objectiveDetails?.promotion ?? '',
+      traffic: initialData.objectiveDetails?.traffic ?? '',
+      event: initialData.objectiveDetails?.event ?? '',
+      other: initialData.objectiveDetails?.other ?? ''
+    }
   });
 
   const [showAiCtas, setShowAiCtas] = useState(false);
@@ -111,6 +125,16 @@ const MarketingGoals = ({ onComplete, initialData = {} }: MarketingGoalsProps) =
       ...prev,
       callToAction: cta,
       useAiCta: true
+    }));
+  };
+
+  const handleObjectiveDetailChange = (objective: MarketingObjective, value: string) => {
+    setMarketingData(prev => ({
+      ...prev,
+      objectiveDetails: {
+        ...prev.objectiveDetails,
+        [objective]: value
+      }
     }));
   };
 
@@ -154,23 +178,104 @@ const MarketingGoals = ({ onComplete, initialData = {} }: MarketingGoalsProps) =
         ))}
       </div>
 
-      {marketingData.objectives.includes('other') && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
-          className="mt-6"
-        >
-          <input
-            type="text"
-            value={marketingData.otherObjective}
-            onChange={(e) => setMarketingData(prev => ({ ...prev, otherObjective: e.target.value }))}
-            placeholder="Please describe your specific marketing objective"
-            className="w-full bg-charcoal border-2 border-electric-teal/50 rounded-lg p-4
-              text-electric-teal placeholder:text-electric-teal/40 focus:border-electric-teal
-              focus:outline-none transition-colors"
-          />
-        </motion.div>
-      )}
+      <div className="mt-6 space-y-4">
+        {marketingData.objectives.includes('awareness') && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+          >
+            <label className="block text-electric-teal mb-2">
+              Brand Awareness Details
+            </label>
+            <input
+              type="text"
+              value={marketingData.objectiveDetails.awareness}
+              onChange={(e) => handleObjectiveDetailChange('awareness', e.target.value)}
+              placeholder="What specific aspects of your brand do you want to highlight?"
+              className="w-full bg-charcoal border-2 border-electric-teal/50 rounded-lg p-4
+                text-electric-teal placeholder:text-electric-teal/40 focus:border-electric-teal
+                focus:outline-none transition-colors"
+            />
+          </motion.div>
+        )}
+
+        {marketingData.objectives.includes('promotion') && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+          >
+            <label className="block text-electric-teal mb-2">
+              Promotion/Discount Details
+            </label>
+            <input
+              type="text"
+              value={marketingData.objectiveDetails.promotion}
+              onChange={(e) => handleObjectiveDetailChange('promotion', e.target.value)}
+              placeholder="Describe your promotion or discount (e.g., 20% off, buy one get one free)"
+              className="w-full bg-charcoal border-2 border-electric-teal/50 rounded-lg p-4
+                text-electric-teal placeholder:text-electric-teal/40 focus:border-electric-teal
+                focus:outline-none transition-colors"
+            />
+          </motion.div>
+        )}
+
+        {marketingData.objectives.includes('traffic') && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+          >
+            <label className="block text-electric-teal mb-2">
+              Website Traffic Goals
+            </label>
+            <input
+              type="text"
+              value={marketingData.objectiveDetails.traffic}
+              onChange={(e) => handleObjectiveDetailChange('traffic', e.target.value)}
+              placeholder="What specific page or action do you want visitors to take on your website?"
+              className="w-full bg-charcoal border-2 border-electric-teal/50 rounded-lg p-4
+                text-electric-teal placeholder:text-electric-teal/40 focus:border-electric-teal
+                focus:outline-none transition-colors"
+            />
+          </motion.div>
+        )}
+
+        {marketingData.objectives.includes('event') && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+          >
+            <label className="block text-electric-teal mb-2">
+              Event Details
+            </label>
+            <input
+              type="text"
+              value={marketingData.objectiveDetails.event}
+              onChange={(e) => handleObjectiveDetailChange('event', e.target.value)}
+              placeholder="Event name, date, time, location, etc."
+              className="w-full bg-charcoal border-2 border-electric-teal/50 rounded-lg p-4
+                text-electric-teal placeholder:text-electric-teal/40 focus:border-electric-teal
+                focus:outline-none transition-colors"
+            />
+          </motion.div>
+        )}
+
+        {marketingData.objectives.includes('other') && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+          >
+            <input
+              type="text"
+              value={marketingData.otherObjective}
+              onChange={(e) => setMarketingData(prev => ({ ...prev, otherObjective: e.target.value }))}
+              placeholder="Please describe your specific marketing objective"
+              className="w-full bg-charcoal border-2 border-electric-teal/50 rounded-lg p-4
+                text-electric-teal placeholder:text-electric-teal/40 focus:border-electric-teal
+                focus:outline-none transition-colors"
+            />
+          </motion.div>
+        )}
+      </div>
     </motion.div>
   );
 
