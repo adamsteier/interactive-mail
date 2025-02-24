@@ -18,6 +18,7 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
   const isLoading = useMarketingStore(state => state.searchResults.isLoading);
   const progress = useMarketingStore(state => state.searchResults.progress);
   const setCollectedLeads = useMarketingStore(state => state.setCollectedLeads);
+  const setSelectedBusinessTypes = useMarketingStore(state => state.setSelectedBusinessTypes);
 
   const [selectedPlaces, setSelectedPlaces] = useState<Set<string>>(new Set());
   const [activeFilter, setActiveFilter] = useState<string>('all');
@@ -284,7 +285,16 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
             const selectedBusinesses = filteredPlaces.filter(place => 
               selectedPlaces.has(place.place_id)
             );
+            
+            // Get unique business types from selected places
+            const businessTypes = new Set(
+              selectedBusinesses.map(place => place.businessType)
+            );
+            
+            // Update both leads and business types in store
             setCollectedLeads(selectedBusinesses);
+            setSelectedBusinessTypes(businessTypes);
+            
             router.push('/design');
           }}
         />

@@ -98,29 +98,19 @@ const AIDesignWizard = ({ onBack }: AIDesignWizardProps) => {
         </svg>
       </button>
 
-      {/* Progress Bar */}
-      <div className="fixed top-0 left-0 right-0 h-1 bg-electric-teal/20">
-        <motion.div
-          className="h-full bg-electric-teal"
-          initial={{ width: '0%' }}
-          animate={{
-            width: `${((steps.indexOf(wizardState.currentStep) + 1) / steps.length) * 100}%`
-          }}
-          transition={{ duration: 0.5 }}
-        />
-      </div>
-
-      {/* Step Title */}
-      <div className="pt-8 px-4">
-        <motion.h1
-          key={wizardState.currentStep}
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-2xl text-electric-teal text-center font-bold"
-        >
-          {stepTitles[wizardState.currentStep]}
-        </motion.h1>
-      </div>
+      {/* Only show progress bar after segmentation is complete */}
+      {wizardState.currentStep !== 'segmentation' && (
+        <div className="fixed top-0 left-0 right-0 h-1 bg-electric-teal/20">
+          <motion.div
+            className="h-full bg-electric-teal"
+            initial={{ width: '0%' }}
+            animate={{
+              width: `${((steps.indexOf(wizardState.currentStep) + 1) / steps.length) * 100}%`
+            }}
+            transition={{ duration: 0.5 }}
+          />
+        </div>
+      )}
 
       {/* Step Content */}
       <AnimatePresence mode="wait">
@@ -131,39 +121,54 @@ const AIDesignWizard = ({ onBack }: AIDesignWizardProps) => {
           exit={{ opacity: 0, x: -20 }}
           className="p-4"
         >
-          {wizardState.currentStep === 'segmentation' && (
+          {wizardState.currentStep === 'segmentation' ? (
             <AudienceSegmentation onComplete={handleSegmentationComplete} />
+          ) : (
+            <>
+              {/* Step Title - only show for non-segmentation steps */}
+              <div className="pt-8 px-4 mb-8">
+                <motion.h1
+                  key={wizardState.currentStep}
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-2xl text-electric-teal text-center font-bold"
+                >
+                  {stepTitles[wizardState.currentStep]}
+                </motion.h1>
+              </div>
+              
+              {/* We'll add other steps here */}
+            </>
           )}
-          {/* We'll add other steps here as we build them */}
         </motion.div>
       </AnimatePresence>
 
-      {/* Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-charcoal border-t border-electric-teal/20">
-        <div className="max-w-2xl mx-auto flex justify-between items-center">
-          <button
-            onClick={handlePrevStep}
-            disabled={wizardState.currentStep === 'segmentation'}
-            className="px-6 py-2 rounded-lg border-2 border-electric-teal text-electric-teal
-              disabled:opacity-50 disabled:cursor-not-allowed
-              hover:bg-electric-teal/10 transition-colors duration-200"
-          >
-            Previous
-          </button>
-          <div className="text-electric-teal/60">
-            Step {steps.indexOf(wizardState.currentStep) + 1} of {steps.length}
+      {/* Only show navigation after segmentation */}
+      {wizardState.currentStep !== 'segmentation' && (
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-charcoal border-t border-electric-teal/20">
+          <div className="max-w-2xl mx-auto flex justify-between items-center">
+            <button
+              onClick={handlePrevStep}
+              className="px-6 py-2 rounded-lg border-2 border-electric-teal text-electric-teal
+                hover:bg-electric-teal/10 transition-colors duration-200"
+            >
+              Previous
+            </button>
+            <div className="text-electric-teal/60">
+              Step {steps.indexOf(wizardState.currentStep)} of {steps.length - 1}
+            </div>
+            <button
+              onClick={handleNextStep}
+              disabled={wizardState.currentStep === 'review'}
+              className="px-6 py-2 rounded-lg bg-electric-teal text-charcoal
+                disabled:opacity-50 disabled:cursor-not-allowed
+                hover:bg-electric-teal/90 transition-colors duration-200"
+            >
+              Next
+            </button>
           </div>
-          <button
-            onClick={handleNextStep}
-            disabled={wizardState.currentStep === 'review'}
-            className="px-6 py-2 rounded-lg bg-electric-teal text-charcoal
-              disabled:opacity-50 disabled:cursor-not-allowed
-              hover:bg-electric-teal/90 transition-colors duration-200"
-          >
-            Next
-          </button>
         </div>
-      </div>
+      )}
     </div>
   );
 };
