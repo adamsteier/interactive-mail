@@ -6,6 +6,7 @@ import SelectionSummary from './SelectionSummary';
 import { useMarketingStore } from '@/store/marketingStore';
 import LoadingBar from './LoadingBar';
 import type { GooglePlace } from '@/types/places';
+import { useRouter } from 'next/navigation';
 
 interface PlacesLeadsCollectionProps {
   onClose: () => void;
@@ -21,6 +22,8 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
   const [selectedPlaces, setSelectedPlaces] = useState<Set<string>>(new Set());
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+
+  const router = useRouter();
 
   // Get unique business types for filtering
   const businessTypes = useMemo(() => {
@@ -282,7 +285,7 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
               selectedPlaces.has(place.place_id)
             );
             setCollectedLeads(selectedBusinesses);
-            console.log('Starting campaign with', selectedPlaces.size, 'places');
+            router.push('/design');
           }}
         />
       </div>
