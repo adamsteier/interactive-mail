@@ -59,7 +59,7 @@ const AIDesignWizard = ({ onBack }: AIDesignWizardProps) => {
       isSegmented,
       segments: segments || [],
       currentSegment: segments?.[0],
-      currentStep: 'brand' // Move to next step
+      currentStep: 'brand'
     }));
   };
 
@@ -80,6 +80,9 @@ const AIDesignWizard = ({ onBack }: AIDesignWizardProps) => {
         ...prev,
         currentStep: steps[currentIndex - 1]
       }));
+    } else {
+      // If we're at the first step, go back to the design method selection
+      onBack();
     }
   };
 

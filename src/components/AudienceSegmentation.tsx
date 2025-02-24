@@ -12,17 +12,43 @@ const AudienceSegmentation = ({ onComplete }: AudienceSegmentationProps) => {
   const collectedLeads = useMarketingStore(state => state.collectedLeads);
   const [showSegmentChoice, setShowSegmentChoice] = useState(false);
   const [uniqueBusinessTypes, setUniqueBusinessTypes] = useState<string[]>([]);
+  const [initialized, setInitialized] = useState(false);
 
   // Check if we have multiple business types
   useEffect(() => {
-    const types = Array.from(new Set(collectedLeads.map(lead => lead.businessType)));
-    setUniqueBusinessTypes(types);
-    setShowSegmentChoice(types.length > 1);
-  }, [collectedLeads]);
+    if (!initialized && collectedLeads.length > 0) {
+      const types = Array.from(new Set(collectedLeads.map(lead => lead.businessType)));
+      setUniqueBusinessTypes(types);
+      setShowSegmentChoice(types.length > 1);
+      
+      // Only auto-complete if there's exactly one type
+      if (types.length === 1) {
+        onComplete(false);
+      }
+      
+      setInitialized(true);
+    }
+  }, [collectedLeads, onComplete, initialized]);
+
+  // If no leads, show an error or redirect
+  if (collectedLeads.length === 0) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="max-w-2xl mx-auto p-6 text-center"
+      >
+        <h2 className="text-3xl font-bold text-electric-teal mb-4">
+          No Leads Selected
+        </h2>
+        <p className="text-electric-teal/80">
+          Please go back and select some leads before starting the design process.
+        </p>
+      </motion.div>
+    );
+  }
 
   if (!showSegmentChoice) {
-    // Skip to next step if only one business type
-    onComplete(false);
     return null;
   }
 
