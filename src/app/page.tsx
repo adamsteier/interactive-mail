@@ -274,7 +274,7 @@ export default function Home() {
 
       {/* Show verification message and buttons after business name */}
       {currentStep > 1 && (
-        <div className="relative z-10 w-full px-4 mt-32">
+        <div className="relative z-10 w-full px-4">
           <div className="flex flex-col items-center">
             <div className="w-full max-w-2xl space-y-8">
               <div className="text-xl font-normal text-electric-teal text-center">
@@ -288,10 +288,11 @@ export default function Home() {
                       setShowResults(true);
                     }
                   }}
-                  className="relative z-50 rounded-lg border-2 border-electric-teal bg-charcoal px-8 py-4 
-                    text-lg font-medium text-electric-teal shadow-glow overflow-hidden
-                    transition-all duration-300 hover:border-electric-teal/80 hover:shadow-glow-strong 
-                    active:scale-95 w-full max-w-md text-center"
+                  className={`relative z-50 rounded-lg border-2 border-electric-teal bg-charcoal px-8 py-4 
+                    text-lg font-medium text-electric-teal overflow-hidden
+                    transition-all duration-300 hover:border-electric-teal/80 
+                    active:scale-95 w-full max-w-md text-center
+                    ${!isLoadingStrategy && !showConfetti ? 'animate-magenta-pulse' : 'shadow-glow hover:shadow-glow-strong'}`}
                 >
                   {isLoadingStrategy && (
                     <div className="absolute inset-0 overflow-hidden">

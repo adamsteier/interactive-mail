@@ -24,6 +24,7 @@ const config: Config = {
         'info-box-glow': 'info-box-glow 1s ease-out forwards',
         'loading-progress': 'loading 2s ease-in-out infinite',
         'pulse-glow': 'pulse-glow 2s infinite',
+        'magenta-pulse': 'magenta-pulse 2s infinite',
       },
       keyframes: {
         blink: {
@@ -53,7 +54,15 @@ const config: Config = {
             transform: 'scale(1.05)',
             boxShadow: '0 0 20px rgba(0, 240, 255, 0.5)'
           }
-        }
+        },
+        'magenta-pulse': {
+          '0%, 100%': { 
+            boxShadow: '0 0 10px rgba(255, 0, 184, 0.3)'
+          },
+          '50%': { 
+            boxShadow: '0 0 20px rgba(255, 0, 184, 0.8)'
+          }
+        },
       },
     },
   },
