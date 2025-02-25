@@ -82,12 +82,12 @@ export async function POST(request: Request) {
         apiKey: process.env.CLAUDE_API_KEY,
       });
       
-      console.log("Calling Claude API with model: claude-3-7-sonnet-latest");
+      console.log("Calling Claude API with model: claude-3-7-sonnet-20250219");
       console.log(`Token budgets: ${36000} thinking tokens, ${40000} max response tokens`);
       
       // Call Claude API with the SDK
-      const response = await anthropic.beta.messages.create({
-        model: "claude-3-7-sonnet-latest",
+      const response = await anthropic.messages.create({
+        model: "claude-3-7-sonnet-20250219",
         max_tokens: 40000,
         thinking: {
           type: "enabled",
