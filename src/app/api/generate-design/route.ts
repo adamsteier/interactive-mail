@@ -98,6 +98,28 @@ export async function POST(request: Request) {
         ]
       });
       
+      // Log the full response structure for debugging
+      console.log("\n==== CLAUDE FULL RESPONSE STRUCTURE ====");
+      console.log(JSON.stringify(response, null, 2));
+      console.log("==== END FULL RESPONSE STRUCTURE ====\n");
+      
+      // Log thinking blocks if available
+      if (response.content.some(block => block.type === 'thinking' || block.type === 'redacted_thinking')) {
+        console.log("\n==== CLAUDE THINKING BLOCKS ====");
+        response.content
+          .filter(block => block.type === 'thinking' || block.type === 'redacted_thinking')
+          .forEach((block, index) => {
+            console.log(`[Block ${index}] Type: ${block.type}`);
+            if (block.type === 'thinking' && 'thinking' in block) {
+              console.log(`Thinking content preview: ${block.thinking.substring(0, 200)}...`);
+              console.log(`Signature length: ${block.signature?.length || 0} characters`);
+            } else if (block.type === 'redacted_thinking' && 'data' in block) {
+              console.log(`Redacted data length: ${block.data.length} characters`);
+            }
+          });
+        console.log("==== END THINKING BLOCKS ====\n");
+      }
+      
       // Extract completion from the response - handle text content properly
       const textContent = response.content.find(block => block.type === 'text');
       if (!textContent || textContent.type !== 'text') {
