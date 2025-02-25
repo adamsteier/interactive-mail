@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
+import Anthropic from '@anthropic-ai/sdk';
 import { 
-  GeneratePostcardDesignParams
+  GeneratePostcardDesignParams,
+  generateDesignPrompt
 } from '../../../services/claude';
 
 // Temporary fallback code - will be replaced with actual Claude API responses once working
@@ -30,16 +32,23 @@ const PostcardDesign = ({
     text: "${designStyle === 'professional' ? '#2d3748' : designStyle === 'modern' ? '#e2e8f0' : '#1e293b'}"
   };
 
+  // Key benefits based on design style
+  const benefits = [
+    "${designStyle === 'professional' ? 'Secure document handling' : designStyle === 'modern' ? 'Lightning-fast delivery' : 'Premium white-glove service'}",
+    "${designStyle === 'professional' ? 'Reliable on-time delivery' : designStyle === 'modern' ? 'Real-time tracking' : 'Discrete, confidential service'}",
+    "${designStyle === 'professional' ? 'Industry compliance' : designStyle === 'modern' ? '24/7 customer support' : 'Personalized attention'}"
+  ];
+
   return (
     <div 
       className={\`relative border-2 \${isSelected ? 'border-electric-teal' : 'border-electric-teal/30'} 
-        rounded-lg overflow-hidden cursor-pointer\`}
+        rounded-lg overflow-hidden cursor-pointer aspect-[7/5]\`}
       style={{ backgroundColor: colors.bg }}
       onClick={onSelect}
     >
       <div className="p-4 flex flex-col h-full">
         {/* Header */}
-        <div className="mb-3">
+        <div className="mb-2">
           <h3 
             className="font-bold text-xl mb-1" 
             style={{ color: colors.primary }}
@@ -54,43 +63,62 @@ const PostcardDesign = ({
           </p>
         </div>
         
-        {/* Image area */}
-        <div className="w-full aspect-video bg-gray-200 relative overflow-hidden rounded mb-3">
-          {imageUrl ? (
-            <motion.div
-              className="absolute inset-0 bg-cover bg-center"
-              style={{
-                backgroundImage: \`url(\${imageUrl})\`,
-                x: imagePosition.x,
-                y: imagePosition.y,
-                scale: imagePosition.scale,
-              }}
-              drag={isSelected}
-              dragMomentum={false}
-              onDragEnd={(_, info) => onDragEnd && onDragEnd({ offset: { x: info.offset.x, y: info.offset.y } })}
-            />
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center text-gray-400">
-              Image placeholder
+        <div className="flex flex-1 gap-4 mb-3">
+          {/* Left content */}
+          <div className="w-1/2 flex flex-col justify-between">
+            {/* Benefits */}
+            <div className="mb-2">
+              <ul className="text-sm space-y-1" style={{ color: colors.text }}>
+                {benefits.map((benefit, index) => (
+                  <li key={index} className="flex items-start">
+                    <span className="mr-1 text-xs" style={{ color: colors.primary }}>•</span>
+                    {benefit}
+                  </li>
+                ))}
+              </ul>
             </div>
-          )}
-        </div>
-        
-        {/* Call to action */}
-        <div 
-          className="py-2 px-4 rounded text-center font-medium text-white mb-3"
-          style={{ backgroundColor: colors.primary }}
-        >
-          {callToAction}
+            
+            {/* Call to action */}
+            <div 
+              className="py-2 px-3 rounded text-center font-medium text-white mt-auto"
+              style={{ backgroundColor: colors.primary }}
+            >
+              {callToAction}
+            </div>
+          </div>
+          
+          {/* Right side - Image area */}
+          <div className="w-1/2 aspect-square bg-gray-200 relative overflow-hidden rounded">
+            {imageUrl ? (
+              <motion.div
+                className="absolute inset-0 bg-cover bg-center"
+                style={{
+                  backgroundImage: \`url(\${imageUrl})\`,
+                  x: imagePosition.x,
+                  y: imagePosition.y,
+                  scale: imagePosition.scale,
+                }}
+                drag={isSelected}
+                dragMomentum={false}
+                onDragEnd={(_, info) => onDragEnd && onDragEnd({ offset: { x: info.offset.x, y: info.offset.y } })}
+              />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                Image placeholder
+              </div>
+            )}
+          </div>
         </div>
         
         {/* Contact info */}
-        <div className="mt-auto text-xs space-y-1" style={{ color: colors.text }}>
-          {contactInfo.phone && <p>📞 {contactInfo.phone}</p>}
-          {contactInfo.email && <p>✉️ {contactInfo.email}</p>}
-          {contactInfo.website && <p>🌐 {contactInfo.website}</p>}
-          {contactInfo.address && <p>📍 {contactInfo.address}</p>}
-          {extraInfo && <p className="italic">{extraInfo}</p>}
+        <div className="text-xs space-y-1 mt-1 border-t pt-2 border-gray-200" style={{ color: colors.text }}>
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
+            {contactInfo.phone && <p className="flex items-center"><span className="mr-1">📞</span> {contactInfo.phone}</p>}
+            {contactInfo.email && <p className="flex items-center"><span className="mr-1">✉️</span> {contactInfo.email}</p>}
+            {contactInfo.website && <p className="flex items-center"><span className="mr-1">🌐</span> {contactInfo.website}</p>}
+            {contactInfo.address && <p className="flex items-center"><span className="mr-1">📍</span> {contactInfo.address}</p>}
+          </div>
+          {extraInfo && <p className="italic text-xs mt-1">{extraInfo}</p>}
         </div>
       </div>
     </div>
@@ -110,70 +138,67 @@ export async function POST(request: Request) {
     const params = await request.json() as GeneratePostcardDesignParams;
     console.log("Requested design style:", params.designStyle);
     
-    // TEMPORARY: Use fallback code instead of calling Claude API
-    // This will be replaced with actual Claude API calls once API issues are fixed
-    const completion = getFallbackDesignCode(params.designStyle, params.brandData.brandName);
-    console.log("Generated fallback design component with code length:", completion.length);
-    
-    return NextResponse.json({ 
-      completion, 
-      success: true 
-    });
-    
-    /*
-    // The code below will be used once API issues are resolved
-    const prompt = generateDesignPrompt(params);
-    
-    // Check if API key exists
+    // Check if we should use the real API or fallback
     if (!process.env.CLAUDE_API_KEY) {
-      console.error("Claude API key is missing");
+      console.log("Using fallback design - Claude API key not found");
+      const completion = getFallbackDesignCode(params.designStyle, params.brandData.brandName);
       return NextResponse.json({ 
-        completion: '', 
-        success: false, 
-        error: 'API key is missing in server environment' 
-      }, { status: 500 });
+        completion, 
+        success: true 
+      });
     }
     
+    // Try to use the real Claude API
     try {
-      // Call Claude API securely from the server
-      const response = await axios.post(
-        'https://api.anthropic.com/v1/messages',
-        {
-          model: "claude-3-7-sonnet",
-          max_tokens: 4000,
-          messages: [
-            { role: "user", content: prompt }
-          ],
-          temperature: 0.3
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': process.env.CLAUDE_API_KEY,
-            'anthropic-version': '2023-06-01' // Add API version header which might be required
-          }
-        }
-      );
+      const prompt = generateDesignPrompt(params);
       
-      // Extract component code from the Claude response
-      const completion = response.data.content[0].text;
+      // Initialize the Anthropic client with API key from environment
+      const anthropic = new Anthropic({
+        apiKey: process.env.CLAUDE_API_KEY,
+      });
+      
+      console.log("Calling Claude API with model: claude-3-7-sonnet-latest");
+      
+      // Call Claude API with the SDK
+      const response = await anthropic.beta.messages.create({
+        model: "claude-3-7-sonnet-latest",
+        max_tokens: 4000,
+        thinking: {
+          type: "enabled",
+          budget_tokens: 4000
+        },
+        messages: [
+          { role: "user", content: prompt }
+        ]
+      });
+      
+      // Extract completion from the response - handle text content properly
+      const textContent = response.content.find(block => block.type === 'text');
+      if (!textContent || textContent.type !== 'text') {
+        throw new Error('No text content found in Claude response');
+      }
+      
+      const completion = textContent.text;
+      console.log("Claude API responded successfully with content length:", completion.length);
+      
       return NextResponse.json({ 
         completion, 
         success: true 
       });
     } catch (apiError) {
       console.error("Claude API call failed:", apiError);
-      // Return more detailed error
+      
+      // Return fallback if API call fails
+      console.log("Falling back to static design after API error");
+      const completion = getFallbackDesignCode(params.designStyle, params.brandData.brandName);
+      
       return NextResponse.json({ 
-        completion: '', 
-        success: false, 
-        error: apiError instanceof Error ? 
-          `Claude API error: ${apiError.message}` : 
-          'Unknown Claude API error' 
-      }, { status: 500 });
+        completion, 
+        success: true,
+        usedFallback: true,
+        error: apiError instanceof Error ? apiError.message : 'Unknown Claude API error'
+      });
     }
-    */
-    
   } catch (error) {
     console.error('Error in generate-design API route:', error);
     return NextResponse.json({ 
