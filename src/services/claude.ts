@@ -249,11 +249,14 @@ export const generatePostcardDesign = async (params: GeneratePostcardDesignParam
  * Extracts React component code from Claude API response
  */
 export const extractComponentCode = (completion: string): string => {
+  console.log("Attempting to extract component code from response length:", completion.length);
+  
   // Extract component code from between ```tsx and ``` blocks
   const codeRegex = /```tsx\s*([\s\S]*?)\s*```/;
   const match = completion.match(codeRegex);
   
   if (match && match[1]) {
+    console.log("Found code block with tsx marker, length:", match[1].trim().length);
     return match[1].trim();
   }
   
@@ -262,6 +265,7 @@ export const extractComponentCode = (completion: string): string => {
   const fallbackMatch = completion.match(fallbackRegex);
   
   if (fallbackMatch && fallbackMatch[1]) {
+    console.log("Found generic code block, length:", fallbackMatch[1].trim().length);
     return fallbackMatch[1].trim();
   }
   
@@ -276,8 +280,10 @@ export const extractComponentCode = (completion: string): string => {
   
   if (startIndex >= 0) {
     // Extract from the found line to the end
+    console.log("Falling back to function/export detection, starting at line:", startIndex);
     return lines.slice(startIndex).join('\n');
   }
   
+  console.log("Failed to extract any component code!");
   return '';
 }; 
