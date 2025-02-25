@@ -30,25 +30,26 @@ export const generateImagePrompt = (
   const brandAesthetic = stylePreferences.length > 0 ? 
     stylePreferences.join(', ') : 'professional, modern';
   
-  return `Create a high-quality full frame ${styleString} image to be used as a COMPONENT within a postcard design for ${brandName}${industry ? ' in the ' + industry + ' industry' : ''}. 
+  return `Create a high-quality ${styleString} image to be used as a background element within a postcard design for ${brandName}${industry ? ' in the ' + industry + ' industry' : ''}. 
 
-This is creating ONLY THE IMAGE ELEMENT of a postcard based on limited information:
-- The image must have a clear, single focal point featuring ${imagePrimarySubject || 'a smiling person'}.  
+This is creating a FULL-FRAME BACKGROUND IMAGE for a postcard based on these parameters:
+- The image must feature ${imagePrimarySubject || 'a smiling person'} as the primary subject
 - The image should appeal to ${targetDescription || 'business professionals'}
 - Use a color palette that complements ${colors.primary} and ${colors.accent}
 - The style should be ${brandAesthetic}
 - Layout style: ${layoutStyle}
 
-Important visual requirements:
-- The image should be filling the entire space, no borders, no badges, no paper, no framing, no background elements.
-- This is NOT a complete postcard design - create ONLY the image element
-- Create a visually clean image that isn't overly complex
-- The focal point should be prominent and immediately recognizable
-- The image should look professional, polished, and suitable as part of a direct mail postcard
+CRITICAL REQUIREMENTS:
+- The image MUST FILL THE ENTIRE FRAME with no borders, margins, or empty space around the edges
+- DO NOT create an isolated object, icon, badge, or logo floating on a background
+- This should be a FULL-BLEED IMAGE that extends to all edges of the frame
+- Create a composition where text can be overlaid anywhere (with sufficient contrast)
 - No text or logos in the image
-- The image should take up the entire canvas, no badges, paper
-- The composition should be balanced but not too busy or cluttered
-- Create an image that would work well when integrated into a postcard layout (5.5"×3.5")`;
+- The image should have areas of visual interest but also some simpler areas that can accommodate text overlays
+- The subject should be clearly visible and well-composed within the frame
+- The image should work as a versatile background that can accommodate different text placements
+- Avoid overly busy patterns that would make text difficult to read
+- Ensure the image has proper depth and doesn't look flat or like clip art`;
 };
 
 /**
