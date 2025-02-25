@@ -158,7 +158,7 @@ TECHNICAL SPECIFICATIONS:
 - Color mode: CMYK equivalent
 - Bleed area: 3mm on all sides (mark this area in the design)
 - Safe zone: Keep all important text and elements 1/8" from edge
-- Format: A complete React component in TypeScript (using Tailwind CSS for styling)
+- Format: A complete React component in TypeScript using React.createElement (NOT JSX syntax)
 - Include placeholder for image (using a div with className for the image area)
 
 BRAND INFORMATION:
@@ -210,20 +210,47 @@ COPY GUIDELINES:
 
 ${designGuidance}
 
-IMPORTANT: Return a complete React function component in TypeScript using modern React practices that implements this design. Use Tailwind CSS for styling. The component should accept these props:
-- imageUrl: string | null
-- isSelected: boolean
-- onSelect: () => void
-- imagePosition: { x: number; y: number; scale: number }
-- onDragEnd?: (info: { offset: { x: number; y: number } }) => void
-- isLoading?: boolean
-- brandName?: string
-- tagline?: string
-- contactInfo?: { phone?: string; email?: string; website?: string; address?: string }
-- callToAction?: string
-- extraInfo?: string
+IMPORTANT REQUIREMENTS:
+1. Return a complete React function component in TypeScript that implements this design
+2. DO NOT use JSX syntax - use React.createElement() syntax instead
+3. Use Tailwind CSS for styling by adding className props to elements
+4. The component should accept these props:
+   - imageUrl: string | null
+   - isSelected: boolean
+   - onSelect: () => void
+   - imagePosition: { x: number; y: number; scale: number }
+   - onDragEnd?: (info: { offset: { x: number; y: number } }) => void
+   - isLoading?: boolean
+   - brandName?: string
+   - tagline?: string
+   - contactInfo?: { phone?: string; email?: string; website?: string; address?: string }
+   - callToAction?: string
+   - extraInfo?: string
 
-The component should implement an image area that supports the drag functionality when isSelected is true. Make sure the component uses motion.div from framer-motion for the image container and applies drag, dragMomentum, onDragEnd, and positioning styles correctly.
+EXAMPLE FORMAT OF THE COMPONENT (using React.createElement instead of JSX):
+\`\`\`typescript
+const PostcardDesign = (props) => {
+  // Extract props
+  const { imageUrl, isSelected, onSelect, imagePosition, onDragEnd } = props;
+  
+  // Your styling logic here
+  
+  return React.createElement(
+    'div',
+    { 
+      className: \`relative border-2 \${isSelected ? 'border-blue-500' : 'border-gray-300'}\`,
+      onClick: onSelect
+    },
+    [
+      // Child elements using React.createElement
+      React.createElement('h1', { className: 'text-xl font-bold' }, props.brandName),
+      // More elements...
+    ]
+  );
+};
+\`\`\`
+
+Make sure the component implements an image area that supports the drag functionality when isSelected is true. Use motion.div from framer-motion for the image container and apply drag, dragMomentum, onDragEnd, and positioning styles correctly.
 `;
 };
 

@@ -181,8 +181,24 @@ export async function POST(request: Request) {
       const completion = textContent.text;
       console.log("Claude API responded successfully with content length:", completion.length);
       
+      // Check if we need to process the response further
+      let processedCompletion = completion;
+      
+      // If the response contains JSX tags but no React.createElement, add a warning comment
+      if (
+        (processedCompletion.includes('<div') || processedCompletion.includes('<motion.div')) && 
+        !processedCompletion.includes('React.createElement')
+      ) {
+        console.log("Warning: Response contains JSX but no React.createElement - adding warning comment");
+        processedCompletion = `/* WARNING: This code contains JSX syntax which cannot be directly evaluated.
+Please modify to use React.createElement syntax instead of JSX tags. Example:
+Instead of: <div className="example">Text</div>
+Use: React.createElement('div', { className: 'example' }, 'Text')
+*/\n\n${processedCompletion}`;
+      }
+      
       return NextResponse.json({ 
-        completion, 
+        completion: processedCompletion, 
         success: true 
       });
     } catch (apiError) {
