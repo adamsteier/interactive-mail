@@ -106,8 +106,7 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
   onComplete
 }) => {
   // State for managing generated images
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [isImagesLoading, setIsImagesLoading] = useState(true);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   
@@ -136,94 +135,80 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
   // State for selected postcard (the one being edited)
   const [selectedPostcardIndex, setSelectedPostcardIndex] = useState<number | null>(null);
 
+  // State for tracking overall loading state (only for initial loading screen)
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+
   // Refs for drag constraints
   const postcardRefs = useRef<Array<HTMLDivElement | null>>([]);
 
-  // Generate images on component mount
+  // Display postcard designs immediately and start generating images in the background
   useEffect(() => {
-    const generateAIImages = async () => {
-      setIsLoading(true);
-      setError(null);
+    // Set a short timeout to show the initial loading screen
+    // This gives the user feedback that something is happening
+    setTimeout(() => {
+      setIsInitialLoading(false);
+    }, 1500); 
+    
+    // Start generating images in the background
+    generateAIImages();
+  }, []);
+
+  // Generate images asynchronously
+  const generateAIImages = async () => {
+    setIsImagesLoading(true);
+    setError(null);
+    
+    try {
+      console.log('Generating AI images for postcards...');
       
-      try {
-        console.log('Generating AI images for postcards...');
+      // Create a prompt based on the data
+      const prompt = generateImagePrompt(
+        brandData.brandName,
+        brandData.stylePreferences,
+        audienceData.industry,
+        audienceData.targetDescription,
+        visualData.imageStyle,
+        visualData.imagePrimarySubject,
+        visualData.layoutStyle,
+        { primary: brandData.primaryColor, accent: brandData.accentColor }
+      );
+      
+      console.log('Using prompt:', prompt);
+      
+      // Call the API to generate images without progress simulation
+      const response = await generateImages(prompt, 3);
+      
+      if (response.success) {
+        console.log('Successfully generated images:', response.images.length);
+        setGeneratedImages(response.images);
+      } else {
+        console.error('Failed to generate images:', response.error);
+        setError(response.error || 'Failed to generate images');
         
-        // Create a prompt based on the data
-        const prompt = generateImagePrompt(
-          brandData.brandName,
-          brandData.stylePreferences,
-          audienceData.industry,
-          audienceData.targetDescription,
-          visualData.imageStyle,
-          visualData.imagePrimarySubject,
-          visualData.layoutStyle,
-          { primary: brandData.primaryColor, accent: brandData.accentColor }
-        );
-        
-        console.log('Using prompt:', prompt);
-        
-        // Simulate progress updates (for smoother UX)
-        const progressInterval = setInterval(() => {
-          setLoadingProgress(prev => {
-            if (prev >= 90) {
-              clearInterval(progressInterval);
-              return 90;
-            }
-            return prev + 10;
-          });
-        }, 1000);
-        
-        // Call the API to generate images
-        const response = await generateImages(prompt, 3);
-        
-        clearInterval(progressInterval);
-        
-        if (response.success) {
-          console.log('Successfully generated images:', response.images.length);
-          setGeneratedImages(response.images);
-          setLoadingProgress(100);
-        } else {
-          console.error('Failed to generate images:', response.error);
-          setError(response.error || 'Failed to generate images');
-          
-          // For demo/testing, use placeholder images when API fails
-          setGeneratedImages([
-            'https://placehold.co/600x400/e83e8c/FFFFFF?text=Demo+Image+1',
-            'https://placehold.co/600x400/e83e8c/FFFFFF?text=Demo+Image+2',
-            'https://placehold.co/600x400/e83e8c/FFFFFF?text=Demo+Image+3',
-          ]);
-        }
-      } catch (err) {
-        console.error('Error in generateAIImages:', err);
-        setError('An unexpected error occurred while generating images. Using demo images instead.');
-        
-        // For demo/testing, use placeholder images on error
+        // For demo/testing, use placeholder images when API fails
         setGeneratedImages([
           'https://placehold.co/600x400/e83e8c/FFFFFF?text=Demo+Image+1',
           'https://placehold.co/600x400/e83e8c/FFFFFF?text=Demo+Image+2',
           'https://placehold.co/600x400/e83e8c/FFFFFF?text=Demo+Image+3',
         ]);
-      } finally {
-        // Ensure loading completes even if there's an error
-        setTimeout(() => {
-          setIsLoading(false);
-          setLoadingProgress(100);
-        }, 500); // Small delay for smooth transition
       }
-    };
-    
-    generateAIImages();
-  }, [
-    brandData.brandName, 
-    brandData.stylePreferences,
-    brandData.primaryColor,
-    brandData.accentColor,
-    audienceData.industry,
-    audienceData.targetDescription,
-    visualData.imageStyle,
-    visualData.imagePrimarySubject,
-    visualData.layoutStyle
-  ]);
+    } catch (err) {
+      console.error('Error in generateAIImages:', err);
+      setError('An unexpected error occurred while generating images. Using demo images instead.');
+      
+      // For demo/testing, use placeholder images on error
+      setGeneratedImages([
+        'https://placehold.co/600x400/e83e8c/FFFFFF?text=Demo+Image+1',
+        'https://placehold.co/600x400/e83e8c/FFFFFF?text=Demo+Image+2',
+        'https://placehold.co/600x400/e83e8c/FFFFFF?text=Demo+Image+3',
+      ]);
+    } finally {
+      // Ensure loading completes even if there's an error
+      setTimeout(() => {
+        setIsImagesLoading(false);
+      }, 500); // Small delay for smooth transition
+    }
+  };
   
   // Handle selecting an image for a postcard
   const handleSelectImage = (postcardIndex: number, imageIndex: number) => {
@@ -280,22 +265,22 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
     onComplete(postcardDesigns, generatedImages);
   };
 
-  // Render loading animation
-  if (isLoading) {
+  // Render initial loading animation
+  if (isInitialLoading) {
     return (
       <div className="max-w-4xl mx-auto p-6 bg-charcoal rounded-lg shadow-lg">
         <h2 className="text-2xl font-bold text-electric-teal mb-6">
-          Generating Your Postcard Designs
+          Preparing Your Postcard Designs
         </h2>
         
         <div className="space-y-8">
-          {/* Progress bar */}
+          {/* Progress bar - Using fixed value instead of loadingProgress */}
           <div className="w-full bg-charcoal-light rounded-full h-4 overflow-hidden">
             <motion.div 
               className="h-full bg-gradient-to-r from-pink-400 via-electric-teal to-pink-500"
               initial={{ width: '0%' }}
-              animate={{ width: `${loadingProgress}%` }}
-              transition={{ duration: 0.5 }}
+              animate={{ width: '50%' }}
+              transition={{ duration: 1 }}
             />
           </div>
           
@@ -319,7 +304,7 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
           </div>
           
           <p className="text-center text-electric-teal">
-            Crafting your unique postcard designs with AI...
+            Creating your postcard designs...
           </p>
         </div>
       </div>
@@ -358,102 +343,144 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
         <div className="space-y-8">
           <h3 className="text-xl font-semibold text-electric-teal">Postcard Designs</h3>
           
-          <div className="space-y-12">
-            {/* Replace the static designs with dynamic designs */}
-            {postcardDesigns.map((design, index) => (
-              <div key={design.id} ref={(el) => { postcardRefs.current[index] = el; return undefined; }}>
-                <p className="text-electric-teal mb-2 font-medium">
-                  Design {index + 1}: {getDesignStyle(design.layout).charAt(0).toUpperCase() + getDesignStyle(design.layout).slice(1)}
-                </p>
+          {/* Replace the static designs with dynamic designs */}
+          {postcardDesigns.map((design, index) => (
+            <div key={design.id} ref={(el) => { postcardRefs.current[index] = el; return undefined; }}>
+              <p className="text-electric-teal mb-2 font-medium">
+                Design {index + 1}: {getDesignStyle(design.layout).charAt(0).toUpperCase() + getDesignStyle(design.layout).slice(1)}
+              </p>
+              
+              <DynamicPostcardDesign
+                designStyle={getDesignStyle(design.layout) as 'professional' | 'modern' | 'elegant'}
+                brandData={brandData}
+                marketingData={marketingData}
+                audienceData={audienceData}
+                businessData={businessData}
+                visualData={visualData}
+                postcardProps={{
+                  imageUrl: design.selectedImageIndex !== null ? generatedImages[design.selectedImageIndex] : null,
+                  isSelected: selectedPostcardIndex === index,
+                  onSelect: () => setSelectedPostcardIndex(index),
+                  imagePosition: design.imagePosition,
+                  onDragEnd: (info) => handleDragEnd(index, info),
+                  isLoading: isImagesLoading, // Pass image loading state
+                  brandName: brandData.brandName,
+                  tagline: businessData.tagline,
+                  contactInfo: {
+                    phone: businessData.contactInfo.phone,
+                    email: businessData.contactInfo.email,
+                    website: businessData.contactInfo.website,
+                    address: businessData.contactInfo.address
+                  },
+                  callToAction: marketingData.callToAction,
+                  extraInfo: businessData.extraInfo
+                }}
+              />
+              
+              {/* Image controls */}
+              <div className={`mt-2 flex justify-center space-x-4 ${selectedPostcardIndex === index ? 'opacity-100' : 'opacity-0'}`}>
+                <button
+                  onClick={() => handleScaleChange(index, Math.max(0.5, (design.imagePosition.scale - 0.1)))}
+                  className="p-2 bg-charcoal-light text-electric-teal rounded-full"
+                  disabled={selectedPostcardIndex !== index}
+                  aria-label="Zoom out"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M5 10a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1z" clipRule="evenodd" />
+                  </svg>
+                </button>
                 
-                <DynamicPostcardDesign
-                  designStyle={getDesignStyle(design.layout) as 'professional' | 'modern' | 'elegant'}
-                  brandData={brandData}
-                  marketingData={marketingData}
-                  audienceData={audienceData}
-                  businessData={businessData}
-                  visualData={visualData}
-                  postcardProps={{
-                    imageUrl: design.selectedImageIndex !== null ? generatedImages[design.selectedImageIndex] : null,
-                    isSelected: selectedPostcardIndex === index,
-                    onSelect: () => setSelectedPostcardIndex(index),
-                    imagePosition: design.imagePosition,
-                    onDragEnd: (info) => handleDragEnd(index, info),
-                    isLoading: false,
-                    brandName: brandData.brandName,
-                    tagline: businessData.tagline,
-                    contactInfo: {
-                      phone: businessData.contactInfo.phone,
-                      email: businessData.contactInfo.email,
-                      website: businessData.contactInfo.website,
-                      address: businessData.contactInfo.address
-                    },
-                    callToAction: marketingData.callToAction,
-                    extraInfo: businessData.extraInfo
-                  }}
-                />
-                
-                {/* Image adjustment controls (only show when selected) */}
-                {selectedPostcardIndex === index && design.selectedImageIndex !== null && (
-                  <div className="mt-2 flex justify-end space-x-2">
-                    <button 
-                      onClick={() => handleScaleChange(index, Math.max(0.5, design.imagePosition.scale - 0.1))}
-                      className="w-8 h-8 rounded-full bg-charcoal-light text-electric-teal flex items-center justify-center"
-                    >
-                      -
-                    </button>
-                    <button
-                      onClick={() => handleScaleChange(index, Math.min(2, design.imagePosition.scale + 0.1))}
-                      className="w-8 h-8 rounded-full bg-charcoal-light text-electric-teal flex items-center justify-center"
-                    >
-                      +
-                    </button>
-                    <button
-                      onClick={() => setPostcardDesigns(prev => 
-                        prev.map((d, idx) => 
-                          idx === index
+                <button
+                  onClick={() => {
+                    if (selectedPostcardIndex === index) {
+                      setPostcardDesigns(prev => 
+                        prev.map((d, i) => 
+                          i === index
                             ? { ...d, imagePosition: { x: 0, y: 0, scale: 1 } }
                             : d
                         )
-                      )}
-                      className="w-8 h-8 rounded-full bg-charcoal-light text-electric-teal flex items-center justify-center text-xs"
-                    >
-                      R
-                    </button>
-                  </div>
-                )}
+                      );
+                    }
+                  }}
+                  className="p-2 bg-charcoal-light text-electric-teal rounded-full"
+                  disabled={selectedPostcardIndex !== index}
+                  aria-label="Reset position"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                
+                <button
+                  onClick={() => handleScaleChange(index, Math.min(2, (design.imagePosition.scale + 0.1)))}
+                  className="p-2 bg-charcoal-light text-electric-teal rounded-full"
+                  disabled={selectedPostcardIndex !== index}
+                  aria-label="Zoom in"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+                  </svg>
+                </button>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
-        
-        {/* Generated images section */}
+          
+        {/* AI-generated images section */}
         <div className="space-y-6">
           <h3 className="text-xl font-semibold text-electric-teal">AI-Generated Images</h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {generatedImages.map((imageUrl, imageIndex) => (
-              <div 
-                key={imageIndex}
-                className={`relative aspect-square overflow-hidden rounded-lg cursor-pointer
-                  transition-all duration-200 hover:ring-2 hover:ring-electric-teal
-                  ${selectedPostcardIndex !== null && 
-                    postcardDesigns[selectedPostcardIndex].selectedImageIndex === imageIndex ? 
-                    'ring-4 ring-electric-teal' : 'ring-0'}`}
-                onClick={() => {
-                  if (selectedPostcardIndex !== null) {
-                    handleSelectImage(selectedPostcardIndex, imageIndex);
-                  }
-                }}
-              >
-                <img 
-                  src={imageUrl} 
-                  alt={`Generated image ${imageIndex + 1}`}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            ))}
-          </div>
+          {isImagesLoading ? (
+            /* Image loading indicators */
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {[0, 1, 2].map((_, imageIndex) => (
+                <div 
+                  key={imageIndex}
+                  className="relative aspect-square overflow-hidden rounded-lg bg-charcoal-light"
+                >
+                  <motion.div
+                    className="absolute inset-0 bg-gradient-to-r from-electric-teal/20 to-electric-teal/40"
+                    animate={{
+                      x: ['0%', '100%', '0%'],
+                    }}
+                    transition={{
+                      duration: 2,
+                      repeat: Infinity,
+                      ease: 'linear',
+                    }}
+                  />
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-electric-teal/70">Generating image...</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            /* Actual images */
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {generatedImages.map((imageUrl, imageIndex) => (
+                <div 
+                  key={imageIndex}
+                  className={`relative aspect-square overflow-hidden rounded-lg cursor-pointer
+                    transition-all duration-200 hover:ring-2 hover:ring-electric-teal
+                    ${selectedPostcardIndex !== null && 
+                      postcardDesigns[selectedPostcardIndex].selectedImageIndex === imageIndex ? 
+                      'ring-4 ring-electric-teal' : 'ring-0'}`}
+                  onClick={() => {
+                    if (selectedPostcardIndex !== null) {
+                      handleSelectImage(selectedPostcardIndex, imageIndex);
+                    }
+                  }}
+                >
+                  <img 
+                    src={imageUrl} 
+                    alt={`Generated image ${imageIndex + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
           
           <div className="mt-6 p-4 bg-charcoal-light rounded-lg">
             <h4 className="text-electric-teal font-semibold mb-2">Instructions</h4>
@@ -484,8 +511,9 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
           whileTap={{ scale: 0.98 }}
           onClick={handleComplete}
           className="px-8 py-3 bg-electric-teal text-charcoal font-semibold rounded-lg"
+          disabled={isImagesLoading} // Disable until images are loaded
         >
-          Complete Design
+          {isImagesLoading ? 'Generating Images...' : 'Complete Design'}
         </motion.button>
       </div>
     </div>
