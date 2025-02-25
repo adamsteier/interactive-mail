@@ -30,13 +30,25 @@ export const generateImagePrompt = (
   const brandAesthetic = stylePreferences.length > 0 ? 
     stylePreferences.join(', ') : 'professional, modern';
   
-  return `Create a high-quality ${styleString} image for a ${layoutStyle} postcard design for ${brandName}, a delivery service for ${industry || 'businesses'}. 
-The image should feature ${imagePrimarySubject || 'a delivery vehicle or package'} and appeal to ${targetDescription || 'business professionals'}.
-Use a color palette that complements ${colors.primary} and ${colors.accent}.
-The style should be ${brandAesthetic}.
-The image should be professional, clean, and visually striking.
-Important: Create an image with plenty of empty space or a gradient background on one side to allow for text overlay in the postcard design.
-Do not include any text or logos in the image.`;
+  return `Create a high-quality full frame ${styleString} image to be used as a COMPONENT within a postcard design for ${brandName}${industry ? ' in the ' + industry + ' industry' : ''}. 
+
+This is creating ONLY THE IMAGE ELEMENT of a postcard based on limited information:
+- The image must have a clear, single focal point featuring ${imagePrimarySubject || 'a smiling person'}.  
+- The image should appeal to ${targetDescription || 'business professionals'}
+- Use a color palette that complements ${colors.primary} and ${colors.accent}
+- The style should be ${brandAesthetic}
+- Layout style: ${layoutStyle}
+
+Important visual requirements:
+- The image should be filling the entire space, no borders, no badges, no paper, no framing, no background elements.
+- This is NOT a complete postcard design - create ONLY the image element
+- Create a visually clean image that isn't overly complex
+- The focal point should be prominent and immediately recognizable
+- The image should look professional, polished, and suitable as part of a direct mail postcard
+- No text or logos in the image
+- The image should take up the entire canvas, no badges, paper
+- The composition should be balanced but not too busy or cluttered
+- Create an image that would work well when integrated into a postcard layout (5.5"×3.5")`;
 };
 
 /**
