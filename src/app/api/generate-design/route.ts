@@ -2,9 +2,12 @@ import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { 
   GeneratePostcardDesignParams,
-  generateDesignPrompt
+  generateDesignPrompt,
+  BrandData
 } from '../../../services/claude';
 import { getFallbackDesignCode } from '../../../services/fallback';
+import { db } from '../../../lib/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 // Remove the inline fallback function since we now have it in a separate file
 // Temporary fallback code - will be replaced with actual Claude API responses once working
@@ -13,6 +16,32 @@ import { getFallbackDesignCode } from '../../../services/fallback';
 //   ... [removed old fallback code] ...
 // `;
 // };
+
+/**
+ * Saves a postcard template to Firestore
+ */
+const savePostcardTemplate = async (
+  designStyle: string, 
+  code: string, 
+  usedFallback: boolean = false,
+  brandData: BrandData = {} as BrandData
+) => {
+  try {
+    await addDoc(collection(db, 'postcard_template'), {
+      designStyle,
+      code,
+      usedFallback,
+      brandName: brandData.brandName || 'Unnamed Brand',
+      createdAt: serverTimestamp(),
+      primaryColor: brandData.primaryColor || '',
+      accentColor: brandData.accentColor || '',
+    });
+    console.log('Postcard template saved to Firestore');
+  } catch (error) {
+    console.error('Error saving postcard template to Firestore:', error);
+    // Don't throw - continue even if saving fails
+  }
+};
 
 export async function POST(request: Request) {
   try {
@@ -26,6 +55,10 @@ export async function POST(request: Request) {
     if (!process.env.CLAUDE_API_KEY) {
       console.log("Using fallback design - Claude API key not found");
       const completion = getFallbackDesignCode(params.designStyle, params.brandData.brandName);
+      
+      // Save fallback template to Firestore
+      await savePostcardTemplate(params.designStyle, completion, true, params.brandData);
+      
       return NextResponse.json({ 
         completion, 
         success: true 
@@ -87,6 +120,9 @@ export async function POST(request: Request) {
       console.log(`- Contains JSX tags (<div>): ${completion.includes('<div')}`);
       console.log(`- Contains React.createElement: ${completion.includes('React.createElement')}`);
       
+      // Save successful template to Firestore
+      await savePostcardTemplate(params.designStyle, completion, false, params.brandData);
+      
       // Since we now use a template approach, we don't need to check for JSX vs React.createElement
       // The template is already structured with React.createElement, so just return the completion
       return NextResponse.json({ 
@@ -111,6 +147,9 @@ export async function POST(request: Request) {
       // Return fallback if API call fails
       console.log("Falling back to static design after API error");
       const completion = getFallbackDesignCode(params.designStyle, params.brandData.brandName);
+      
+      // Save fallback template to Firestore when API call fails
+      await savePostcardTemplate(params.designStyle, completion, true, params.brandData);
       
       return NextResponse.json({ 
         completion, 
