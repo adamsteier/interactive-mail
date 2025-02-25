@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import PostcardGeneration from './PostcardGeneration';
+import PostcardPreview from './PostcardPreview';
 
 // Define local types to avoid import issues
 type BrandStylePreference = 'playful' | 'professional' | 'modern' | 'traditional';
@@ -207,6 +208,7 @@ const ReviewGenerate = ({
   const [activeModal, setActiveModal] = useState<EditModalType>(null);
   const [generationStep, setGenerationStep] = useState<GenerationStep>('review');
   const [selectedPostcards, setSelectedPostcards] = useState<PostcardDesign[]>([]);
+  const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   
   // Copies of data for editing in modals
   const [editBrandData, setEditBrandData] = useState<BrandData>(brandData);
@@ -246,8 +248,9 @@ const ReviewGenerate = ({
     setGenerationStep('generating');
   };
   
-  const handleGenerationComplete = (postcards: PostcardDesign[]) => {
+  const handleGenerationComplete = (postcards: PostcardDesign[], images: string[]) => {
     setSelectedPostcards(postcards);
+    setGeneratedImages(images);
     setGenerationStep('complete');
     onGenerate();
   };
@@ -286,49 +289,24 @@ const ReviewGenerate = ({
     );
   }
   
-  // If we're in the complete state but still on this page, show a success message with thumbnails
+  // If we're in the complete state but still on this page, show the preview
   if (generationStep === 'complete') {
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="max-w-4xl mx-auto p-6 bg-charcoal rounded-lg shadow-lg"
-      >
-        <h2 className="text-2xl font-bold text-electric-teal mb-4 text-center">
-          Postcard Designs Complete!
-        </h2>
-        <p className="text-electric-teal/70 mb-8 text-center">
-          Your postcard designs have been generated successfully.
-        </p>
-        
-        {/* Display thumbnails of the selected postcards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          {selectedPostcards.map((postcard, index) => (
-            <div key={postcard.id} className="border border-electric-teal/30 rounded-lg p-2">
-              <div className="aspect-[7/5] bg-charcoal-light rounded-lg flex items-center justify-center">
-                <p className="text-electric-teal font-medium text-center px-4">
-                  Postcard Design {index + 1}
-                  <span className="block text-sm mt-1 text-electric-teal/70">
-                    {postcard.layout === 'layout1' ? 'Clean Layout' : 
-                     postcard.layout === 'layout2' ? 'Bold Layout' : 'Elegant Layout'}
-                  </span>
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-        
-        <div className="flex justify-center">
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={onBack}
-            className="px-6 py-3 bg-electric-teal text-charcoal font-semibold rounded-lg"
-          >
-            Return to Dashboard
-          </motion.button>
-        </div>
-      </motion.div>
+      <PostcardPreview
+        designs={selectedPostcards}
+        images={generatedImages}
+        brandName={brandData.brandName}
+        tagline={businessData.tagline}
+        contactInfo={businessData.contactInfo}
+        callToAction={marketingData.callToAction}
+        extraInfo={businessData.extraInfo || ''}
+        onBack={onBack}
+        brandData={brandData}
+        marketingData={marketingData}
+        audienceData={audienceData}
+        businessData={businessData}
+        visualData={visualData}
+      />
     );
   }
 

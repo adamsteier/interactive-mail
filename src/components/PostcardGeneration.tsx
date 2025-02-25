@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { generateImages, generateImagePrompt } from '../services/openai';
+import DynamicPostcardDesign from './DynamicPostcardDesign';
 
 // Type definitions
 type BrandStylePreference = 'playful' | 'professional' | 'modern' | 'traditional';
@@ -79,7 +80,7 @@ interface PostcardGenerationProps {
   businessData: BusinessData;
   visualData: VisualData;
   onBack: () => void;
-  onComplete: (selectedPostcards: PostcardDesign[]) => void;
+  onComplete: (selectedPostcards: PostcardDesign[], images: string[]) => void;
 }
 
 interface ImagePosition {
@@ -110,23 +111,23 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   
-  // State for managing postcard designs
+  // State for managing postcard designs - update the layout mapping to match Claude API design styles
   const [postcardDesigns, setPostcardDesigns] = useState<PostcardDesign[]>([
     { 
       id: 'postcard1', 
-      layout: 'layout1', 
+      layout: 'layout1', // maps to 'professional' in Claude API
       selectedImageIndex: null, 
       imagePosition: { x: 0, y: 0, scale: 1 } 
     },
     { 
       id: 'postcard2', 
-      layout: 'layout2', 
+      layout: 'layout2', // maps to 'modern' in Claude API
       selectedImageIndex: null, 
       imagePosition: { x: 0, y: 0, scale: 1 } 
     },
     { 
       id: 'postcard3', 
-      layout: 'layout3', 
+      layout: 'layout3', // maps to 'elegant' in Claude API
       selectedImageIndex: null, 
       imagePosition: { x: 0, y: 0, scale: 1 } 
     },
@@ -276,7 +277,7 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
       return;
     }
     
-    onComplete(postcardDesigns);
+    onComplete(postcardDesigns, generatedImages);
   };
 
   // Render loading animation
@@ -325,6 +326,16 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
     );
   }
 
+  // Helper function to map layout to design style
+  const getDesignStyle = (layout: string) => {
+    switch (layout) {
+      case 'layout1': return 'professional';
+      case 'layout2': return 'modern';
+      case 'layout3': return 'elegant';
+      default: return 'professional';
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto p-6 bg-charcoal rounded-lg shadow-lg">
       <h2 className="text-2xl font-bold text-electric-teal mb-2">
@@ -344,120 +355,68 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Postcard designs section */}
-        <div className="space-y-6">
+        <div className="space-y-8">
           <h3 className="text-xl font-semibold text-electric-teal">Postcard Designs</h3>
           
-          <div className="space-y-8">
-            {postcardDesigns.map((design, designIndex) => (
-              <div 
-                key={design.id}
-                ref={(el) => {
-                  postcardRefs.current[designIndex] = el;
-                  return undefined;
-                }}
-                className={`relative border-2 ${selectedPostcardIndex === designIndex ? 'border-electric-teal' : 'border-electric-teal/30'} 
-                  rounded-lg aspect-[7/5] overflow-hidden cursor-pointer`}
-                onClick={() => setSelectedPostcardIndex(designIndex)}
-              >
-                {/* Postcard content - different layout based on design.layout */}
-                <div className={`absolute inset-0 ${design.layout === 'layout1' ? 'bg-charcoal-light' : 
-                                   design.layout === 'layout2' ? 'bg-gradient-to-br from-charcoal-light to-[#1a3039]' : 
-                                   'bg-gradient-to-r from-charcoal-light to-[#2c2f3b]'}`}>
-                  
-                  {/* Selected image with positioning */}
-                  {design.selectedImageIndex !== null && (
-                    <motion.div
-                      className="absolute w-full h-full"
-                      drag={selectedPostcardIndex === designIndex}
-                      dragConstraints={postcardRefs.current[designIndex] ? { 
-                        top: 0, 
-                        left: 0, 
-                        right: 0, 
-                        bottom: 0 
-                      } : false}
-                      dragMomentum={false}
-                      onDragEnd={(_, info) => handleDragEnd(designIndex, info)}
-                      style={{
-                        x: design.imagePosition.x,
-                        y: design.imagePosition.y,
-                        scale: design.imagePosition.scale,
-                      }}
-                    >
-                      <img 
-                        src={generatedImages[design.selectedImageIndex]} 
-                        alt={`Selected image ${design.selectedImageIndex + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-                    </motion.div>
-                  )}
-                  
-                  {/* Overlay content based on layout */}
-                  <div className={`absolute p-4 text-white ${
-                    design.layout === 'layout1' ? 'bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent' :
-                    design.layout === 'layout2' ? 'top-0 right-0 max-w-[40%] bg-black/40 rounded-bl-lg' :
-                    'bottom-0 left-0 max-w-[60%] bg-black/60 rounded-tr-lg'
-                  }`}>
-                    <h4 className="font-bold">{brandData.brandName}</h4>
-                    <p className="text-sm">{businessData.tagline || 'Your business tagline'}</p>
-                    {design.layout !== 'layout2' && (
-                      <p className="text-xs mt-1">
-                        {businessData.contactInfo.phone && `${businessData.contactInfo.phone} • `}
-                        {businessData.contactInfo.website}
-                      </p>
-                    )}
-                  </div>
-                  
-                  {/* CTA banner based on layout */}
-                  {design.layout === 'layout3' && (
-                    <div className="absolute top-4 right-4 bg-electric-teal text-charcoal px-3 py-1 rounded-full text-sm font-bold">
-                      {marketingData.callToAction || 'Call to Action'}
-                    </div>
-                  )}
-                  
-                  {/* No image message */}
-                  {design.selectedImageIndex === null && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="text-electric-teal/50 text-center p-4">
-                        <p className="text-lg font-semibold">Select an image</p>
-                        <p className="text-sm">Click on one of the images on the right</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
+          <div className="space-y-12">
+            {/* Replace the static designs with dynamic designs */}
+            {postcardDesigns.map((design, index) => (
+              <div key={design.id} ref={(el) => { postcardRefs.current[index] = el; return undefined; }}>
+                <p className="text-electric-teal mb-2 font-medium">
+                  Design {index + 1}: {getDesignStyle(design.layout).charAt(0).toUpperCase() + getDesignStyle(design.layout).slice(1)}
+                </p>
+                
+                <DynamicPostcardDesign
+                  designStyle={getDesignStyle(design.layout) as 'professional' | 'modern' | 'elegant'}
+                  brandData={brandData}
+                  marketingData={marketingData}
+                  audienceData={audienceData}
+                  businessData={businessData}
+                  visualData={visualData}
+                  postcardProps={{
+                    imageUrl: design.selectedImageIndex !== null ? generatedImages[design.selectedImageIndex] : null,
+                    isSelected: selectedPostcardIndex === index,
+                    onSelect: () => setSelectedPostcardIndex(index),
+                    imagePosition: design.imagePosition,
+                    onDragEnd: (info) => handleDragEnd(index, info),
+                    isLoading: false,
+                    brandName: brandData.brandName,
+                    tagline: businessData.tagline,
+                    contactInfo: {
+                      phone: businessData.contactInfo.phone,
+                      email: businessData.contactInfo.email,
+                      website: businessData.contactInfo.website,
+                      address: businessData.contactInfo.address
+                    },
+                    callToAction: marketingData.callToAction,
+                    extraInfo: businessData.extraInfo
+                  }}
+                />
                 
                 {/* Image adjustment controls (only show when selected) */}
-                {selectedPostcardIndex === designIndex && design.selectedImageIndex !== null && (
-                  <div className="absolute bottom-0 right-0 bg-charcoal p-2 rounded-tl-lg flex space-x-2">
+                {selectedPostcardIndex === index && design.selectedImageIndex !== null && (
+                  <div className="mt-2 flex justify-end space-x-2">
                     <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleScaleChange(designIndex, Math.max(0.5, design.imagePosition.scale - 0.1));
-                      }}
-                      className="w-7 h-7 rounded-full bg-charcoal-light text-electric-teal flex items-center justify-center"
+                      onClick={() => handleScaleChange(index, Math.max(0.5, design.imagePosition.scale - 0.1))}
+                      className="w-8 h-8 rounded-full bg-charcoal-light text-electric-teal flex items-center justify-center"
                     >
                       -
                     </button>
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleScaleChange(designIndex, Math.min(2, design.imagePosition.scale + 0.1));
-                      }}
-                      className="w-7 h-7 rounded-full bg-charcoal-light text-electric-teal flex items-center justify-center"
+                      onClick={() => handleScaleChange(index, Math.min(2, design.imagePosition.scale + 0.1))}
+                      className="w-8 h-8 rounded-full bg-charcoal-light text-electric-teal flex items-center justify-center"
                     >
                       +
                     </button>
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setPostcardDesigns(prev => 
-                          prev.map((d, idx) => 
-                            idx === designIndex
-                              ? { ...d, imagePosition: { x: 0, y: 0, scale: 1 } }
-                              : d
-                          )
-                        );
-                      }}
-                      className="w-7 h-7 rounded-full bg-charcoal-light text-electric-teal flex items-center justify-center text-xs"
+                      onClick={() => setPostcardDesigns(prev => 
+                        prev.map((d, idx) => 
+                          idx === index
+                            ? { ...d, imagePosition: { x: 0, y: 0, scale: 1 } }
+                            : d
+                        )
+                      )}
+                      className="w-8 h-8 rounded-full bg-charcoal-light text-electric-teal flex items-center justify-center text-xs"
                     >
                       R
                     </button>
@@ -480,7 +439,7 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
                   transition-all duration-200 hover:ring-2 hover:ring-electric-teal
                   ${selectedPostcardIndex !== null && 
                     postcardDesigns[selectedPostcardIndex].selectedImageIndex === imageIndex ? 
-                    'ring-2 ring-electric-teal' : 'ring-0'}`}
+                    'ring-4 ring-electric-teal' : 'ring-0'}`}
                 onClick={() => {
                   if (selectedPostcardIndex !== null) {
                     handleSelectImage(selectedPostcardIndex, imageIndex);
@@ -499,7 +458,7 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
           <div className="mt-6 p-4 bg-charcoal-light rounded-lg">
             <h4 className="text-electric-teal font-semibold mb-2">Instructions</h4>
             <ol className="text-electric-teal/70 list-decimal list-inside space-y-1 text-sm">
-              <li>Click on a postcard to select it</li>
+              <li>Click on a postcard design to select it</li>
               <li>Then click on an image to apply it to the selected postcard</li>
               <li>Adjust the position by dragging the image (when selected)</li>
               <li>Use the + and - buttons to resize the image</li>
