@@ -89,7 +89,7 @@ export interface GeneratePostcardDesignParams {
  * Generates a prompt for Claude API based on user data and design style
  */
 export const generateDesignPrompt = (params: GeneratePostcardDesignParams): string => {
-  const { brandData, marketingData, audienceData, businessData, visualData, designStyle } = params;
+  const { brandData, marketingData, audienceData, businessData, designStyle } = params;
   
   // Map designStyle to descriptive terms
   const styleTitle = 
@@ -101,43 +101,43 @@ export const generateDesignPrompt = (params: GeneratePostcardDesignParams): stri
   
   if (designStyle === 'professional') {
     designGuidance = `
-DESIGN GUIDANCE:
-1. Create a clean, structured layout with professional typography
-2. Use negative space effectively with a clear grid structure
-3. Include a dedicated image area (approximately 40% of design)
-4. Use a limited icon set (4-5 max) from a standard library like Font Awesome
-5. Use specific Google Fonts that convey professionalism (Roboto, Open Sans, Lato)
-6. Position logo prominently in top section with adequate spacing
-7. Use subtle graphical elements that won't impact loading performance
-8. Design hierarchy should emphasize security and reliability messaging
-9. Include subtle legal/document imagery or motifs
-10. Create clear visual separation between information sections`;
+DESIGN INSPIRATION:
+- Clean, structured layouts with clear visual hierarchy
+- Professional typography combinations (serif headers with sans-serif body text)
+- Strategic use of negative space
+- Subtle shadows or embossing for depth
+- Structured grid-based layouts
+- Monochromatic color schemes with accent colors
+- Subtle textures that convey reliability (paper, linen, etc.)
+- Professional iconography (simple, outlined, consistent style)
+- Clear visual separation between content sections
+- Conservative animations or transitions`;
   } else if (designStyle === 'modern') {
     designGuidance = `
-DESIGN GUIDANCE:
-1. Create an impactful, contemporary design with bold typography
-2. Use dynamic layouts with asymmetric elements and bold color blocks
-3. Use specific Google Fonts with good weight contrast (Montserrat, Raleway)
-4. Designate a striking image area (approximately 50% of design)
-5. Use 3-4 strategic icons to reinforce key benefits (from standard library)
-6. Position logo in a creative but prominent location
-7. Use typography as a design element (oversized text, creative placement)
-8. Create visual interest through layering and color contrast
-9. Design with mobile responsiveness in mind
-10. Incorporate geometric shapes using brand colors as section dividers`;
+DESIGN INSPIRATION:
+- Bold asymmetric layouts with dynamic spacing
+- High contrast color combinations
+- Oversized typography as design elements
+- Gradient overlays and duotone effects
+- Geometric shapes and patterns
+- Creative image cropping and positioning
+- Floating elements with subtle shadows
+- Unexpected element positioning
+- Minimal but impactful use of color
+- Interactive hover states and animations`;
   } else {
     designGuidance = `
-DESIGN GUIDANCE:
-1. Create a refined, upscale design with premium typography
-2. Use specific Google Fonts that convey elegance (Playfair Display, Cormorant)
-3. Use subtle gradients or texture overlays (describable, not performance-heavy)
-4. Incorporate classic design elements with a modern twist
-5. Designate an elegant image area (approximately 35-40% of design)
-6. Use sophisticated typography with careful attention to spacing
-7. Include 3-4 minimal, elegant icons to highlight key services
-8. Position logo in a sophisticated, branded area with ample space
-9. Create visual interest through subtle variations in color and tone
-10. Balance white space with content for an uncluttered, high-end feel`;
+DESIGN INSPIRATION:
+- Refined layouts with generous whitespace
+- Elegant typography pairs (display + serif)
+- Subtle gold/metallic accents or gradients
+- Delicate line details or filigree elements
+- Sophisticated image treatments (vignettes, subtle filters)
+- Layered design elements for depth
+- Understated animations and transitions
+- Balanced asymmetry in composition
+- Premium color palettes (deep blues, rich burgundies, forest greens)
+- Textural elements suggesting luxury materials`;
   }
   
   // Objectives string
@@ -148,54 +148,15 @@ DESIGN GUIDANCE:
     return `- ${obj}`;
   }).join('\n');
   
-  // Construct the full prompt
+  // Construct the full prompt with creative freedom
   return `
-‼️ CRITICAL REQUIREMENT: YOU MUST USE React.createElement() INSTEAD OF JSX SYNTAX ‼️
+You are creating a React component for a POSTCARD design with a ${styleTitle} style for ${brandData.brandName}.
 
-You are creating a React component for a POSTCARD design in TypeScript. This component CANNOT use JSX syntax because it will be dynamically evaluated using the Function constructor, which cannot process JSX.
+🔴 CRITICAL REQUIREMENT: Your component MUST use React.createElement() syntax exclusively - do NOT use JSX tags. 
+The component will be evaluated using Function constructor which cannot process JSX.
 
-WHAT NOT TO DO (this will cause errors):
-\`\`\`
-// ❌ DO NOT USE THIS JSX SYNTAX - IT WILL CAUSE ERRORS
-const PostcardDesign = (props) => {
-  return (
-    <div className="container">
-      <h1>{props.brandName}</h1>
-      <div className="image-container">
-        {props.imageUrl && <img src={props.imageUrl} />}
-      </div>
-    </div>
-  );
-};
-\`\`\`
-
-WHAT TO DO INSTEAD (use React.createElement):
-\`\`\`
-// ✅ USE THIS React.createElement SYNTAX INSTEAD
-const PostcardDesign = (props) => {
-  return React.createElement(
-    'div',
-    { className: 'container' },
-    [
-      React.createElement('h1', {}, props.brandName),
-      React.createElement('div', { className: 'image-container' }, 
-        props.imageUrl ? React.createElement('img', { src: props.imageUrl }) : null
-      )
-    ]
-  );
-};
-\`\`\`
-
-Using thinking mode, design a ${styleTitle} POSTCARD for ${brandData.brandName}.
-
-TECHNICAL SPECIFICATIONS:
-- Size: 1871×1271 pixels (5.5"×3.5" at 300 DPI)
-- Resolution: 300 DPI
-- Color mode: CMYK equivalent
-- Bleed area: 3mm on all sides (mark this area in the design)
-- Safe zone: Keep all important text and elements 1/8" from edge
-- Format: A complete React component using ONLY React.createElement (NO JSX SYNTAX WHATSOEVER)
-- Include placeholder for image (using a div with className for the image area)
+I want you to express your creativity and design the best possible postcard that fits the brand and data provided.
+Don't feel constrained by a rigid template - create something unique that best showcases the information.
 
 BRAND INFORMATION:
 - Brand name: ${brandData.brandName}
@@ -218,77 +179,79 @@ TARGET AUDIENCE:
 - Professional interests: ${audienceData.interests.join(', ')}
 - Pain points: Missing deadlines, security, quality
 
-BUSINESS DETAILS:
-- Contact information:
-  * Phone: ${businessData.contactInfo.phone}
-  * Email: ${businessData.contactInfo.email}
-  * Website: ${businessData.contactInfo.website}
-  * Address: ${businessData.contactInfo.address}
-  * Social: ${businessData.extraInfo || '@social'}
-- Include QR code: ${businessData.contactInfo.includeQR ? 'Yes' : 'No'} (linking to website)
-- Additional information: "${businessData.extraInfo || ''}"
-
-VISUAL ELEMENTS:
-- Image style: ${visualData.imageStyle.join(', ')}
-- Primary subject: ${visualData.imagePrimarySubject}
-- Layout style: ${visualData.layoutStyle}
-- Color notes: ${visualData.customColorNotes || 'Follow brand colors'}
-- Use web-safe fonts or Google Fonts only
-- Use professional iconography (simulated with tailwind classes or SVGs)
-
-COPY GUIDELINES:
-- Focus on addressing the customer's primary need: ${marketingData.marketingObjectives || 'reliable service'}
-- Emphasize quality and reliability 
-- Use professional language that resonates with ${audienceData.industry} professionals
-- Include 2-3 short bullet points highlighting key benefits
-- Create a secondary tagline specific to ${audienceData.industry} services
-- Write copy that creates emotional relief (reducing stress)
-
 ${designGuidance}
 
-IMPORTANT REQUIREMENTS:
-1. Return a complete React function component in TypeScript that implements this design
-2. DO NOT use JSX syntax - ONLY use React.createElement() syntax 
-3. Use Tailwind CSS for styling by adding className props to elements
-4. The component should accept these props:
+TECHNICAL REQUIREMENTS:
+1. Component must be named "PostcardDesign"
+2. Must accept the following props in a destructured object:
    - imageUrl: string | null
    - isSelected: boolean
    - onSelect: () => void
    - imagePosition: { x: number; y: number; scale: number }
    - onDragEnd?: (info: { offset: { x: number; y: number } }) => void
-   - isLoading?: boolean
-   - brandName?: string
-   - tagline?: string
-   - contactInfo?: { phone?: string; email?: string; website?: string; address?: string }
-   - callToAction?: string
-   - extraInfo?: string
+   - brandName: string = "${brandData.brandName}"
+   - tagline: string = "${businessData.tagline || 'Your brand tagline'}"
+   - contactInfo: { phone?: string; email?: string; website?: string; address?: string }
+   - callToAction: string = "${marketingData.callToAction || 'Contact us today'}"
+   - extraInfo: string = ""
+3. The component must include an image area that:
+   - Shows the image when imageUrl is provided
+   - Shows a placeholder when imageUrl is null
+   - Positions and scales the image according to imagePosition
+   - Supports dragging when isSelected is true (using the transform style property)
+4. The component should include a border that changes color when selected
+5. ‼️ Must use React.createElement() syntax - NO JSX ‼️
 
-REQUIRED FORMAT OF THE COMPONENT (using React.createElement instead of JSX):
-\`\`\`typescript
+CREATIVE FREEDOM:
+- Feel free to use different layouts (1, 2, or 3 columns)
+- Try different typography combinations appropriate for the style
+- Incorporate creative visual elements like dividers, shapes, or patterns
+- Consider different content organization based on the specific data provided
+- Utilize shadows, gradients, or textures where appropriate
+- Think about interesting ways to present the benefits or features
+- Create custom styling for the call-to-action to make it stand out
+- Experiment with different ways to display contact information
+
+Here's an example structure using React.createElement to inspire you:
+
+\`\`\`
 const PostcardDesign = (props) => {
-  // Extract props
-  const { imageUrl, isSelected, onSelect, imagePosition, onDragEnd } = props;
+  // Extract props with defaults
+  const { 
+    imageUrl, 
+    isSelected, 
+    onSelect, 
+    imagePosition, 
+    onDragEnd,
+    brandName = "${brandData.brandName}",
+    tagline = "${businessData.tagline || 'Your brand tagline'}",
+    contactInfo = {},
+    callToAction = "${marketingData.callToAction || 'Contact us today'}",
+    extraInfo = ""
+  } = props;
   
-  // Your styling logic here
+  // Define your custom colors, styles, and other design elements here
+  // Feel free to create any style objects you need for your design
   
+  // Create your component with React.createElement
   return React.createElement(
     'div',
-    { 
-      className: \`relative border-2 \${isSelected ? 'border-blue-500' : 'border-gray-300'}\`,
+    {
+      className: \`border-2 \${isSelected ? 'border-electric-teal' : 'border-electric-teal/30'} rounded-lg aspect-[7/5]\`,
+      style: { /* Your container styles */ },
       onClick: onSelect
     },
     [
-      // Child elements using React.createElement
-      React.createElement('h1', { className: 'text-xl font-bold' }, props.brandName),
-      // More elements...
+      // Your creative design structure goes here, using React.createElement for each element
+      // Feel free to create whatever nested structure best fits the content
     ]
   );
 };
 \`\`\`
 
-‼️ REMINDER: DO NOT USE JSX SYNTAX (<div>, </div>, etc.) - ONLY USE React.createElement ‼️
+Remember to create a design that would realistically work well as a physical postcard. Focus on making the key elements (brand name, call to action, image) stand out while ensuring all text is legible.
 
-Make sure the component implements an image area that supports the drag functionality when isSelected is true. Use motion.div from framer-motion for the image container and apply drag, dragMomentum, onDragEnd, and positioning styles correctly.
+DO NOT explain your design choices or include any comments outside the code block. Respond ONLY with the complete React component code using React.createElement syntax.
 `;
 };
 
