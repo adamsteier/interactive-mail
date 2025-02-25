@@ -162,10 +162,10 @@ export async function POST(request: Request) {
       // Call Claude API with the SDK
       const response = await anthropic.beta.messages.create({
         model: "claude-3-7-sonnet-latest",
-        max_tokens: 4000,
+        max_tokens: 40000,
         thinking: {
           type: "enabled",
-          budget_tokens: 4000
+          budget_tokens: 36000
         },
         messages: [
           { role: "user", content: prompt }
@@ -189,12 +189,154 @@ export async function POST(request: Request) {
         (processedCompletion.includes('<div') || processedCompletion.includes('<motion.div')) && 
         !processedCompletion.includes('React.createElement')
       ) {
-        console.log("Warning: Response contains JSX but no React.createElement - adding warning comment");
-        processedCompletion = `/* WARNING: This code contains JSX syntax which cannot be directly evaluated.
-Please modify to use React.createElement syntax instead of JSX tags. Example:
-Instead of: <div className="example">Text</div>
-Use: React.createElement('div', { className: 'example' }, 'Text')
-*/\n\n${processedCompletion}`;
+        console.log("Warning: Response contains JSX but no React.createElement - attempting to convert");
+        
+        // Add a warning comment first
+        processedCompletion = `/* WARNING: Original response contained JSX syntax which cannot be evaluated.
+The Function constructor cannot process JSX syntax, only plain JavaScript.
+Below is a working fallback component using React.createElement.
+*/\n\n`;
+        
+        // Instead of attempting complex conversion, provide a complete guaranteed-to-work fallback
+        // that uses the design style parameter to customize the look
+        processedCompletion += `
+// Fallback component with React.createElement only
+const PostcardDesign = (props) => {
+  // Extract props with defaults
+  const { 
+    imageUrl, 
+    isSelected, 
+    onSelect, 
+    imagePosition, 
+    onDragEnd,
+    brandName = "${params.brandData.brandName}",
+    tagline = "${params.businessData.tagline || 'Your brand tagline'}",
+    contactInfo = {},
+    callToAction = "${params.marketingData.callToAction || 'Contact us today'}",
+    extraInfo = ""
+  } = props;
+  
+  // Design style is ${params.designStyle}
+  const colors = {
+    bg: "${params.designStyle === 'professional' ? '#f8f9fa' : params.designStyle === 'modern' ? '#2d3748' : '#f7f7f7'}",
+    primary: "${params.designStyle === 'professional' ? '#1a365d' : params.designStyle === 'modern' ? '#38b2ac' : '#7c3aed'}",
+    secondary: "${params.designStyle === 'professional' ? '#2c5282' : params.designStyle === 'modern' ? '#234e52' : '#4c1d95'}",
+    text: "${params.designStyle === 'professional' ? '#2d3748' : params.designStyle === 'modern' ? '#e2e8f0' : '#1e293b'}"
+  };
+  
+  // Common styles
+  const containerStyle = {
+    backgroundColor: colors.bg,
+    position: 'relative',
+    borderRadius: '0.5rem',
+    overflow: 'hidden',
+    cursor: 'pointer',
+    height: '100%'
+  };
+  
+  const headerStyle = {
+    color: colors.primary,
+    fontSize: '1.25rem',
+    fontWeight: 'bold',
+    marginBottom: '0.5rem'
+  };
+  
+  const subheaderStyle = {
+    color: colors.secondary,
+    fontSize: '0.875rem',
+    fontStyle: 'italic',
+    marginBottom: '1rem'
+  };
+  
+  const ctaStyle = {
+    backgroundColor: colors.primary,
+    color: 'white',
+    padding: '0.5rem 1rem',
+    borderRadius: '0.25rem',
+    textAlign: 'center',
+    fontWeight: '500',
+    marginBottom: '1rem',
+    marginTop: '1rem'
+  };
+  
+  const contactStyle = {
+    color: colors.text,
+    fontSize: '0.75rem',
+    marginTop: 'auto'
+  };
+  
+  // Create benefits based on design style
+  const benefits = [
+    "${params.designStyle === 'professional' ? 'Trusted expertise' : params.designStyle === 'modern' ? 'Innovative solutions' : 'Premium quality'}",
+    "${params.designStyle === 'professional' ? 'Proven results' : params.designStyle === 'modern' ? 'Time-saving technology' : 'Personalized service'}",
+    "${params.designStyle === 'professional' ? 'Industry compliance' : params.designStyle === 'modern' ? '24/7 support' : 'Attention to detail'}"
+  ];
+  
+  // Main container
+  return React.createElement(
+    'div',
+    {
+      className: \`border-2 \${isSelected ? 'border-electric-teal' : 'border-electric-teal/30'} rounded-lg aspect-[7/5]\`,
+      style: containerStyle,
+      onClick: onSelect
+    },
+    [
+      // Content container
+      React.createElement('div', { className: 'p-4 flex flex-col h-full' }, [
+        // Header with brand and tagline
+        React.createElement('div', { className: 'mb-3' }, [
+          React.createElement('h3', { style: headerStyle }, brandName),
+          React.createElement('p', { style: subheaderStyle }, tagline)
+        ]),
+        
+        // Main content - two columns
+        React.createElement('div', { className: 'flex flex-1 gap-4 mb-3' }, [
+          // Left column - text content
+          React.createElement('div', { className: 'w-1/2' }, [
+            // Benefits list
+            React.createElement('ul', { className: 'text-sm space-y-2', style: { color: colors.text } }, 
+              benefits.map((benefit, index) => 
+                React.createElement('li', { key: index, className: 'flex items-start' }, [
+                  React.createElement('span', { className: 'mr-1', style: { color: colors.primary } }, '•'),
+                  benefit
+                ])
+              )
+            ),
+            
+            // Call to action
+            React.createElement('div', { style: ctaStyle }, callToAction)
+          ]),
+          
+          // Right column - image area
+          React.createElement('div', { className: 'w-1/2 bg-gray-200 relative overflow-hidden rounded' },
+            imageUrl ? 
+              React.createElement('div', {
+                className: 'absolute inset-0 bg-cover bg-center',
+                style: {
+                  backgroundImage: \`url(\${imageUrl})\`,
+                  transform: \`translate3d(\${imagePosition.x}px, \${imagePosition.y}px, 0) scale(\${imagePosition.scale})\`
+                }
+              }) : 
+              React.createElement('div', { 
+                className: 'absolute inset-0 flex items-center justify-center text-gray-400' 
+              }, 'Image placeholder')
+          )
+        ]),
+        
+        // Contact info footer
+        React.createElement('div', { style: contactStyle }, [
+          contactInfo.phone && React.createElement('p', {}, \`📞 \${contactInfo.phone}\`),
+          contactInfo.email && React.createElement('p', {}, \`✉️ \${contactInfo.email}\`),
+          contactInfo.website && React.createElement('p', {}, \`🌐 \${contactInfo.website}\`),
+          contactInfo.address && React.createElement('p', {}, \`📍 \${contactInfo.address}\`),
+          extraInfo && React.createElement('p', { className: 'italic mt-2' }, extraInfo)
+        ])
+      ])
+    ]
+  );
+};
+
+// No export statement needed - will be handled by Function constructor`;
       }
       
       return NextResponse.json({ 

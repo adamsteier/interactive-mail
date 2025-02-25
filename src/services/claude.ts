@@ -150,7 +150,43 @@ DESIGN GUIDANCE:
   
   // Construct the full prompt
   return `
-Using thinking mode, design a ${styleTitle} POSTCARD for ${brandData.brandName}, a delivery service targeting ${audienceData.industry || 'businesses'}.
+‼️ CRITICAL REQUIREMENT: YOU MUST USE React.createElement() INSTEAD OF JSX SYNTAX ‼️
+
+You are creating a React component for a POSTCARD design in TypeScript. This component CANNOT use JSX syntax because it will be dynamically evaluated using the Function constructor, which cannot process JSX.
+
+WHAT NOT TO DO (this will cause errors):
+\`\`\`
+// ❌ DO NOT USE THIS JSX SYNTAX - IT WILL CAUSE ERRORS
+const PostcardDesign = (props) => {
+  return (
+    <div className="container">
+      <h1>{props.brandName}</h1>
+      <div className="image-container">
+        {props.imageUrl && <img src={props.imageUrl} />}
+      </div>
+    </div>
+  );
+};
+\`\`\`
+
+WHAT TO DO INSTEAD (use React.createElement):
+\`\`\`
+// ✅ USE THIS React.createElement SYNTAX INSTEAD
+const PostcardDesign = (props) => {
+  return React.createElement(
+    'div',
+    { className: 'container' },
+    [
+      React.createElement('h1', {}, props.brandName),
+      React.createElement('div', { className: 'image-container' }, 
+        props.imageUrl ? React.createElement('img', { src: props.imageUrl }) : null
+      )
+    ]
+  );
+};
+\`\`\`
+
+Using thinking mode, design a ${styleTitle} POSTCARD for ${brandData.brandName}.
 
 TECHNICAL SPECIFICATIONS:
 - Size: 1871×1271 pixels (5.5"×3.5" at 300 DPI)
@@ -158,13 +194,13 @@ TECHNICAL SPECIFICATIONS:
 - Color mode: CMYK equivalent
 - Bleed area: 3mm on all sides (mark this area in the design)
 - Safe zone: Keep all important text and elements 1/8" from edge
-- Format: A complete React component in TypeScript using React.createElement (NOT JSX syntax)
+- Format: A complete React component using ONLY React.createElement (NO JSX SYNTAX WHATSOEVER)
 - Include placeholder for image (using a div with className for the image area)
 
 BRAND INFORMATION:
 - Brand name: ${brandData.brandName}
 - Logo: ${brandData.logoUrl || 'Not provided'} (Position prominently)
-- Tagline: "${businessData.tagline || 'Serving your needs since 2007'}"
+- Tagline: "${businessData.tagline || 'Your brand tagline'}"
 - Primary color: ${brandData.primaryColor}
 - Accent color: ${brandData.accentColor}
 - Brand values: ${brandData.brandValues.join(', ')}
@@ -173,14 +209,14 @@ BRAND INFORMATION:
 MARKETING OBJECTIVES:
 ${objectives}
 - Call to action: "${marketingData.callToAction}"
-- Key selling point: Secure, timely delivery for ${audienceData.industry || 'businesses'}
+- Key selling point: ${audienceData.industry || 'business'} services
 
 TARGET AUDIENCE:
 - Industry: ${audienceData.industry}
 - Audience description: ${audienceData.targetDescription}
 - Age range: ${audienceData.audienceAgeRange.join(', ')}
 - Professional interests: ${audienceData.interests.join(', ')}
-- Pain points: Missing deadlines, document security, proof of delivery
+- Pain points: Missing deadlines, security, quality
 
 BUSINESS DETAILS:
 - Contact information:
@@ -201,18 +237,18 @@ VISUAL ELEMENTS:
 - Use professional iconography (simulated with tailwind classes or SVGs)
 
 COPY GUIDELINES:
-- Focus on addressing the customer's primary need: ${marketingData.marketingObjectives || 'reliable delivery'}
-- Emphasize security and reliability for sensitive materials
+- Focus on addressing the customer's primary need: ${marketingData.marketingObjectives || 'reliable service'}
+- Emphasize quality and reliability 
 - Use professional language that resonates with ${audienceData.industry} professionals
 - Include 2-3 short bullet points highlighting key benefits
 - Create a secondary tagline specific to ${audienceData.industry} services
-- Write copy that creates emotional relief (reducing stress of deadlines)
+- Write copy that creates emotional relief (reducing stress)
 
 ${designGuidance}
 
 IMPORTANT REQUIREMENTS:
 1. Return a complete React function component in TypeScript that implements this design
-2. DO NOT use JSX syntax - use React.createElement() syntax instead
+2. DO NOT use JSX syntax - ONLY use React.createElement() syntax 
 3. Use Tailwind CSS for styling by adding className props to elements
 4. The component should accept these props:
    - imageUrl: string | null
@@ -227,7 +263,7 @@ IMPORTANT REQUIREMENTS:
    - callToAction?: string
    - extraInfo?: string
 
-EXAMPLE FORMAT OF THE COMPONENT (using React.createElement instead of JSX):
+REQUIRED FORMAT OF THE COMPONENT (using React.createElement instead of JSX):
 \`\`\`typescript
 const PostcardDesign = (props) => {
   // Extract props
@@ -249,6 +285,8 @@ const PostcardDesign = (props) => {
   );
 };
 \`\`\`
+
+‼️ REMINDER: DO NOT USE JSX SYNTAX (<div>, </div>, etc.) - ONLY USE React.createElement ‼️
 
 Make sure the component implements an image area that supports the drag functionality when isSelected is true. Use motion.div from framer-motion for the image container and apply drag, dragMomentum, onDragEnd, and positioning styles correctly.
 `;
