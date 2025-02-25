@@ -97,7 +97,7 @@ const PostcardDesign = ({
   );
 };
 
-export default PostcardDesign;
+// No export statement - this will be handled by the function constructor
 \`\`\`
 `;
 };

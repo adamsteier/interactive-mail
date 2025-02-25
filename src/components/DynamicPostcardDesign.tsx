@@ -171,12 +171,33 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
           console.log('Attempting to create component from dynamic code');
           
           try {
+            // Remove import statements from the code before evaluation
+            const cleanedCode = componentCode
+              .replace(/import\s+.*?from\s+['"].*?['"];?/g, '')
+              .replace(/import\s+{.*?}\s+from\s+['"].*?['"];?/g, '')
+              .trim();
+            
+            console.log('Cleaned code (first 100 chars):', cleanedCode.substring(0, 100) + '...');
+            
             // Use Function constructor to evaluate the component code
             const ComponentFunction = new Function(
               'React', 'motion', 'postcardProps',
               `
-              ${componentCode}
-              return React.createElement(PostcardDesign, postcardProps);
+              try {
+                // Find the PostcardDesign component declaration
+                ${cleanedCode}
+                
+                // Safety check - make sure PostcardDesign exists
+                if (typeof PostcardDesign !== 'function') {
+                  console.error('PostcardDesign component not found in generated code');
+                  return null;
+                }
+                
+                return React.createElement(PostcardDesign, postcardProps);
+              } catch (err) {
+                console.error("Error in dynamic component:", err);
+                return null;
+              }
               `
             );
             

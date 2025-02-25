@@ -269,19 +269,35 @@ export const extractComponentCode = (completion: string): string => {
     return fallbackMatch[1].trim();
   }
   
-  // Last resort: try to find an export or function declaration
+  // Last resort: try to find component declarations
+  const componentDeclarationPatterns = [
+    /const\s+PostcardDesign\s*=/,
+    /function\s+PostcardDesign\s*\(/,
+    /const\s+\w+\s*=\s*\(\s*\{\s*.*?\s*\}\s*\)\s*=>/,
+    /function\s+\w+\s*\(\s*\{\s*.*?\s*\}\s*\)/
+  ];
+  
   const lines = completion.split('\n');
-  const startIndex = lines.findIndex(line => 
+  
+  for (const pattern of componentDeclarationPatterns) {
+    const startIndex = lines.findIndex(line => pattern.test(line));
+    if (startIndex >= 0) {
+      console.log(`Found component declaration using pattern at line: ${startIndex}`);
+      return lines.slice(startIndex).join('\n');
+    }
+  }
+  
+  // Generic fallback to find any function
+  const genericStartIndex = lines.findIndex(line => 
     line.includes('export const') || 
     line.includes('export function') || 
     line.includes('function') || 
     line.includes('const')
   );
   
-  if (startIndex >= 0) {
-    // Extract from the found line to the end
-    console.log("Falling back to function/export detection, starting at line:", startIndex);
-    return lines.slice(startIndex).join('\n');
+  if (genericStartIndex >= 0) {
+    console.log("Falling back to generic function detection, starting at line:", genericStartIndex);
+    return lines.slice(genericStartIndex).join('\n');
   }
   
   console.log("Failed to extract any component code!");
