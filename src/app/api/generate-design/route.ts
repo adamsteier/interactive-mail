@@ -82,12 +82,12 @@ export async function POST(request: Request) {
         apiKey: process.env.CLAUDE_API_KEY,
       });
       
-      console.log("Calling Claude API with model: claude-3-7-sonnet-20250219");
+      console.log("Calling Claude API with model: claude-3-7-sonnet-latest");
       console.log(`Token budgets: ${36000} thinking tokens, ${40000} max response tokens`);
       
       // Use streaming approach to avoid timeout with large token budgets
       const stream = await anthropic.messages.stream({
-        model: "claude-3-7-sonnet-20250219",
+        model: "claude-3-7-sonnet-latest",
         max_tokens: 40000,
         thinking: {
           type: "enabled",
