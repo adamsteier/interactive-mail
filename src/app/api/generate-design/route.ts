@@ -85,8 +85,8 @@ export async function POST(request: Request) {
       console.log("Calling Claude API with model: claude-3-7-sonnet-20250219");
       console.log(`Token budgets: ${36000} thinking tokens, ${40000} max response tokens`);
       
-      // Call Claude API with the SDK
-      const response = await anthropic.messages.create({
+      // Use streaming approach to avoid timeout with large token budgets
+      const stream = await anthropic.messages.stream({
         model: "claude-3-7-sonnet-20250219",
         max_tokens: 40000,
         thinking: {
@@ -97,36 +97,42 @@ export async function POST(request: Request) {
           { role: "user", content: prompt }
         ]
       });
+
+      // Collect content as it arrives
+      console.log("Starting to stream response from Claude API");
+      let fullText = "";
       
-      // Log the full response structure for debugging
-      console.log("\n==== CLAUDE FULL RESPONSE STRUCTURE ====");
-      console.log(JSON.stringify(response, null, 2));
-      console.log("==== END FULL RESPONSE STRUCTURE ====\n");
-      
-      // Log thinking blocks if available
-      if (response.content.some(block => block.type === 'thinking' || block.type === 'redacted_thinking')) {
-        console.log("\n==== CLAUDE THINKING BLOCKS ====");
-        response.content
-          .filter(block => block.type === 'thinking' || block.type === 'redacted_thinking')
-          .forEach((block, index) => {
-            console.log(`[Block ${index}] Type: ${block.type}`);
-            if (block.type === 'thinking' && 'thinking' in block) {
-              console.log(`Thinking content preview: ${block.thinking.substring(0, 200)}...`);
-              console.log(`Signature length: ${block.signature?.length || 0} characters`);
-            } else if (block.type === 'redacted_thinking' && 'data' in block) {
-              console.log(`Redacted data length: ${block.data.length} characters`);
-            }
-          });
-        console.log("==== END THINKING BLOCKS ====\n");
+      // Process the stream
+      for await (const chunk of stream) {
+        // Handle content block deltas (actual text content)
+        if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+          fullText += chunk.delta.text;
+          // Log progress occasionally
+          if (fullText.length % 500 === 0) {
+            console.log(`Received ${fullText.length} characters so far...`);
+          }
+        }
+        
+        // Log message events
+        if (chunk.type === 'message_start') {
+          console.log("Message started");
+        } else if (chunk.type === 'message_stop') {
+          console.log("Message completed");
+        }
       }
       
-      // Extract completion from the response - handle text content properly
-      const textContent = response.content.find(block => block.type === 'text');
-      if (!textContent || textContent.type !== 'text') {
-        throw new Error('No text content found in Claude response');
+      // Get the final message once stream is complete
+      const finalMessage = await stream.finalMessage();
+      console.log("Stream completed, received final message");
+      
+      // Extract completion from the response - ensure we get all text content
+      let completion = "";
+      for (const block of finalMessage.content) {
+        if (block.type === 'text') {
+          completion += block.text;
+        }
       }
       
-      const completion = textContent.text;
       console.log("Claude API responded successfully with content length:", completion.length);
       
       // Log the raw response
@@ -137,7 +143,7 @@ export async function POST(request: Request) {
       console.log(completionPreview);
       console.log("==== END RAW RESPONSE ====\n");
       
-      // Diagnostic logging but no longer needed for detection and fallback since we use a template
+      // Diagnostic logging
       console.log("Response diagnostics:");
       console.log(`- Contains JSX tags (<div>): ${completion.includes('<div')}`);
       console.log(`- Contains React.createElement: ${completion.includes('React.createElement')}`);
@@ -145,8 +151,7 @@ export async function POST(request: Request) {
       // Save successful template to Firestore
       await savePostcardTemplate(params.designStyle, completion, false, params.brandData);
       
-      // Since we now use a template approach, we don't need to check for JSX vs React.createElement
-      // The template is already structured with React.createElement, so just return the completion
+      // Return the completion
       return NextResponse.json({ 
         completion, 
         success: true 
