@@ -293,7 +293,9 @@ const PostcardDesign = (props) => {
 
 Remember to create a design that would realistically work well as a physical postcard. Focus on making the key elements (brand name, call to action, image) stand out while ensuring all text is legible.
 
-DO NOT explain your design choices or include any comments outside the code block. Respond ONLY with the complete React component code using React.createElement syntax.
+DO NOT explain your design choices or include any comments outside the code block. 
+DO NOT include language identifiers like "javascript" or "jsx" in your code - just provide the raw code.
+Respond ONLY with the complete React component code using React.createElement syntax.
 `;
 };
 
@@ -334,12 +336,20 @@ export const extractComponentCode = (completion: string): string => {
   }
   
   // Fallback to look for any code blocks
-  const fallbackRegex = /```(?:jsx|typescript|js|ts)?\s*([\s\S]*?)\s*```/;
+  const fallbackRegex = /```(?:jsx|typescript|js|ts|javascript)?\s*([\s\S]*?)\s*```/;
   const fallbackMatch = completion.match(fallbackRegex);
   
   if (fallbackMatch && fallbackMatch[1]) {
     console.log("Found generic code block, length:", fallbackMatch[1].trim().length);
-    return fallbackMatch[1].trim();
+    // Process the extracted code to remove any language identifier at the start
+    let extractedCode = fallbackMatch[1].trim();
+    // Check if the code starts with a language identifier
+    if (/^(javascript|typescript|jsx|js|ts)\b/.test(extractedCode)) {
+      // Remove the language identifier from the first line
+      extractedCode = extractedCode.replace(/^(javascript|typescript|jsx|js|ts)\b\s*/, '');
+      console.log("Removed language identifier from code block");
+    }
+    return extractedCode;
   }
   
   // Last resort: try to find component declarations
@@ -356,7 +366,14 @@ export const extractComponentCode = (completion: string): string => {
     const startIndex = lines.findIndex(line => pattern.test(line));
     if (startIndex >= 0) {
       console.log(`Found component declaration using pattern at line: ${startIndex}`);
-      return lines.slice(startIndex).join('\n');
+      // Check if the first line contains a language identifier
+      let code = lines.slice(startIndex).join('\n');
+      if (/^(javascript|typescript|jsx|js|ts)\b/.test(code)) {
+        // Remove the language identifier from the first line
+        code = code.replace(/^(javascript|typescript|jsx|js|ts)\b\s*/, '');
+        console.log("Removed language identifier from component declaration");
+      }
+      return code;
     }
   }
   
@@ -370,7 +387,13 @@ export const extractComponentCode = (completion: string): string => {
   
   if (genericStartIndex >= 0) {
     console.log("Falling back to generic function detection, starting at line:", genericStartIndex);
-    return lines.slice(genericStartIndex).join('\n');
+    let code = lines.slice(genericStartIndex).join('\n');
+    if (/^(javascript|typescript|jsx|js|ts)\b/.test(code)) {
+      // Remove the language identifier from the first line
+      code = code.replace(/^(javascript|typescript|jsx|js|ts)\b\s*/, '');
+      console.log("Removed language identifier from generic function");
+    }
+    return code;
   }
   
   console.log("Failed to extract any component code!");

@@ -238,6 +238,8 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
             const cleanedCode = componentCode
               .replace(/import\s+.*?from\s+['"].*?['"];?/g, '')
               .replace(/import\s+{.*?}\s+from\s+['"].*?['"];?/g, '')
+              // Additional safeguard to remove language identifiers that might appear at the beginning
+              .replace(/^(javascript|typescript|jsx|js|ts)\b\s*/i, '')
               .trim();
             
             // Enhanced debugging - log more detailed info about the code
@@ -475,6 +477,8 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
               const cleanedCode = componentCode
                 .replace(/import\s+.*?from\s+['"].*?['"];?/g, '')
                 .replace(/import\s+{.*?}\s+from\s+['"].*?['"];?/g, '')
+                // Additional safeguard to remove language identifiers that might appear at the beginning
+                .replace(/^(javascript|typescript|jsx|js|ts)\b\s*/i, '')
                 .trim();
               
               // Enhanced debugging - log more detailed info about the code
