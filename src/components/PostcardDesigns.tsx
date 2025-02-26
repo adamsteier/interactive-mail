@@ -53,16 +53,11 @@ export const ProfessionalDesign: React.FC<PostcardDesignProps> = ({
   imagePosition,
   onDragEnd,
   isLoading = false,
-  brandName = "Parkland Courier",
-  tagline = "Serving your needs since 2007",
-  contactInfo = {
-    phone: "8621423",
-    email: "asteier4@gmail.com",
-    website: "parklandcourier.com",
-    address: "11711 Edinboro Rd"
-  },
-  callToAction = "Visit Our Website",
-  extraInfo = "@adamsteier"
+  brandName,
+  tagline,
+  contactInfo,
+  callToAction,
+  extraInfo
 }) => {
   return (
     <div 
@@ -77,11 +72,11 @@ export const ProfessionalDesign: React.FC<PostcardDesignProps> = ({
       <div className="absolute top-0 left-0 right-0 h-16 bg-gray-100 border-b border-gray-200 flex items-center px-4 z-20">
         <div className="flex items-center">
           <div className="w-10 h-10 rounded-full bg-[#00858a] flex items-center justify-center text-white font-bold">
-            PC
+            {brandName ? brandName.substring(0, 2).toUpperCase() : ''}
           </div>
           <div className="ml-2">
-            <h2 className="font-extrabold text-[#00858a] text-lg leading-tight">{brandName}</h2>
-            <p className="text-xs text-gray-600">{tagline}</p>
+            {brandName && <h2 className="font-extrabold text-[#00858a] text-lg leading-tight">{brandName}</h2>}
+            {tagline && <p className="text-xs text-gray-600">{tagline}</p>}
           </div>
         </div>
       </div>
@@ -115,31 +110,35 @@ export const ProfessionalDesign: React.FC<PostcardDesignProps> = ({
         )}
         
         {/* Call to action banner */}
-        <div className="absolute top-4 right-0 bg-[#00c2a8] text-white px-4 py-2 rounded-l-lg font-bold shadow-md">
-          {callToAction}
-        </div>
+        {callToAction && (
+          <div className="absolute top-4 right-0 bg-[#00c2a8] text-white px-4 py-2 rounded-l-lg font-bold shadow-md">
+            {callToAction}
+          </div>
+        )}
       </div>
       
       {/* Footer with contact details */}
       <div className="absolute bottom-0 left-0 right-0 h-24 bg-gray-100 px-4 py-2 border-t border-gray-200">
         <div className="grid grid-cols-2 gap-1">
-          <div className="text-xs">
-            <p className="font-bold text-[#00858a]">Contact Us:</p>
-            <p>📞 {contactInfo.phone}</p>
-            <p>📍 {contactInfo.address}</p>
-          </div>
+          {contactInfo && (
+            <div className="text-xs">
+              <p className="font-bold text-[#00858a]">Contact Us:</p>
+              {contactInfo.phone && <p>📞 {contactInfo.phone}</p>}
+              {contactInfo.address && <p>📍 {contactInfo.address}</p>}
+            </div>
+          )}
           <div className="text-xs">
             <p className="font-bold text-[#00858a]">Follow Us:</p>
-            <p>✉️ {contactInfo.email}</p>
-            <p>🌐 {contactInfo.website}</p>
-            <p>📱 Instagram {extraInfo}</p>
+            {contactInfo?.email && <p>✉️ {contactInfo.email}</p>}
+            {contactInfo?.website && <p>🌐 {contactInfo.website}</p>}
+            {extraInfo && <p>📱 Instagram {extraInfo}</p>}
           </div>
         </div>
       </div>
       
       {/* Law firm specific badge */}
       <div className="absolute top-20 left-4 bg-white/90 rounded-lg p-2 shadow-md z-20">
-        <p className="text-[#00858a] font-bold text-xs">TRUSTED BY LAW FIRMS</p>
+        <p className="text-[#00c2a8] font-bold text-xs">TRUSTED BY LAW FIRMS</p>
         <p className="text-xs text-gray-700">For time-critical deliveries</p>
       </div>
     </div>
@@ -154,16 +153,11 @@ export const ModernDesign: React.FC<PostcardDesignProps> = ({
   imagePosition,
   onDragEnd,
   isLoading = false,
-  brandName = "Parkland Courier",
-  tagline = "Serving your needs since 2007",
-  contactInfo = {
-    phone: "8621423",
-    email: "asteier4@gmail.com",
-    website: "parklandcourier.com",
-    address: "11711 Edinboro Rd"
-  },
-  callToAction = "Visit Our Website",
-  extraInfo = "@adamsteier"
+  brandName,
+  tagline,
+  contactInfo,
+  callToAction,
+  extraInfo
 }) => {
   return (
     <div 
@@ -174,18 +168,20 @@ export const ModernDesign: React.FC<PostcardDesignProps> = ({
       {/* Side panel */}
       <div className="absolute top-0 left-0 bottom-0 w-1/3 bg-gradient-to-b from-[#00c2a8] to-[#00858a] p-4 flex flex-col justify-between z-20">
         <div>
-          <h2 className="font-extrabold text-white text-xl leading-tight tracking-tight">{brandName}</h2>
+          {brandName && <h2 className="font-extrabold text-white text-xl leading-tight tracking-tight">{brandName}</h2>}
           <div className="w-12 h-1 bg-white mt-2 mb-3"></div>
-          <p className="text-white/90 text-sm">{tagline}</p>
+          {tagline && <p className="text-white/90 text-sm">{tagline}</p>}
         </div>
         
-        <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
-          <p className="font-bold text-white text-xs mb-1">CONTACT</p>
-          <p className="text-white text-xs">📞 {contactInfo.phone}</p>
-          <p className="text-white text-xs">✉️ {contactInfo.email}</p>
-          <p className="text-white text-xs">🌐 {contactInfo.website}</p>
-          <p className="text-white text-xs">📍 {contactInfo.address}</p>
-        </div>
+        {contactInfo && (
+          <div className="bg-white/10 p-3 rounded-lg backdrop-blur-sm">
+            <p className="font-bold text-white text-xs mb-1">CONTACT</p>
+            {contactInfo.phone && <p className="text-white text-xs">📞 {contactInfo.phone}</p>}
+            {contactInfo.email && <p className="text-white text-xs">✉️ {contactInfo.email}</p>}
+            {contactInfo.website && <p className="text-white text-xs">🌐 {contactInfo.website}</p>}
+            {contactInfo.address && <p className="text-white text-xs">📍 {contactInfo.address}</p>}
+          </div>
+        )}
       </div>
       
       {/* Main image area */}
@@ -222,10 +218,12 @@ export const ModernDesign: React.FC<PostcardDesignProps> = ({
         </div>
         
         <div className="absolute bottom-0 left-0 right-0 bg-black/50 backdrop-blur-sm p-4 flex justify-between items-center">
-          <p className="text-white font-bold">Instagram {extraInfo}</p>
-          <button className="bg-[#00c2a8] hover:bg-[#00858a] text-white py-2 px-6 rounded-full font-bold transition-colors">
-            {callToAction}
-          </button>
+          {extraInfo && <p className="text-white font-bold">Instagram {extraInfo}</p>}
+          {callToAction && (
+            <button className="bg-[#00c2a8] hover:bg-[#00858a] text-white py-2 px-6 rounded-full font-bold transition-colors">
+              {callToAction}
+            </button>
+          )}
         </div>
         
         <div className="absolute bottom-1/3 -right-6 transform rotate-90 bg-[#00c2a8] text-white px-2 py-1 text-xs font-bold">
@@ -244,16 +242,11 @@ export const ElegantDesign: React.FC<PostcardDesignProps> = ({
   imagePosition,
   onDragEnd,
   isLoading = false,
-  brandName = "Parkland Courier",
-  tagline = "Serving your needs since 2007",
-  contactInfo = {
-    phone: "8621423",
-    email: "asteier4@gmail.com",
-    website: "parklandcourier.com",
-    address: "11711 Edinboro Rd"
-  },
-  callToAction = "Visit Our Website",
-  extraInfo = "@adamsteier"
+  brandName,
+  tagline,
+  contactInfo,
+  callToAction,
+  extraInfo
 }) => {
   return (
     <div 
@@ -269,7 +262,7 @@ export const ElegantDesign: React.FC<PostcardDesignProps> = ({
       
       {/* Header bar */}
       <div className="absolute top-0 left-0 right-0 h-12 bg-[#00858a] flex items-center justify-between px-4 z-10">
-        <p className="text-white font-extrabold tracking-widest">{brandName.toUpperCase()}</p>
+        {brandName && <p className="text-white font-extrabold tracking-widest">{brandName.toUpperCase()}</p>}
         <p className="text-white text-xs">ESTABLISHED 2007</p>
       </div>
       
@@ -280,7 +273,7 @@ export const ElegantDesign: React.FC<PostcardDesignProps> = ({
           <div className="w-1/2 pr-2 flex flex-col justify-between">
             <div>
               <h3 className="font-bold text-[#00858a] text-lg mb-1">Premium Courier Service</h3>
-              <p className="text-sm text-gray-600 mb-3">{tagline}</p>
+              {tagline && <p className="text-sm text-gray-600 mb-3">{tagline}</p>}
               
               <div className="bg-gray-100 p-3 rounded-lg mb-4">
                 <p className="font-bold text-[#00858a] text-xs mb-2">SPECIALIZED SERVICE FOR LAW FIRMS</p>
@@ -308,9 +301,11 @@ export const ElegantDesign: React.FC<PostcardDesignProps> = ({
             </div>
             
             <div className="mt-4">
-              <button className="w-full bg-gradient-to-r from-[#00c2a8] to-[#00858a] hover:from-[#00858a] hover:to-[#00c2a8] text-white py-2 rounded-lg font-bold transition-all transform hover:scale-105">
-                {callToAction.toUpperCase()}
-              </button>
+              {callToAction && (
+                <button className="w-full bg-gradient-to-r from-[#00c2a8] to-[#00858a] hover:from-[#00858a] hover:to-[#00c2a8] text-white py-2 rounded-lg font-bold transition-all transform hover:scale-105">
+                  {callToAction.toUpperCase()}
+                </button>
+              )}
             </div>
           </div>
           
@@ -352,16 +347,20 @@ export const ElegantDesign: React.FC<PostcardDesignProps> = ({
         </div>
         
         {/* Footer */}
-        <div className="mt-2 pt-2 border-t border-gray-200 flex justify-between items-center text-xs text-gray-600">
-          <div className="flex space-x-3">
-            <span>📞 {contactInfo.phone}</span>
-            <span>✉️ {contactInfo.email}</span>
+        {(contactInfo || extraInfo) && (
+          <div className="mt-2 pt-2 border-t border-gray-200 flex justify-between items-center text-xs text-gray-600">
+            {contactInfo && (
+              <div className="flex space-x-3">
+                {contactInfo.phone && <span>📞 {contactInfo.phone}</span>}
+                {contactInfo.email && <span>✉️ {contactInfo.email}</span>}
+              </div>
+            )}
+            <div className="flex space-x-3">
+              {contactInfo?.website && <span>🌐 {contactInfo.website}</span>}
+              {extraInfo && <span>📱 IG: {extraInfo}</span>}
+            </div>
           </div>
-          <div className="flex space-x-3">
-            <span>🌐 {contactInfo.website}</span>
-            <span>📱 IG: {extraInfo}</span>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

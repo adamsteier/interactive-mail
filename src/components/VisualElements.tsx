@@ -106,7 +106,7 @@ const VisualElements = ({ onComplete, initialData = {}, brandColors, segment }: 
           suggestedSubject = 'Medical professionals, caring environment, health';
           break;
         default:
-          suggestedSubject = businessAnalysis.industry + ' related imagery';
+          suggestedSubject = `An image that could be used for ${businessAnalysis.industry} marketing material.`;
       }
       
       setVisualData(prev => ({
