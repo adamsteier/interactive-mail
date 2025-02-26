@@ -82,85 +82,132 @@ export interface GeneratePostcardDesignParams {
   audienceData: AudienceData;
   businessData: BusinessData;
   visualData: VisualData;
-  designStyle: 'professional' | 'modern' | 'elegant';
+  designStyle: 'playful' | 'professional' | 'modern' | 'traditional';
+  creativityLevel?: 'template' | 'creative' | 'very_creative';
 }
 
 /**
- * Generates a prompt for Claude API based on user data and design style
+ * Generates a prompt for Claude API based on user data, design style and creativity level
  */
 export const generateDesignPrompt = (params: GeneratePostcardDesignParams): string => {
-  const { brandData, marketingData, audienceData, businessData, designStyle } = params;
+  const { brandData, marketingData, audienceData, businessData, designStyle, creativityLevel = 'template' } = params;
   
-  // Map designStyle to descriptive terms
-  const styleTitle = 
-    designStyle === 'professional' ? 'PROFESSIONAL/CORPORATE' :
-    designStyle === 'modern' ? 'MODERN/BOLD' : 'ELEGANT/SOPHISTICATED';
-  
-  // Construct design guidance based on style
-  let designGuidance = '';
-  
-  if (designStyle === 'professional') {
-    designGuidance = `
-DESIGN INSPIRATION:
-- Clean, structured layouts with clear visual hierarchy
-- Professional typography combinations (serif headers with sans-serif body text)
-- Strategic use of negative space
-- Subtle shadows or embossing for depth
-- Structured grid-based layouts
-- Monochromatic color schemes with accent colors
-- Subtle textures that convey reliability (paper, linen, etc.)
-- Professional iconography (simple, outlined, consistent style)
-- Clear visual separation between content sections
-- Conservative animations or transitions`;
-  } else if (designStyle === 'modern') {
-    designGuidance = `
-DESIGN INSPIRATION:
-- Bold asymmetric layouts with dynamic spacing
-- High contrast color combinations
-- Oversized typography as design elements
-- Gradient overlays and duotone effects
-- Geometric shapes and patterns
-- Creative image cropping and positioning
-- Floating elements with subtle shadows
-- Unexpected element positioning
-- Minimal but impactful use of color
-- Interactive hover states and animations`;
-  } else {
-    designGuidance = `
-DESIGN INSPIRATION:
-- Refined layouts with generous whitespace
-- Elegant typography pairs (display + serif)
-- Subtle gold/metallic accents or gradients
-- Delicate line details or filigree elements
-- Sophisticated image treatments (vignettes, subtle filters)
-- Layered design elements for depth
-- Understated animations and transitions
-- Balanced asymmetry in composition
-- Premium color palettes (deep blues, rich burgundies, forest greens)
-- Textural elements suggesting luxury materials`;
-  }
-  
-  // Objectives string
-  const objectives = marketingData.objectives.map((obj: string) => {
-    if (marketingData.objectiveDetails && marketingData.objectiveDetails[obj]) {
-      return `- ${obj}: ${marketingData.objectiveDetails[obj]}`;
+  // Get the objectives as a list
+  const objectives = marketingData.objectives.map(obj => `- ${obj}`).join('\n');
+
+  // Get template descriptions based on selected style
+  const getTemplateDescription = () => {
+    switch(designStyle) {
+      case 'playful':
+        return `
+PLAYFUL TEMPLATE:
+- Playful, vibrant design with rounded corners and fun shapes
+- Bright color gradients (pink to yellow background)
+- Polaroid-style frame for the image that rotates slightly
+- Playful typography with bold headings
+- Fun icons from the Lucide React library (Heart, Sun, MessageCircle, Music)
+- Emoji accents (like 🎉)
+- Gradient CTA button with rounded corners
+- Friendly, conversational tone throughout`;
+      case 'professional':
+        return `
+PROFESSIONAL TEMPLATE:
+- Clean, structured layout with a blue gradient background
+- Professional, corporate styling with clear hierarchy
+- Split layout with strategic information placement
+- Business-oriented benefits presented as bullet points
+- Squared elements with subtle shadows
+- Bold call-to-action button
+- Contact information displayed with simple icons
+- Conservative, trustworthy aesthetic`;
+      case 'modern':
+        return `
+MODERN TEMPLATE:
+- Dramatic split layout (black and white sections)
+- High contrast with minimal elements
+- Bold typography with large brand name
+- Red accent line as a visual divider
+- Clean spacing with intentional negative space
+- Black and white aesthetic with minimal color
+- Elegant typography combinations
+- Bold, bordered CTA button
+- Contemporary, forward-thinking design language`;
+      case 'traditional':
+        return `
+TRADITIONAL TEMPLATE:
+- Warm, vintage aesthetics with amber/sepia tones
+- Textured paper background with subtle patterns
+- Ornate borders and traditional styling
+- Classic typography with serif fonts
+- Vintage frame for images with a double-border effect
+- Traditional ornamental elements and symbols (✦)
+- Heritage-focused messaging
+- Traditional stamp element in the corner
+- Warm color palette focused on amber and brown tones`;
+      default:
+        return '';
     }
-    return `- ${obj}`;
-  }).join('\n');
+  };
+
+  // Adjust creativity guidance based on creativityLevel
+  let creativityGuidance = '';
+  switch(creativityLevel) {
+    case 'template':
+      creativityGuidance = `
+CREATIVITY GUIDANCE: LOW VARIATION - MATCH TEMPLATE CLOSELY
+For this design, I want you to closely follow the template structure while ensuring it works well with the provided brand information. 
+- Maintain the core layout structure described in the template
+- Use the same visual elements as described (frames, borders, color scheme)
+- Keep the same division of space and proportions
+- Match the typography approach
+- Adapt the content to fit the brand, but don't dramatically change the template's visual approach
+- Focus on polish rather than reinvention`;
+      break;
+    case 'creative':
+      creativityGuidance = `
+CREATIVITY GUIDANCE: MEDIUM VARIATION - EVOLVE THE TEMPLATE
+For this design, take the template as a strong starting point but introduce thoughtful modifications.
+- Maintain the core aesthetic of the template while adding your own creative touches
+- Feel free to modify layouts to better highlight specific brand information
+- Experiment with variations on the color scheme that maintain the template's mood
+- Try different typography combinations while preserving the template's style
+- Add or modify visual elements that enhance the design while keeping the template's spirit
+- Consider how to make specific brand elements shine within the template structure`;
+      break;
+    case 'very_creative':
+      creativityGuidance = `
+CREATIVITY GUIDANCE: HIGH VARIATION - INNOVATE FROM THE TEMPLATE
+For this design, use the template as inspiration but create something more unique and tailored.
+- Start with the template's core aesthetic but push the boundaries significantly
+- Feel free to reimagine the layout while maintaining the spirit of the style
+- Experiment boldly with color variations that still reflect the template's mood
+- Be creative with typography while ensuring it fits the overall style
+- Add unique visual elements that complement the brand
+- Consider unconventional arrangements that showcase the content effectively
+- Focus on making the design feel custom-made for this specific brand
+- Incorporate user suggestions if provided in the brand data`;
+      break;
+  }
+
+  // Add the template description
+  const templateDescription = getTemplateDescription();
   
-  // Construct the full prompt with creative freedom
+  // Construct the full prompt with template approach
   return `
-You are creating a React component for a POSTCARD design with a ${styleTitle} style for ${brandData.brandName}.
+You are creating a React component for a POSTCARD design for ${brandData.brandName}.
 
 🔴 CRITICAL REQUIREMENT: Your component MUST use React.createElement() syntax exclusively - do NOT use JSX tags. 
 The component will be evaluated using Function constructor which cannot process JSX.
 
-I want you to express your creativity and design the best possible postcard that fits the brand and data provided.
-Don't feel constrained by a rigid template - create something unique that best showcases the information.
+TEMPLATE-BASED APPROACH:
+I want you to create a postcard based on the ${designStyle.toUpperCase()} template style described below.
+${templateDescription}
+
+${creativityGuidance}
 
 BRAND INFORMATION:
 - Brand name: ${brandData.brandName}
-- Logo: ${brandData.logoUrl || 'Not provided'} (Position prominently)
+- Logo: ${brandData.logoUrl || 'Not provided'} (Position prominently if relevant)
 - Tagline: "${businessData.tagline || 'Your brand tagline'}"
 - Primary color: ${brandData.primaryColor}
 - Accent color: ${brandData.accentColor}
@@ -179,8 +226,6 @@ TARGET AUDIENCE:
 - Professional interests: ${audienceData.interests.join(', ')}
 - Pain points: Missing deadlines, security, quality
 
-${designGuidance}
-
 TECHNICAL REQUIREMENTS:
 1. Component must be named "PostcardDesign"
 2. Must accept the following props in a destructured object:
@@ -198,19 +243,9 @@ TECHNICAL REQUIREMENTS:
    - Shows the image when imageUrl is provided
    - Shows a placeholder when imageUrl is null
    - Positions and scales the image according to imagePosition
-   - Supports dragging when isSelected is true (using the transform style property)
+   - Supports dragging when onDragEnd is provided (using the transform style property)
 4. The component should include a border that changes color when selected
 5. ‼️ Must use React.createElement() syntax - NO JSX ‼️
-
-CREATIVE FREEDOM:
-- Feel free to use different layouts (1, 2, or 3 columns)
-- Try different typography combinations appropriate for the style
-- Incorporate creative visual elements like dividers, shapes, or patterns
-- Consider different content organization based on the specific data provided
-- Utilize shadows, gradients, or textures where appropriate
-- Think about interesting ways to present the benefits or features
-- Create custom styling for the call-to-action to make it stand out
-- Experiment with different ways to display contact information
 
 Here's an example structure using React.createElement to inspire you:
 
@@ -221,7 +256,7 @@ const PostcardDesign = (props) => {
     imageUrl, 
     isSelected, 
     onSelect, 
-    imagePosition, 
+    imagePosition,
     onDragEnd,
     brandName = "${brandData.brandName}",
     tagline = "${businessData.tagline || 'Your brand tagline'}",
@@ -233,11 +268,18 @@ const PostcardDesign = (props) => {
   // Define your custom colors, styles, and other design elements here
   // Feel free to create any style objects you need for your design
   
+  // For draggable image functionality
+  const imageStyle = {
+    transform: \`translate(\${imagePosition.x}px, \${imagePosition.y}px) scale(\${imagePosition.scale})\`,
+  };
+  
   // Create your component with React.createElement
   return React.createElement(
     'div',
     {
-      className: \`border-2 \${isSelected ? 'border-electric-teal' : 'border-electric-teal/30'} rounded-lg aspect-[7/5]\`,
+      className: \`relative overflow-hidden rounded-lg aspect-[7/5] cursor-pointer transition-shadow \${
+        isSelected ? 'ring-2 ring-electric-teal shadow-lg' : 'ring-1 ring-electric-teal/30'
+      }\`,
       style: { /* Your container styles */ },
       onClick: onSelect
     },
@@ -262,8 +304,8 @@ export const generatePostcardDesign = async (params: GeneratePostcardDesignParam
   try {
     // Use the API route instead of calling Claude directly
     const response = await axios.post('/api/generate-design', params, {
-      // Add a longer timeout (3 minutes)
-      timeout: 180000,
+      // Increase timeout to 4 minutes
+      timeout: 240000,
     });
     return response.data as ClaudeApiResponse;
   } catch (error) {

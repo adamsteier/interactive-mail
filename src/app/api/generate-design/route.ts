@@ -94,7 +94,7 @@ export async function POST(request: Request) {
       
       console.log("Anthropic client initialized with API version: 2023-06-01");
       console.log("Calling Claude API with model: claude-3-7-sonnet-20250219");
-      console.log(`Token budgets: ${16000} thinking tokens, ${32000} max response tokens`);
+      console.log(`Token budgets: ${12000} thinking tokens, ${20000} max response tokens`);
       
       // Use streaming approach to avoid timeout with large token budgets
       console.log("About to start API call to Claude...");

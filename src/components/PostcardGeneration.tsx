@@ -9,6 +9,7 @@ import DynamicPostcardDesign from './DynamicPostcardDesign';
 type BrandStylePreference = 'playful' | 'professional' | 'modern' | 'traditional';
 type ImageStyle = 'photograph' | 'illustration' | 'abstract' | 'minimal';
 type LayoutStyle = 'clean' | 'bold' | 'elegant' | 'playful';
+type CreativityLevel = 'template' | 'creative' | 'very_creative';
 
 interface BrandData {
   brandName: string;
@@ -91,7 +92,7 @@ interface ImagePosition {
 
 interface PostcardDesign {
   id: string;
-  layout: 'layout1' | 'layout2' | 'layout3';
+  creativityLevel: CreativityLevel;
   selectedImageIndex: number | null;
   imagePosition: ImagePosition;
 }
@@ -110,23 +111,27 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   
-  // State for managing postcard designs - update the layout mapping to match Claude API design styles
+  // Determine the template style based on user's brand identity preference
+  // Use the first style preference, or default to 'professional' if none specified
+  const templateStyle = brandData.stylePreferences?.[0] || 'professional';
+  
+  // State for managing postcard designs - now using a single template style with varying creativity levels
   const [postcardDesigns, setPostcardDesigns] = useState<PostcardDesign[]>([
     { 
       id: 'postcard1', 
-      layout: 'layout1', // maps to 'professional' in Claude API
+      creativityLevel: 'template', // First design closely matches the template
       selectedImageIndex: null, 
       imagePosition: { x: 0, y: 0, scale: 1 } 
     },
     { 
       id: 'postcard2', 
-      layout: 'layout2', // maps to 'modern' in Claude API
+      creativityLevel: 'creative', // Second design is more creative
       selectedImageIndex: null, 
       imagePosition: { x: 0, y: 0, scale: 1 } 
     },
     { 
       id: 'postcard3', 
-      layout: 'layout3', // maps to 'elegant' in Claude API
+      creativityLevel: 'very_creative', // Third design is most creative
       selectedImageIndex: null, 
       imagePosition: { x: 0, y: 0, scale: 1 } 
     },
@@ -311,13 +316,13 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
     );
   }
 
-  // Helper function to map layout to design style
-  const getDesignStyle = (layout: string) => {
-    switch (layout) {
-      case 'layout1': return 'professional';
-      case 'layout2': return 'modern';
-      case 'layout3': return 'elegant';
-      default: return 'professional';
+  // Helper function to get a description for creativity level
+  const getCreativityDescription = (level: CreativityLevel): string => {
+    switch (level) {
+      case 'template': return 'Standard';
+      case 'creative': return 'Creative';
+      case 'very_creative': return 'Very Creative';
+      default: return 'Standard';
     }
   };
 
@@ -347,11 +352,12 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
           {postcardDesigns.map((design, index) => (
             <div key={design.id} ref={(el) => { postcardRefs.current[index] = el; return undefined; }}>
               <p className="text-electric-teal mb-2 font-medium">
-                Design {index + 1}: {getDesignStyle(design.layout).charAt(0).toUpperCase() + getDesignStyle(design.layout).slice(1)}
+                Design {index + 1}: {templateStyle.charAt(0).toUpperCase() + templateStyle.slice(1)} - {getCreativityDescription(design.creativityLevel)}
               </p>
               
               <DynamicPostcardDesign
-                designStyle={getDesignStyle(design.layout) as 'professional' | 'modern' | 'elegant'}
+                designStyle={templateStyle as BrandStylePreference}
+                creativityLevel={design.creativityLevel}
                 brandData={brandData}
                 marketingData={marketingData}
                 audienceData={audienceData}

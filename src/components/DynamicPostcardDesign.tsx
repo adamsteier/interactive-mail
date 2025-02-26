@@ -36,7 +36,8 @@ interface PostcardDesignProps {
 }
 
 interface GeneratedDesignProps {
-  designStyle: 'professional' | 'modern' | 'elegant';
+  designStyle: 'playful' | 'professional' | 'modern' | 'traditional';
+  creativityLevel?: 'template' | 'creative' | 'very_creative';
   brandData: BrandData;
   marketingData: MarketingData;
   audienceData: AudienceData;
@@ -119,6 +120,7 @@ const ErrorDesign: React.FC<PostcardDesignProps & {
 
 const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
   designStyle,
+  creativityLevel,
   brandData,
   marketingData,
   audienceData,
@@ -197,7 +199,8 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
           audienceData,
           businessData,
           visualData,
-          designStyle
+          designStyle,
+          creativityLevel
         });
 
         console.log("API response:", {
@@ -414,7 +417,7 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
     setTimeout(() => {
       generateDesign();
     }, 100);
-  }, [designStyle, brandData, marketingData, audienceData, businessData, visualData]);
+  }, [designStyle, creativityLevel, brandData, marketingData, audienceData, businessData, visualData]);
 
   // Handle reloading the design
   const handleReload = () => {
@@ -436,7 +439,8 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
             audienceData,
             businessData,
             visualData,
-            designStyle
+            designStyle,
+            creativityLevel
           });
           
           console.log("API response:", {
