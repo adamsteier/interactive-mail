@@ -109,10 +109,10 @@ export async function POST(request: Request) {
           console.log(`Attempt ${retryCount + 1}/${maxRetries} to call Claude API...`);
           const stream = await anthropic.messages.stream({
             model: "claude-3-7-sonnet-20250219",
-            max_tokens: 128000,
+            max_tokens: 20000,
             thinking: {
               type: "enabled",
-              budget_tokens: 32000
+              budget_tokens: 12000
             },
             messages: [
               { role: "user", content: prompt }
