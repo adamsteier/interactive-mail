@@ -11,6 +11,7 @@ type MarketingObjective = 'awareness' | 'promotion' | 'traffic' | 'event' | 'oth
 type ImageStyle = 'photograph' | 'illustration' | 'abstract' | 'minimal';
 type LayoutStyle = 'clean' | 'bold' | 'elegant' | 'playful';
 type ImageSource = 'ai' | 'stock' | 'upload';
+type CreativityLevel = 'template' | 'creative' | 'very_creative';
 
 interface BrandData {
   brandName: string;
@@ -83,7 +84,7 @@ type GenerationStep = 'review' | 'generating' | 'complete';
 
 interface PostcardDesign {
   id: string;
-  layout: 'layout1' | 'layout2' | 'layout3';
+  creativityLevel: CreativityLevel;
   selectedImageIndex: number | null;
   imagePosition: {
     x: number;

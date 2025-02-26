@@ -5,6 +5,10 @@ import { motion } from 'framer-motion';
 import DynamicPostcardDesign from './DynamicPostcardDesign';
 import type { BrandData, MarketingData, AudienceData, BusinessData, VisualData } from '../services/claude';
 
+// Type definitions 
+type BrandStylePreference = 'playful' | 'professional' | 'modern' | 'traditional';
+type CreativityLevel = 'template' | 'creative' | 'very_creative';
+
 interface ImagePosition {
   x: number;
   y: number;
@@ -13,7 +17,7 @@ interface ImagePosition {
 
 interface PostcardDesign {
   id: string;
-  layout: 'layout1' | 'layout2' | 'layout3';
+  creativityLevel: CreativityLevel;
   selectedImageIndex: number | null;
   imagePosition: ImagePosition;
 }
@@ -54,12 +58,16 @@ const PostcardPreview: React.FC<PostcardPreviewProps> = ({
   businessData,
   visualData
 }) => {
-  const getDesignStyle = (layout: string) => {
-    switch (layout) {
-      case 'layout1': return 'professional';
-      case 'layout2': return 'modern';
-      case 'layout3': return 'elegant';
-      default: return 'professional';
+  // Get the template style based on user's brand identity preference
+  const templateStyle = brandData.stylePreferences?.[0] || 'professional';
+  
+  // Helper function to get a description for creativity level
+  const getCreativityDescription = (level: CreativityLevel): string => {
+    switch (level) {
+      case 'template': return 'Standard';
+      case 'creative': return 'Creative';
+      case 'very_creative': return 'Very Creative';
+      default: return 'Standard';
     }
   };
 
@@ -69,27 +77,24 @@ const PostcardPreview: React.FC<PostcardPreviewProps> = ({
       animate={{ opacity: 1, y: 0 }}
       className="max-w-4xl mx-auto p-6 bg-charcoal rounded-lg shadow-lg"
     >
-      <h2 className="text-2xl font-bold text-electric-teal mb-4 text-center">
-        Your Postcard Designs
+      <h2 className="text-2xl font-bold text-electric-teal mb-6">
+        Your Selected Postcard Designs
       </h2>
-      <p className="text-electric-teal/70 mb-8 text-center">
-        Your postcard designs have been generated successfully!
-      </p>
       
-      <div className="space-y-12 mb-8">
+      <div className="space-y-8 mb-8">
         {designs.map((design, index) => {
           if (design.selectedImageIndex === null) return null;
           
           const imageUrl = images[design.selectedImageIndex];
-          const designStyle = getDesignStyle(design.layout);
-          const designLabel = designStyle.charAt(0).toUpperCase() + designStyle.slice(1);
+          const designLabel = `${templateStyle.charAt(0).toUpperCase() + templateStyle.slice(1)} - ${getCreativityDescription(design.creativityLevel)}`;
           
           return (
             <div key={design.id} className="space-y-2">
               <h3 className="text-lg font-semibold text-electric-teal">Design {index + 1}: {designLabel}</h3>
               <div className="border border-electric-teal/30 rounded-lg p-4">
                 <DynamicPostcardDesign
-                  designStyle={getDesignStyle(design.layout) as 'professional' | 'modern' | 'elegant'}
+                  designStyle={templateStyle as BrandStylePreference}
+                  creativityLevel={design.creativityLevel}
                   brandData={brandData}
                   marketingData={marketingData}
                   audienceData={audienceData}
@@ -100,11 +105,12 @@ const PostcardPreview: React.FC<PostcardPreviewProps> = ({
                     isSelected: false,
                     onSelect: () => {},
                     imagePosition: design.imagePosition,
-                    brandName: brandName,
-                    tagline: tagline,
-                    contactInfo: contactInfo,
-                    callToAction: callToAction,
-                    extraInfo: extraInfo
+                    onDragEnd: () => {},
+                    brandName,
+                    tagline,
+                    contactInfo,
+                    callToAction,
+                    extraInfo,
                   }}
                 />
               </div>
@@ -113,19 +119,14 @@ const PostcardPreview: React.FC<PostcardPreviewProps> = ({
         })}
       </div>
       
-      <div className="flex justify-between items-center">
-        <div className="text-electric-teal/70">
-          <p className="text-sm">Next Steps:</p>
-          <p className="text-xs">These designs are ready to be printed and mailed to your target audience.</p>
-        </div>
-        
+      <div className="text-center">
         <motion.button
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.98 }}
           onClick={onBack}
           className="px-6 py-3 bg-electric-teal text-charcoal font-semibold rounded-lg"
         >
-          Return to Dashboard
+          Back to Design Selection
         </motion.button>
       </div>
     </motion.div>
