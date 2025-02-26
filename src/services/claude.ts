@@ -261,7 +261,10 @@ DO NOT explain your design choices or include any comments outside the code bloc
 export const generatePostcardDesign = async (params: GeneratePostcardDesignParams): Promise<ClaudeApiResponse> => {
   try {
     // Use the API route instead of calling Claude directly
-    const response = await axios.post('/api/generate-design', params);
+    const response = await axios.post('/api/generate-design', params, {
+      // Add a longer timeout (3 minutes)
+      timeout: 180000,
+    });
     return response.data as ClaudeApiResponse;
   } catch (error) {
     console.error('Error calling design API:', error);

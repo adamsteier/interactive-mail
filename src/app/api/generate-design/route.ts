@@ -88,10 +88,10 @@ export async function POST(request: Request) {
       // Use streaming approach to avoid timeout with large token budgets
       const stream = await anthropic.messages.stream({
         model: "claude-3-7-sonnet-latest",
-        max_tokens: 40000,
+        max_tokens: 20000,
         thinking: {
           type: "enabled",
-          budget_tokens: 36000
+          budget_tokens: 10000
         },
         messages: [
           { role: "user", content: prompt }
