@@ -106,7 +106,7 @@ PLAYFUL TEMPLATE:
 - Polaroid-style frame for the image that rotates slightly
 - Playful typography with bold headings
 - Fun icons from the Lucide React library (Heart, Sun, MessageCircle, Music)
-- Emoji accents (like 🎉)
+- Use Lucide React icons instead of emojis for decorative elements (Party, Sparkles, Star instead of 🎉, ✨, ⭐)
 - Gradient CTA button with rounded corners
 - Friendly, conversational tone throughout`;
       case 'professional':
@@ -118,7 +118,7 @@ PROFESSIONAL TEMPLATE:
 - Business-oriented benefits presented as bullet points
 - Squared elements with subtle shadows
 - Bold call-to-action button
-- Contact information displayed with simple icons
+- Contact information displayed with Lucide React icons (Phone, Mail, Globe, MapPin)
 - Conservative, trustworthy aesthetic`;
       case 'modern':
         return `
@@ -131,7 +131,8 @@ MODERN TEMPLATE:
 - Black and white aesthetic with minimal color
 - Elegant typography combinations
 - Bold, bordered CTA button
-- Contemporary, forward-thinking design language`;
+- Contemporary, forward-thinking design language
+- Minimalist Lucide React icons for contact information (ArrowRight, Mail, Phone)`;
       case 'traditional':
         return `
 TRADITIONAL TEMPLATE:
@@ -140,10 +141,11 @@ TRADITIONAL TEMPLATE:
 - Ornate borders and traditional styling
 - Classic typography with serif fonts
 - Vintage frame for images with a double-border effect
-- Traditional ornamental elements and symbols (✦)
+- Traditional ornamental elements using Lucide React icons (Award, Star, Flower)
 - Heritage-focused messaging
 - Traditional stamp element in the corner
-- Warm color palette focused on amber and brown tones`;
+- Warm color palette focused on amber and brown tones
+- Use Lucide React icons instead of symbol characters (Award instead of ✦, Star instead of ★)`;
       default:
         return '';
     }
@@ -250,10 +252,19 @@ TECHNICAL REQUIREMENTS:
    - Create the postcard at EXACTLY 1872x1271 pixels
    - The component will be displayed inside a scaling container that uses CSS transform
    - Elements should be sized proportionally to this large canvas (e.g., larger fonts, padding, etc.)
+7. ICON USAGE:
+   - Instead of emojis, use Lucide React icons library for all icons
+   - Import needed icons at the top of the file: { Import Lucide icons like Heart, Phone, Mail, MapPin, etc. }
+   - Create icon components with React.createElement(IconName, { size: appropriate_size, className: 'text-color-class' })
+   - Maintain a consistent icon style throughout the design
+   - For addresses use MapPin, for phone numbers use Phone, for email use Mail, for websites use Globe
 
 Here's an example structure using React.createElement to inspire you:
 
 \`\`\`
+// First import React and Lucide React icons
+const { Phone, Mail, MapPin, Globe } = require('lucide-react');
+
 const PostcardDesign = (props) => {
   // Extract props with defaults
   const { 
@@ -277,6 +288,13 @@ const PostcardDesign = (props) => {
     transform: \`translate(\${imagePosition.x}px, \${imagePosition.y}px) scale(\${imagePosition.scale})\`,
   };
   
+  // Example of creating a Lucide React icon component
+  const phoneIcon = React.createElement(Phone, { 
+    size: 18, 
+    className: 'text-blue-500 mr-2',
+    strokeWidth: 2 
+  });
+  
   // Create your component with React.createElement
   return React.createElement(
     'div',
@@ -293,7 +311,12 @@ const PostcardDesign = (props) => {
     },
     [
       // Your creative design structure goes here, using React.createElement for each element
-      // Feel free to create whatever nested structure best fits the content
+      // Incorporate Lucide React icons for contact information
+      contactInfo.phone && React.createElement('div', { className: 'flex items-center' }, [
+        phoneIcon,
+        React.createElement('span', { className: 'text-gray-700' }, contactInfo.phone)
+      ])
+      // Add more elements as needed
     ]
   );
 };
