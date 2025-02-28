@@ -9,6 +9,9 @@ import { generatePostcardDesign, extractComponentCode } from '../services/claude
 // Import LucideIconProvider
 import LucideIconProvider from './LucideIconProvider';
 
+// Add new import for Next.js font loading
+import { useGoogleFonts } from '../hooks/useGoogleFonts';
+
 // Import the interface types from Claude service to avoid 'any'
 import type { BrandData, MarketingData, AudienceData, BusinessData, VisualData } from '../services/claude';
 
@@ -201,6 +204,21 @@ const ErrorDesign: React.FC<PostcardDesignProps & {
   </div>
 );
 
+// New interface for font information
+interface FontInfo {
+  fonts: {
+    name: string;
+    weights: number[];
+  }[];
+}
+
+interface DebugInfo {
+  codePreview?: string;
+  hasJsx?: boolean;
+  errorMessage?: string;
+  fontInfo?: FontInfo;
+}
+
 const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
   designStyle,
   creativityLevel,
@@ -214,11 +232,11 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [designComponent, setDesignComponent] = useState<React.ComponentType<PostcardDesignProps> | null>(null);
-  const [debugInfo, setDebugInfo] = useState<{
-    codePreview?: string;
-    hasJsx?: boolean;
-    errorMessage?: string;
-  }>({});
+  const [debugInfo, setDebugInfo] = useState<DebugInfo>({});
+  const [fontInfo, setFontInfo] = useState<FontInfo | null>(null);
+  
+  // Load fonts using our custom hook
+  const { fontsLoaded } = useGoogleFonts(fontInfo?.fonts || []);
 
   // Create a loading indicator component
   const LoadingDesign: React.FC<PostcardDesignProps> = (props) => (
@@ -359,6 +377,15 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
                   return null;
                 }
                 
+                // Check if we're just extracting font information
+                if (motion && typeof motion === 'object' && motion.getFontInfo === true) {
+                  // Try to find fontInfo in the code
+                  if (typeof fontInfo !== 'undefined') {
+                    return fontInfo;
+                  }
+                  return null;
+                }
+                
                 return React.createElement(PostcardDesign, postcardProps);
               } catch (err) {
                 console.error("Error in dynamic component:", err);
@@ -370,9 +397,27 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
             // Create a wrapper component that calls the generated component
             const WrappedComponent = (props: PostcardDesignProps) => {
               try {
+                // Extract font information from the component
+                // This assumes that Claude creates a fontInfo object in the generated component
+                try {
+                  // This will run once when the component is created
+                  const extractedFontInfo = ComponentFunction(React, { getFontInfo: true }, props);
+                  if (extractedFontInfo && typeof extractedFontInfo === 'object' && 'fonts' in extractedFontInfo) {
+                    setFontInfo(extractedFontInfo as FontInfo);
+                    
+                    // Add font info to debug information
+                    setDebugInfo(prev => ({
+                      ...prev,
+                      fontInfo: extractedFontInfo as FontInfo
+                    }));
+                  }
+                } catch (fontError) {
+                  console.warn('Failed to extract font information:', fontError);
+                }
+                
                 return (
                   <LucideIconProvider>
-                    {ComponentFunction(React, motion, props)}
+                    {fontsLoaded && ComponentFunction(React, motion, props)}
                   </LucideIconProvider>
                 );
               } catch (err) {
@@ -406,6 +451,23 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
                 text: designStyle === 'professional' ? '#2d3748' : designStyle === 'modern' ? '#e2e8f0' : '#1e293b'
               };
             
+              // Set default fonts based on design style
+              useEffect(() => {
+                const defaultFontInfo = {
+                  fonts: [
+                    { name: designStyle === 'traditional' ? 'Merriweather' : 
+                            designStyle === 'professional' ? 'Playfair Display' : 
+                            designStyle === 'modern' ? 'Roboto' : 'Pacifico', 
+                      weights: [400, 700] },
+                    { name: designStyle === 'traditional' ? 'Lora' : 
+                            designStyle === 'professional' ? 'Source Sans Pro' : 
+                            designStyle === 'modern' ? 'Roboto Slab' : 'Quicksand', 
+                      weights: [400, 500] }
+                  ]
+                };
+                setFontInfo(defaultFontInfo);
+              }, []);
+              
               return (
                 <LucideIconProvider>
                   <div 
@@ -674,6 +736,15 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
                     return null;
                   }
                   
+                  // Check if we're just extracting font information
+                  if (motion && typeof motion === 'object' && motion.getFontInfo === true) {
+                    // Try to find fontInfo in the code
+                    if (typeof fontInfo !== 'undefined') {
+                      return fontInfo;
+                    }
+                    return null;
+                  }
+                  
                   return React.createElement(PostcardDesign, postcardProps);
                 } catch (err) {
                   console.error("Error in dynamic component:", err);
@@ -685,9 +756,27 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
               // Create a wrapper component that calls the generated component
               const WrappedComponent = (props: PostcardDesignProps) => {
                 try {
+                  // Extract font information from the component
+                  // This assumes that Claude creates a fontInfo object in the generated component
+                  try {
+                    // This will run once when the component is created
+                    const extractedFontInfo = ComponentFunction(React, { getFontInfo: true }, props);
+                    if (extractedFontInfo && typeof extractedFontInfo === 'object' && 'fonts' in extractedFontInfo) {
+                      setFontInfo(extractedFontInfo as FontInfo);
+                      
+                      // Add font info to debug information
+                      setDebugInfo(prev => ({
+                        ...prev,
+                        fontInfo: extractedFontInfo as FontInfo
+                      }));
+                    }
+                  } catch (fontError) {
+                    console.warn('Failed to extract font information:', fontError);
+                  }
+                  
                   return (
                     <LucideIconProvider>
-                      {ComponentFunction(React, motion, props)}
+                      {fontsLoaded && ComponentFunction(React, motion, props)}
                     </LucideIconProvider>
                   );
                 } catch (err) {
@@ -721,6 +810,23 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
                   text: designStyle === 'professional' ? '#2d3748' : designStyle === 'modern' ? '#e2e8f0' : '#1e293b'
                 };
                
+                // Set default fonts based on design style
+                useEffect(() => {
+                  const defaultFontInfo = {
+                    fonts: [
+                      { name: designStyle === 'traditional' ? 'Merriweather' : 
+                              designStyle === 'professional' ? 'Playfair Display' : 
+                              designStyle === 'modern' ? 'Roboto' : 'Pacifico', 
+                        weights: [400, 700] },
+                      { name: designStyle === 'traditional' ? 'Lora' : 
+                              designStyle === 'professional' ? 'Source Sans Pro' : 
+                              designStyle === 'modern' ? 'Roboto Slab' : 'Quicksand', 
+                        weights: [400, 500] }
+                    ]
+                  };
+                  setFontInfo(defaultFontInfo);
+                }, []);
+                
                 return (
                   <LucideIconProvider>
                     <div 

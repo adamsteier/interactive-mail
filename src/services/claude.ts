@@ -227,6 +227,26 @@ TECHNICAL REQUIREMENTS:
    - Create icon components by referencing the icon name with size and className
    - Maintain a consistent icon style throughout the design
    - For addresses use 'MapPin', for phone numbers use 'Phone', for email use 'Mail', for websites use 'Globe'
+8. FONT USAGE:
+   - Use Google Fonts to enhance your design's typography
+   - Select fonts that match the design style (${designStyle}) and target audience
+   - For each font you use, include a fontFamily property in your style object
+   - IMPORTANT: At the beginning of your component, include a fontInfo object that lists all Google Fonts used:
+     
+     const fontInfo = {
+       fonts: [
+         { name: 'Font Name', weights: [400, 700] },  // Include only the weights you're using
+         { name: 'Another Font', weights: [300, 500, 900] }
+       ]
+     };
+     
+   - Use semantic font pairings (e.g., different fonts for headings vs body text)
+   - Some suggested font pairings based on style:
+     * Professional: 'Playfair Display' with 'Source Sans Pro', 'Libre Baskerville' with 'Montserrat'
+     * Modern: 'Roboto' with 'Roboto Slab', 'Work Sans' with 'Crimson Text'
+     * Playful: 'Pacifico' with 'Quicksand', 'Fredoka One' with 'Nunito'
+     * Traditional: 'Merriweather' with 'Lora', 'Libre Baskerville' with 'Source Serif Pro'
+   - Feel free to use ANY Google Font that fits your design (not limited to the suggestions)
 
 Here's an example structure using React.createElement to inspire you:
 
