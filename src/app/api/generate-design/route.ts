@@ -70,7 +70,14 @@ export async function POST(request: Request) {
     
     // Try to use the real Claude API
     try {
-      const prompt = generateDesignPrompt(params);
+      const prompt = generateDesignPrompt(
+        params.brandData,
+        params.marketingData,
+        params.audienceData,
+        params.businessData,
+        params.designStyle,
+        params.creativityLevel
+      );
       
       // Log the prompt (showing beginning and end)
       console.log("\n==== CLAUDE PROMPT ====");
