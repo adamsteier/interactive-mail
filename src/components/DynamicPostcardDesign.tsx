@@ -12,6 +12,53 @@ import LucideIconProvider from './LucideIconProvider';
 // Import the interface types from Claude service to avoid 'any'
 import type { BrandData, MarketingData, AudienceData, BusinessData, VisualData } from '../services/claude';
 
+// Editable text component that switches between static text and editable input
+const EditableText = ({
+  value, 
+  onChange, 
+  fieldName,
+  className = "",
+  style = {},
+  isMultiline = false,
+  isEditing = false
+}: { 
+  value: string; 
+  onChange: (value: string) => void;
+  fieldName: string;
+  className?: string;
+  style?: React.CSSProperties;
+  isMultiline?: boolean;
+  isEditing?: boolean;
+}) => {
+  if (!isEditing) {
+    return <div className={className} style={style}>{value}</div>;
+  }
+  
+  if (isMultiline) {
+    return (
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={`bg-transparent border border-pink-500 rounded px-2 py-1 w-full ${className}`}
+        style={{...style, minHeight: '60px'}}
+        placeholder={`Edit ${fieldName}...`}
+      />
+    );
+  }
+  
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={`bg-transparent border border-pink-500 rounded px-2 py-1
+                w-full ${className}`}
+      style={style}
+      placeholder={`Edit ${fieldName}...`}
+    />
+  );
+};
+
 // Types for props
 interface ImagePosition {
   x: number;
@@ -26,6 +73,7 @@ interface PostcardDesignProps {
   imagePosition: ImagePosition;
   onDragEnd?: (info: { offset: { x: number; y: number } }) => void;
   isLoading?: boolean;
+  isEditing?: boolean;
   brandName?: string;
   tagline?: string;
   contactInfo?: {
@@ -36,6 +84,7 @@ interface PostcardDesignProps {
   };
   callToAction?: string;
   extraInfo?: string;
+  onTextChange?: (field: string, value: string) => void;
 }
 
 interface GeneratedDesignProps {
@@ -348,7 +397,7 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
               errorMessage: dynamicError instanceof Error ? dynamicError.message : 'Unknown dynamic component error'
             }));
             
-            // Fallback to hardcoded component
+            // Use the same fallback logic as in the useEffect
             const WrappedComponent = (props: PostcardDesignProps) => {
               const colors = {
                 bg: designStyle === 'professional' ? '#f8f9fa' : designStyle === 'modern' ? '#2d3748' : '#f7f7f7',
@@ -368,18 +417,23 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
                     <div className="p-4 flex flex-col h-full">
                       {/* Header */}
                       <div className="mb-3">
-                        <h3 
+                        <EditableText 
+                          value={props.brandName || brandData.brandName}
+                          onChange={(value) => props.onTextChange?.('brandName', value)}
+                          fieldName="Brand Name"
                           className="font-bold text-xl mb-1" 
                           style={{ color: colors.primary }}
-                        >
-                          {props.brandName || brandData.brandName}
-                        </h3>
-                        <p 
+                          isEditing={props.isEditing}
+                        />
+                        
+                        <EditableText 
+                          value={props.tagline || businessData.tagline}
+                          onChange={(value) => props.onTextChange?.('tagline', value)}
+                          fieldName="Tagline"
                           className="text-sm italic" 
                           style={{ color: colors.secondary }}
-                        >
-                          {props.tagline || businessData.tagline}
-                        </p>
+                          isEditing={props.isEditing}
+                        />
                       </div>
                       
                       {/* Image area */}
@@ -409,16 +463,81 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
                         className="py-2 px-4 rounded text-center font-medium text-white mb-3"
                         style={{ backgroundColor: colors.primary }}
                       >
-                        {props.callToAction || marketingData.callToAction}
+                        <EditableText 
+                          value={props.callToAction || marketingData.callToAction}
+                          onChange={(value) => props.onTextChange?.('callToAction', value)}
+                          fieldName="Call to Action"
+                          className="w-full text-center"
+                          style={{ color: 'white' }}
+                          isEditing={props.isEditing}
+                        />
                       </div>
                       
                       {/* Contact info */}
                       <div className="mt-auto text-xs space-y-1" style={{ color: colors.text }}>
-                        {props.contactInfo?.phone && <p>📞 {props.contactInfo.phone}</p>}
-                        {props.contactInfo?.email && <p>✉️ {props.contactInfo.email}</p>}
-                        {props.contactInfo?.website && <p>🌐 {props.contactInfo.website}</p>}
-                        {props.contactInfo?.address && <p>📍 {props.contactInfo.address}</p>}
-                        {props.extraInfo && <p className="italic">{props.extraInfo}</p>}
+                        {props.contactInfo?.phone && (
+                          <div className="flex items-center">
+                            <span className="mr-1">📞</span>
+                            <EditableText 
+                              value={props.contactInfo.phone}
+                              onChange={(value) => props.onTextChange?.('phone', value)}
+                              fieldName="Phone"
+                              className="flex-1"
+                              isEditing={props.isEditing}
+                            />
+                          </div>
+                        )}
+                        
+                        {props.contactInfo?.email && (
+                          <div className="flex items-center">
+                            <span className="mr-1">✉️</span>
+                            <EditableText 
+                              value={props.contactInfo.email}
+                              onChange={(value) => props.onTextChange?.('email', value)}
+                              fieldName="Email"
+                              className="flex-1"
+                              isEditing={props.isEditing}
+                            />
+                          </div>
+                        )}
+                        
+                        {props.contactInfo?.website && (
+                          <div className="flex items-center">
+                            <span className="mr-1">🌐</span>
+                            <EditableText 
+                              value={props.contactInfo.website}
+                              onChange={(value) => props.onTextChange?.('website', value)}
+                              fieldName="Website"
+                              className="flex-1"
+                              isEditing={props.isEditing}
+                            />
+                          </div>
+                        )}
+                        
+                        {props.contactInfo?.address && (
+                          <div className="flex items-center">
+                            <span className="mr-1">📍</span>
+                            <EditableText 
+                              value={props.contactInfo.address}
+                              onChange={(value) => props.onTextChange?.('address', value)}
+                              fieldName="Address"
+                              className="flex-1"
+                              isMultiline={true}
+                              isEditing={props.isEditing}
+                            />
+                          </div>
+                        )}
+                        
+                        {props.extraInfo && (
+                          <EditableText 
+                            value={props.extraInfo}
+                            onChange={(value) => props.onTextChange?.('extraInfo', value)}
+                            fieldName="Additional Info"
+                            className="italic mt-2"
+                            isMultiline={true}
+                            isEditing={props.isEditing}
+                          />
+                        )}
                       </div>
                     </div>
                   </div>
@@ -601,8 +720,7 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
                   secondary: designStyle === 'professional' ? '#2c5282' : designStyle === 'modern' ? '#234e52' : '#4c1d95',
                   text: designStyle === 'professional' ? '#2d3748' : designStyle === 'modern' ? '#e2e8f0' : '#1e293b'
                 };
-                
-                // Just reuse the same fallback component rendering code from above
+               
                 return (
                   <LucideIconProvider>
                     <div 
@@ -613,18 +731,25 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
                     >
                       <div className="p-4 flex flex-col h-full">
                         {/* Header */}
-                        <h3 
-                          className="font-bold text-xl mb-1" 
-                          style={{ color: colors.primary }}
-                        >
-                          {props.brandName || brandData.brandName}
-                        </h3>
-                        <p 
-                          className="text-sm italic mb-3" 
-                          style={{ color: colors.secondary }}
-                        >
-                          {props.tagline || businessData.tagline}
-                        </p>
+                        <div className="mb-3">
+                          <EditableText 
+                            value={props.brandName || brandData.brandName}
+                            onChange={(value) => props.onTextChange?.('brandName', value)}
+                            fieldName="Brand Name"
+                            className="font-bold text-xl mb-1" 
+                            style={{ color: colors.primary }}
+                            isEditing={props.isEditing}
+                          />
+                          
+                          <EditableText 
+                            value={props.tagline || businessData.tagline}
+                            onChange={(value) => props.onTextChange?.('tagline', value)}
+                            fieldName="Tagline"
+                            className="text-sm italic" 
+                            style={{ color: colors.secondary }}
+                            isEditing={props.isEditing}
+                          />
+                        </div>
                         
                         {/* Image area */}
                         <div className="w-full aspect-video bg-gray-200 relative overflow-hidden rounded mb-3">
@@ -653,16 +778,81 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
                           className="py-2 px-4 rounded text-center font-medium text-white mb-3"
                           style={{ backgroundColor: colors.primary }}
                         >
-                          {props.callToAction || marketingData.callToAction}
+                          <EditableText 
+                            value={props.callToAction || marketingData.callToAction}
+                            onChange={(value) => props.onTextChange?.('callToAction', value)}
+                            fieldName="Call to Action"
+                            className="w-full text-center"
+                            style={{ color: 'white' }}
+                            isEditing={props.isEditing}
+                          />
                         </div>
                         
                         {/* Contact info */}
                         <div className="mt-auto text-xs space-y-1" style={{ color: colors.text }}>
-                          {props.contactInfo?.phone && <p>📞 {props.contactInfo.phone}</p>}
-                          {props.contactInfo?.email && <p>✉️ {props.contactInfo.email}</p>}
-                          {props.contactInfo?.website && <p>🌐 {props.contactInfo.website}</p>}
-                          {props.contactInfo?.address && <p>📍 {props.contactInfo.address}</p>}
-                          {props.extraInfo && <p className="italic">{props.extraInfo}</p>}
+                          {props.contactInfo?.phone && (
+                            <div className="flex items-center">
+                              <span className="mr-1">📞</span>
+                              <EditableText 
+                                value={props.contactInfo.phone}
+                                onChange={(value) => props.onTextChange?.('phone', value)}
+                                fieldName="Phone"
+                                className="flex-1"
+                                isEditing={props.isEditing}
+                              />
+                            </div>
+                          )}
+                          
+                          {props.contactInfo?.email && (
+                            <div className="flex items-center">
+                              <span className="mr-1">✉️</span>
+                              <EditableText 
+                                value={props.contactInfo.email}
+                                onChange={(value) => props.onTextChange?.('email', value)}
+                                fieldName="Email"
+                                className="flex-1"
+                                isEditing={props.isEditing}
+                              />
+                            </div>
+                          )}
+                          
+                          {props.contactInfo?.website && (
+                            <div className="flex items-center">
+                              <span className="mr-1">🌐</span>
+                              <EditableText 
+                                value={props.contactInfo.website}
+                                onChange={(value) => props.onTextChange?.('website', value)}
+                                fieldName="Website"
+                                className="flex-1"
+                                isEditing={props.isEditing}
+                              />
+                            </div>
+                          )}
+                          
+                          {props.contactInfo?.address && (
+                            <div className="flex items-center">
+                              <span className="mr-1">📍</span>
+                              <EditableText 
+                                value={props.contactInfo.address}
+                                onChange={(value) => props.onTextChange?.('address', value)}
+                                fieldName="Address"
+                                className="flex-1"
+                                isMultiline={true}
+                                isEditing={props.isEditing}
+                              />
+                            </div>
+                          )}
+                          
+                          {props.extraInfo && (
+                            <EditableText 
+                              value={props.extraInfo}
+                              onChange={(value) => props.onTextChange?.('extraInfo', value)}
+                              fieldName="Additional Info"
+                              className="italic mt-2"
+                              isMultiline={true}
+                              isEditing={props.isEditing}
+                            />
+                          )}
                         </div>
                       </div>
                     </div>

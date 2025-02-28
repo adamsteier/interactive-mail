@@ -96,6 +96,18 @@ interface PostcardDesign {
   creativityLevel: CreativityLevel;
   selectedImageIndex: number | null;
   imagePosition: ImagePosition;
+  textContent?: {
+    brandName?: string;
+    tagline?: string;
+    callToAction?: string;
+    extraInfo?: string;
+    contactInfo?: {
+      phone?: string;
+      email?: string;
+      website?: string;
+      address?: string;
+    };
+  };
 }
 
 const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
@@ -113,6 +125,9 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [usingFallbackImages, setUsingFallbackImages] = useState(false);
   
+  // Text editing state
+  const [isEditing, setIsEditing] = useState(false);
+  
   // Countdown timer state
   const [countdown, setCountdown] = useState(180); // 3 minutes in seconds
   
@@ -126,19 +141,55 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
       id: 'postcard1', 
       creativityLevel: 'template', // First design closely matches the template
       selectedImageIndex: null, 
-      imagePosition: { x: 0, y: 0, scale: 1 } 
+      imagePosition: { x: 0, y: 0, scale: 1 },
+      textContent: {
+        brandName: brandData.brandName,
+        tagline: businessData.tagline,
+        callToAction: marketingData.callToAction,
+        extraInfo: businessData.extraInfo,
+        contactInfo: {
+          phone: businessData.contactInfo.phone,
+          email: businessData.contactInfo.email,
+          website: businessData.contactInfo.website,
+          address: businessData.contactInfo.address
+        }
+      }
     },
     { 
       id: 'postcard2', 
       creativityLevel: 'creative', // Second design is more creative
       selectedImageIndex: null, 
-      imagePosition: { x: 0, y: 0, scale: 1 } 
+      imagePosition: { x: 0, y: 0, scale: 1 },
+      textContent: {
+        brandName: brandData.brandName,
+        tagline: businessData.tagline,
+        callToAction: marketingData.callToAction,
+        extraInfo: businessData.extraInfo,
+        contactInfo: {
+          phone: businessData.contactInfo.phone,
+          email: businessData.contactInfo.email,
+          website: businessData.contactInfo.website,
+          address: businessData.contactInfo.address
+        }
+      }
     },
     { 
       id: 'postcard3', 
       creativityLevel: 'very_creative', // Third design is most creative
       selectedImageIndex: null, 
-      imagePosition: { x: 0, y: 0, scale: 1 } 
+      imagePosition: { x: 0, y: 0, scale: 1 },
+      textContent: {
+        brandName: brandData.brandName,
+        tagline: businessData.tagline,
+        callToAction: marketingData.callToAction,
+        extraInfo: businessData.extraInfo,
+        contactInfo: {
+          phone: businessData.contactInfo.phone,
+          email: businessData.contactInfo.email,
+          website: businessData.contactInfo.website,
+          address: businessData.contactInfo.address
+        }
+      }
     },
   ]);
 
@@ -290,6 +341,46 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
     }
     
     onComplete(postcardDesigns, generatedImages, usingFallbackImages);
+  };
+
+  // Toggle editing mode
+  const toggleEditMode = () => {
+    setIsEditing(prev => !prev);
+  };
+  
+  // Handle text content updates
+  const handleTextChange = (
+    postcardIndex: number, 
+    field: 'brandName' | 'tagline' | 'callToAction' | 'extraInfo' | 'phone' | 'email' | 'website' | 'address', 
+    value: string
+  ) => {
+    setPostcardDesigns(prev => 
+      prev.map((design, idx) => {
+        if (idx !== postcardIndex) return design;
+        
+        // Create a copy of the design object
+        const updatedDesign = { ...design };
+        
+        // Check if we're updating a contact info field
+        if (['phone', 'email', 'website', 'address'].includes(field)) {
+          updatedDesign.textContent = {
+            ...updatedDesign.textContent,
+            contactInfo: {
+              ...updatedDesign.textContent?.contactInfo,
+              [field]: value
+            }
+          };
+        } else {
+          // Update other fields directly
+          updatedDesign.textContent = {
+            ...updatedDesign.textContent,
+            [field]: value
+          };
+        }
+        
+        return updatedDesign;
+      })
+    );
   };
 
   // Render initial loading animation
@@ -457,7 +548,28 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
       
       {/* Postcard designs section - Full width */}
       <div className="space-y-12">
-        <h3 className="text-xl font-semibold text-electric-teal mb-4">Postcard Designs</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-semibold text-electric-teal">Postcard Designs</h3>
+          <button
+            onClick={toggleEditMode}
+            className={`px-4 py-2 rounded-lg transition-colors ${
+              isEditing 
+                ? 'bg-pink-500 text-white' 
+                : 'bg-charcoal-light text-electric-teal border border-electric-teal/30'
+            }`}
+          >
+            {isEditing ? 'Done Editing' : 'Edit Text'}
+          </button>
+        </div>
+        
+        {/* Edit mode explanation */}
+        {isEditing && (
+          <div className="mb-6 p-3 bg-pink-900/20 border border-pink-500/30 rounded-lg">
+            <p className="text-electric-teal text-sm">
+              <span className="font-semibold">Text Edit Mode:</span> Click on any text element in the postcard designs below to edit the content.
+            </p>
+          </div>
+        )}
         
         {/* Replace the static designs with dynamic designs */}
         {postcardDesigns.map((design, index) => (
@@ -538,16 +650,18 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
                     imagePosition: design.imagePosition,
                     onDragEnd: (info) => handleDragEnd(index, info),
                     isLoading: isImagesLoading, // Pass image loading state
-                    brandName: brandData.brandName,
-                    tagline: businessData.tagline,
+                    isEditing: isEditing, // Pass editing state
+                    brandName: design.textContent?.brandName || brandData.brandName,
+                    tagline: design.textContent?.tagline || businessData.tagline,
                     contactInfo: {
-                      phone: businessData.contactInfo.phone,
-                      email: businessData.contactInfo.email,
-                      website: businessData.contactInfo.website,
-                      address: businessData.contactInfo.address
+                      phone: design.textContent?.contactInfo?.phone || businessData.contactInfo.phone,
+                      email: design.textContent?.contactInfo?.email || businessData.contactInfo.email,
+                      website: design.textContent?.contactInfo?.website || businessData.contactInfo.website,
+                      address: design.textContent?.contactInfo?.address || businessData.contactInfo.address
                     },
-                    callToAction: marketingData.callToAction,
-                    extraInfo: businessData.extraInfo
+                    callToAction: design.textContent?.callToAction || marketingData.callToAction,
+                    extraInfo: design.textContent?.extraInfo || businessData.extraInfo,
+                    onTextChange: (field, value) => handleTextChange(index, field, value),
                   }}
                 />
               </ZoomablePostcard>
