@@ -87,146 +87,114 @@ export interface GeneratePostcardDesignParams {
 }
 
 /**
- * Generates a prompt for Claude API based on user data, design style and creativity level
+ * Generate a prompt for Claude to create a postcard design
  */
-export const generateDesignPrompt = (params: GeneratePostcardDesignParams): string => {
-  const { brandData, marketingData, audienceData, businessData, designStyle, creativityLevel = 'template' } = params;
-  
-  // Get the objectives as a list
-  const objectives = marketingData.objectives.map(obj => `- ${obj}`).join('\n');
+export const generateDesignPrompt = (
+  brandData: BrandData,
+  marketingData: MarketingData, 
+  audienceData: AudienceData,
+  businessData: BusinessData,
+  designStyle: 'playful' | 'professional' | 'modern' | 'traditional',
+  creativityLevel: 'template' | 'creative' | 'very_creative' = 'creative'
+): string => {
+  // Template prompt component for the design style
+  const templateComponents = {
+    playful: `Create a FUN, PLAYFUL postcard design with vibrant colors, friendly illustrations or imagery, and energetic layouts. 
+Use rounded corners, playful typography, and a lighthearted approach that conveys joy and approachability.
+Consider using a combination of bold color blocks, playful patterns, or quirky design elements that would appeal to your audience.
+Make it visually engaging without being overwhelming.`,
 
-  // Get template descriptions based on selected style
-  const getTemplateDescription = () => {
-    switch(designStyle) {
-      case 'playful':
-        return `
-PLAYFUL TEMPLATE:
-- Playful, vibrant design with rounded corners and fun shapes
-- Bright color gradients (pink to yellow background)
-- Polaroid-style frame for the image that rotates slightly
-- Playful typography with bold headings
-- Fun icons from the Lucide React library (Heart, Sun, MessageCircle, Music)
-- Use Lucide React icons instead of emojis for decorative elements (Party, Sparkles, Star instead of 🎉, ✨, ⭐)
-- Gradient CTA button with rounded corners
-- Friendly, conversational tone throughout`;
-      case 'professional':
-        return `
-PROFESSIONAL TEMPLATE:
-- Clean, structured layout with a blue gradient background
-- Professional, corporate styling with clear hierarchy
-- Split layout with strategic information placement
-- Business-oriented benefits presented as bullet points
-- Squared elements with subtle shadows
-- Bold call-to-action button
-- Contact information displayed with Lucide React icons (Phone, Mail, Globe, MapPin)
-- Conservative, trustworthy aesthetic`;
-      case 'modern':
-        return `
-MODERN TEMPLATE:
-- Dramatic split layout (black and white sections)
-- High contrast with minimal elements
-- Bold typography with large brand name
-- Red accent line as a visual divider
-- Clean spacing with intentional negative space
-- Black and white aesthetic with minimal color
-- Elegant typography combinations
-- Bold, bordered CTA button
-- Contemporary, forward-thinking design language
-- Minimalist Lucide React icons for contact information (ArrowRight, Mail, Phone)`;
-      case 'traditional':
-        return `
-TRADITIONAL TEMPLATE:
-- Warm, vintage aesthetics with amber/sepia tones
-- Textured paper background with subtle patterns
-- Ornate borders and traditional styling
-- Classic typography with serif fonts
-- Vintage frame for images with a double-border effect
-- Traditional ornamental elements using Lucide React icons (Award, Star, Flower)
-- Heritage-focused messaging
-- Traditional stamp element in the corner
-- Warm color palette focused on amber and brown tones
-- Use Lucide React icons instead of symbol characters (Award instead of ✦, Star instead of ★)`;
-      default:
-        return '';
-    }
+    professional: `Create a PROFESSIONAL, SOPHISTICATED postcard design with clean layouts, elegant typography, and refined color use.
+Focus on negative space, structured grid layouts, and professional imagery that conveys competence and trustworthiness.
+Incorporate subtle textures or gradients if appropriate, maintain balanced proportions, and ensure impeccable alignment.
+The design should be business-appropriate while still being visually interesting.`,
+
+    modern: `Create a MODERN, BOLD postcard design with contemporary aesthetics, dramatic layouts, and high contrast elements.
+Consider using a split layout, dynamic typography arrangements, minimalist approaches, or unexpected composition techniques.
+Incorporate negative space strategically, use typography as a graphic element, and create visual tension through contrast.
+The design should feel current, fresh, and visually surprising while remaining purposeful and cohesive.`,
+
+    traditional: `Create a TRADITIONAL, TIMELESS postcard design with classic elements, symmetrical layouts, and familiar design patterns.
+Use serif typography, traditional color palettes, bordered layouts, or classic imagery appropriate for established businesses.
+Focus on convention rather than innovation, with clear hierarchy, centered compositions, and balanced proportions.
+The design should feel established, trustworthy, and timeless.`
   };
 
-  // Adjust creativity guidance based on creativityLevel
-  let creativityGuidance = '';
-  switch(creativityLevel) {
-    case 'template':
-      creativityGuidance = `
-CREATIVITY GUIDANCE: LOW VARIATION - MATCH TEMPLATE CLOSELY
-For this design, I want you to closely follow the template structure while ensuring it works well with the provided brand information. 
-- Maintain the core layout structure described in the template
-- Use the same visual elements as described (frames, borders, color scheme)
-- Keep the same division of space and proportions
-- Match the typography approach
-- Adapt the content to fit the brand, but don't dramatically change the template's visual approach
-- Focus on polish rather than reinvention`;
-      break;
-    case 'creative':
-      creativityGuidance = `
-CREATIVITY GUIDANCE: MEDIUM VARIATION - EVOLVE THE TEMPLATE
-For this design, take the template as a strong starting point but introduce thoughtful modifications.
-- Maintain the core aesthetic of the template while adding your own creative touches
-- Feel free to modify layouts to better highlight specific brand information
-- Experiment with variations on the color scheme that maintain the template's mood
-- Try different typography combinations while preserving the template's style
-- Add or modify visual elements that enhance the design while keeping the template's spirit
-- Consider how to make specific brand elements shine within the template structure`;
-      break;
-    case 'very_creative':
-      creativityGuidance = `
-CREATIVITY GUIDANCE: HIGH VARIATION - INNOVATE FROM THE TEMPLATE
-For this design, use the template as inspiration but create something more unique and tailored.
-- Start with the template's core aesthetic but push the boundaries significantly
-- Feel free to reimagine the layout while maintaining the spirit of the style
-- Experiment boldly with color variations that still reflect the template's mood
-- Be creative with typography while ensuring it fits the overall style
-- Add unique visual elements that complement the brand
-- Consider unconventional arrangements that showcase the content effectively
-- Focus on making the design feel custom-made for this specific brand
-- Incorporate user suggestions if provided in the brand data`;
-      break;
+  // Creativity level guidance
+  const creativityGuidance = {
+    template: `For creativity level, take a VERY CONSERVATIVE approach. 
+Create a standard, conventional design that follows established design patterns in this industry.
+Use predictable layouts, standard typography choices, and expected visual treatments.
+The result should feel familiar and safe, with no experimental elements.`,
+
+    creative: `For creativity level, take a BALANCED approach between convention and originality.
+Create a design that feels fresh and interesting while remaining appropriate and effective.
+You can introduce a few unexpected elements or treatments while keeping the overall structure familiar.
+Find creative ways to highlight the key information while maintaining clarity and purpose.`,
+
+    very_creative: `For creativity level, take a BOLD, INNOVATIVE approach that pushes boundaries.
+Create a design that feels unique, surprising, and memorable while still functioning effectively as a postcard.
+Experiment with unconventional layouts, unexpected color combinations, or innovative visual treatments.
+Challenge design conventions while ensuring the design remains cohesive and purposeful.`
+  };
+
+  // Audience tailoring - NEW SECTION
+  let audienceTailoring = ``;
+  
+  if (audienceData.targetDescription) {
+    audienceTailoring = `
+AUDIENCE TAILORING:
+Your design should specifically appeal to ${audienceData.targetDescription} in the ${audienceData.industry || 'relevant'} industry.
+Consider the visual preferences, communication style, and expectations of this specific audience.
+Adjust your design choices (colors, typography, layout, visual elements) to resonate with this audience specifically.
+Use design elements that would catch their attention and feel relevant to their professional context.`;
   }
 
-  // Add the template description
-  const templateDescription = getTemplateDescription();
-  
-  // Construct the full prompt with template approach
-  return `
-You are creating a React component for a POSTCARD design for ${brandData.brandName}.
+  // Brand differentiation - NEW SECTION
+  const brandDifferentiation = `
+DESIGN DIFFERENTIATION:
+Your design should feel distinct and unique to ${brandData.brandName}, not generic or template-like.
+Find creative ways to express the brand's unique value proposition visually.
+Consider how this design could stand out from competitors in the ${audienceData.industry || ''} industry.
+Make thoughtful design choices that visually communicate what makes this brand special.`;
 
-🔴 CRITICAL REQUIREMENT: Your component MUST use React.createElement() syntax exclusively - do NOT use JSX tags. 
-The component will be evaluated using Function constructor which cannot process JSX.
+  // Full prompt assembly
+  const fullPrompt = `You are an expert graphic designer creating a direct mail postcard design for ${brandData.brandName}. 
+The design should effectively market their products/services to their target audience.
 
-TEMPLATE-BASED APPROACH:
-I want you to create a postcard based on the ${designStyle.toUpperCase()} template style described below.
-${templateDescription}
+DESIGN STYLE:
+${templateComponents[designStyle]}
 
-${creativityGuidance}
+CREATIVITY LEVEL:
+${creativityGuidance[creativityLevel]}
+${audienceTailoring}
+${brandDifferentiation}
 
 BRAND INFORMATION:
 - Brand name: ${brandData.brandName}
-- Logo: ${brandData.logoUrl || 'Not provided'} (Position prominently if relevant)
-- Tagline: "${businessData.tagline || 'Your brand tagline'}"
-- Primary color: ${brandData.primaryColor}
-- Accent color: ${brandData.accentColor}
-- Brand values: ${brandData.brandValues.join(', ')}
-- Style preferences: ${brandData.stylePreferences.join(', ')}
+- Industry: ${audienceData.industry || 'Not specified'}
+- Brand colors: Primary - ${brandData.primaryColor || '#3B82F6'}, Accent - ${brandData.accentColor || '#10B981'}
+- Brand style preferences: ${brandData.stylePreferences?.join(', ') || 'Professional, modern'}
 
-MARKETING OBJECTIVES:
-${objectives}
-- Call to action: "${marketingData.callToAction}"
-- Key selling point: ${audienceData.industry || 'business'} services
+MARKETING OBJECTIVE:
+- Objectives: ${marketingData.objectives?.join(', ') || 'Not specified'}
+- Call to action: ${marketingData.callToAction || 'Contact us today'}
+- Promotion details: ${marketingData.promotionDetails || 'High quality product/service'}
 
 TARGET AUDIENCE:
-- Industry: ${audienceData.industry}
-- Audience description: ${audienceData.targetDescription}
-- Age range: ${audienceData.audienceAgeRange.join(', ')}
-- Professional interests: ${audienceData.interests.join(', ')}
-- Pain points: Missing deadlines, security, quality
+- Industry: ${audienceData.industry || 'General'}
+- Description: ${audienceData.targetDescription || 'Business professionals'}
+- Interests: ${audienceData.interests?.join(', ') || 'Efficiency and reliability'}
+
+BUSINESS INFORMATION TO INCLUDE:
+- Business name: ${brandData.brandName}
+- Tagline: ${businessData.tagline || 'Your brand tagline'}
+- Contact information:
+  ${businessData.contactInfo.phone ? `- Phone: ${businessData.contactInfo.phone}` : ''}
+  ${businessData.contactInfo.email ? `- Email: ${businessData.contactInfo.email}` : ''}
+  ${businessData.contactInfo.website ? `- Website: ${businessData.contactInfo.website}` : ''}
+  ${businessData.contactInfo.address ? `- Address: ${businessData.contactInfo.address}` : ''}
+${businessData.extraInfo ? `- Additional information: ${businessData.extraInfo}` : ''}
 
 TECHNICAL REQUIREMENTS:
 1. Component must be named "PostcardDesign"
@@ -343,6 +311,8 @@ DO NOT explain your design choices or include any comments outside the code bloc
 DO NOT include language identifiers like "javascript" or "jsx" in your code - just provide the raw code.
 Respond ONLY with the complete React component code using React.createElement syntax.
 `;
+
+  return fullPrompt;
 };
 
 /**
