@@ -6,6 +6,9 @@ import { generatePostcardDesign, extractComponentCode } from '../services/claude
 // Remove unused import
 // import dynamic from 'next/dynamic';
 
+// Import LucideIconProvider
+import LucideIconProvider from './LucideIconProvider';
+
 // Import the interface types from Claude service to avoid 'any'
 import type { BrandData, MarketingData, AudienceData, BusinessData, VisualData } from '../services/claude';
 
@@ -302,7 +305,11 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
             // Create a wrapper component that calls the generated component
             const WrappedComponent = (props: PostcardDesignProps) => {
               try {
-                return ComponentFunction(React, motion, props);
+                return (
+                  <LucideIconProvider>
+                    {ComponentFunction(React, motion, props)}
+                  </LucideIconProvider>
+                );
               } catch (err) {
                 console.error('Error rendering generated component:', err);
                 // Update debug info with render error
@@ -335,69 +342,71 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
               };
             
               return (
-                <div 
-                  className={`relative border-2 ${props.isSelected ? 'border-electric-teal' : 'border-electric-teal/30'} 
-                    rounded-lg overflow-hidden cursor-pointer`}
-                  style={{ backgroundColor: colors.bg }}
-                  onClick={props.onSelect}
-                >
-                  <div className="p-4 flex flex-col h-full">
-                    {/* Header */}
-                    <div className="mb-3">
-                      <h3 
-                        className="font-bold text-xl mb-1" 
-                        style={{ color: colors.primary }}
+                <LucideIconProvider>
+                  <div 
+                    className={`relative border-2 ${props.isSelected ? 'border-electric-teal' : 'border-electric-teal/30'} 
+                      rounded-lg overflow-hidden cursor-pointer`}
+                    style={{ backgroundColor: colors.bg }}
+                    onClick={props.onSelect}
+                  >
+                    <div className="p-4 flex flex-col h-full">
+                      {/* Header */}
+                      <div className="mb-3">
+                        <h3 
+                          className="font-bold text-xl mb-1" 
+                          style={{ color: colors.primary }}
+                        >
+                          {props.brandName || brandData.brandName}
+                        </h3>
+                        <p 
+                          className="text-sm italic" 
+                          style={{ color: colors.secondary }}
+                        >
+                          {props.tagline || businessData.tagline}
+                        </p>
+                      </div>
+                      
+                      {/* Image area */}
+                      <div className="w-full aspect-video bg-gray-200 relative overflow-hidden rounded mb-3">
+                        {props.imageUrl ? (
+                          <motion.div
+                            className="absolute inset-0 bg-cover bg-center"
+                            style={{
+                              backgroundImage: `url(${props.imageUrl})`,
+                              x: props.imagePosition.x,
+                              y: props.imagePosition.y,
+                              scale: props.imagePosition.scale,
+                            }}
+                            drag={props.isSelected}
+                            dragMomentum={false}
+                            onDragEnd={(_, info) => props.onDragEnd && props.onDragEnd({ offset: { x: info.offset.x, y: info.offset.y } })}
+                          />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                            Image placeholder
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Call to action */}
+                      <div 
+                        className="py-2 px-4 rounded text-center font-medium text-white mb-3"
+                        style={{ backgroundColor: colors.primary }}
                       >
-                        {props.brandName || brandData.brandName}
-                      </h3>
-                      <p 
-                        className="text-sm italic" 
-                        style={{ color: colors.secondary }}
-                      >
-                        {props.tagline || businessData.tagline}
-                      </p>
-                    </div>
-                    
-                    {/* Image area */}
-                    <div className="w-full aspect-video bg-gray-200 relative overflow-hidden rounded mb-3">
-                      {props.imageUrl ? (
-                        <motion.div
-                          className="absolute inset-0 bg-cover bg-center"
-                          style={{
-                            backgroundImage: `url(${props.imageUrl})`,
-                            x: props.imagePosition.x,
-                            y: props.imagePosition.y,
-                            scale: props.imagePosition.scale,
-                          }}
-                          drag={props.isSelected}
-                          dragMomentum={false}
-                          onDragEnd={(_, info) => props.onDragEnd && props.onDragEnd({ offset: { x: info.offset.x, y: info.offset.y } })}
-                        />
-                      ) : (
-                        <div className="absolute inset-0 flex items-center justify-center text-gray-400">
-                          Image placeholder
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Call to action */}
-                    <div 
-                      className="py-2 px-4 rounded text-center font-medium text-white mb-3"
-                      style={{ backgroundColor: colors.primary }}
-                    >
-                      {props.callToAction || marketingData.callToAction}
-                    </div>
-                    
-                    {/* Contact info */}
-                    <div className="mt-auto text-xs space-y-1" style={{ color: colors.text }}>
-                      {props.contactInfo?.phone && <p>📞 {props.contactInfo.phone}</p>}
-                      {props.contactInfo?.email && <p>✉️ {props.contactInfo.email}</p>}
-                      {props.contactInfo?.website && <p>🌐 {props.contactInfo.website}</p>}
-                      {props.contactInfo?.address && <p>📍 {props.contactInfo.address}</p>}
-                      {props.extraInfo && <p className="italic">{props.extraInfo}</p>}
+                        {props.callToAction || marketingData.callToAction}
+                      </div>
+                      
+                      {/* Contact info */}
+                      <div className="mt-auto text-xs space-y-1" style={{ color: colors.text }}>
+                        {props.contactInfo?.phone && <p>📞 {props.contactInfo.phone}</p>}
+                        {props.contactInfo?.email && <p>✉️ {props.contactInfo.email}</p>}
+                        {props.contactInfo?.website && <p>🌐 {props.contactInfo.website}</p>}
+                        {props.contactInfo?.address && <p>📍 {props.contactInfo.address}</p>}
+                        {props.extraInfo && <p className="italic">{props.extraInfo}</p>}
+                      </div>
                     </div>
                   </div>
-                </div>
+                </LucideIconProvider>
               );
             };
             
@@ -541,7 +550,11 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
               // Create a wrapper component that calls the generated component
               const WrappedComponent = (props: PostcardDesignProps) => {
                 try {
-                  return ComponentFunction(React, motion, props);
+                  return (
+                    <LucideIconProvider>
+                      {ComponentFunction(React, motion, props)}
+                    </LucideIconProvider>
+                  );
                 } catch (err) {
                   console.error('Error rendering generated component:', err);
                   // Update debug info with render error
@@ -575,67 +588,69 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
                 
                 // Just reuse the same fallback component rendering code from above
                 return (
-                  <div 
-                    className={`relative border-2 ${props.isSelected ? 'border-electric-teal' : 'border-electric-teal/30'} 
-                      rounded-lg overflow-hidden cursor-pointer`}
-                    style={{ backgroundColor: colors.bg }}
-                    onClick={props.onSelect}
-                  >
-                    <div className="p-4 flex flex-col h-full">
-                      {/* Header */}
-                      <h3 
-                        className="font-bold text-xl mb-1" 
-                        style={{ color: colors.primary }}
-                      >
-                        {props.brandName || brandData.brandName}
-                      </h3>
-                      <p 
-                        className="text-sm italic mb-3" 
-                        style={{ color: colors.secondary }}
-                      >
-                        {props.tagline || businessData.tagline}
-                      </p>
-                      
-                      {/* Image area */}
-                      <div className="w-full aspect-video bg-gray-200 relative overflow-hidden rounded mb-3">
-                        {props.imageUrl ? (
-                          <motion.div
-                            className="absolute inset-0 bg-cover bg-center"
-                            style={{
-                              backgroundImage: `url(${props.imageUrl})`,
-                              x: props.imagePosition.x,
-                              y: props.imagePosition.y,
-                              scale: props.imagePosition.scale,
-                            }}
-                            drag={props.isSelected}
-                            dragMomentum={false}
-                            onDragEnd={(_, info) => props.onDragEnd && props.onDragEnd({ offset: { x: info.offset.x, y: info.offset.y } })}
-                          />
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center text-gray-400">
-                            Image placeholder
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Call to action */}
-                      <div 
-                        className="py-2 px-4 rounded text-center font-medium text-white mb-3"
-                        style={{ backgroundColor: colors.primary }}
-                      >
-                        {props.callToAction || marketingData.callToAction}
-                      </div>
-                      
-                      {/* Contact info */}
-                      <div className="mt-auto text-xs space-y-1" style={{ color: colors.text }}>
-                        {props.contactInfo?.phone && <p>📞 {props.contactInfo.phone}</p>}
-                        {props.contactInfo?.email && <p>✉️ {props.contactInfo.email}</p>}
-                        {props.contactInfo?.website && <p>🌐 {props.contactInfo.website}</p>}
-                        {props.contactInfo?.address && <p>📍 {props.contactInfo.address}</p>}
-                        {props.extraInfo && <p className="italic">{props.extraInfo}</p>}
+                  <LucideIconProvider>
+                    <div 
+                      className={`relative border-2 ${props.isSelected ? 'border-electric-teal' : 'border-electric-teal/30'} 
+                        rounded-lg overflow-hidden cursor-pointer`}
+                      style={{ backgroundColor: colors.bg }}
+                      onClick={props.onSelect}
+                    >
+                      <div className="p-4 flex flex-col h-full">
+                        {/* Header */}
+                        <h3 
+                          className="font-bold text-xl mb-1" 
+                          style={{ color: colors.primary }}
+                        >
+                          {props.brandName || brandData.brandName}
+                        </h3>
+                        <p 
+                          className="text-sm italic mb-3" 
+                          style={{ color: colors.secondary }}
+                        >
+                          {props.tagline || businessData.tagline}
+                        </p>
+                        
+                        {/* Image area */}
+                        <div className="w-full aspect-video bg-gray-200 relative overflow-hidden rounded mb-3">
+                          {props.imageUrl ? (
+                            <motion.div
+                              className="absolute inset-0 bg-cover bg-center"
+                              style={{
+                                backgroundImage: `url(${props.imageUrl})`,
+                                x: props.imagePosition.x,
+                                y: props.imagePosition.y,
+                                scale: props.imagePosition.scale,
+                              }}
+                              drag={props.isSelected}
+                              dragMomentum={false}
+                              onDragEnd={(_, info) => props.onDragEnd && props.onDragEnd({ offset: { x: info.offset.x, y: info.offset.y } })}
+                            />
+                          ) : (
+                            <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                              Image placeholder
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Call to action */}
+                        <div 
+                          className="py-2 px-4 rounded text-center font-medium text-white mb-3"
+                          style={{ backgroundColor: colors.primary }}
+                        >
+                          {props.callToAction || marketingData.callToAction}
+                        </div>
+                        
+                        {/* Contact info */}
+                        <div className="mt-auto text-xs space-y-1" style={{ color: colors.text }}>
+                          {props.contactInfo?.phone && <p>📞 {props.contactInfo.phone}</p>}
+                          {props.contactInfo?.email && <p>✉️ {props.contactInfo.email}</p>}
+                          {props.contactInfo?.website && <p>🌐 {props.contactInfo.website}</p>}
+                          {props.contactInfo?.address && <p>📍 {props.contactInfo.address}</p>}
+                          {props.extraInfo && <p className="italic">{props.extraInfo}</p>}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  </LucideIconProvider>
                 );
               };
               

@@ -254,16 +254,24 @@ TECHNICAL REQUIREMENTS:
    - Elements should be sized proportionally to this large canvas (e.g., larger fonts, padding, etc.)
 7. ICON USAGE:
    - Instead of emojis, use Lucide React icons library for all icons
-   - Import needed icons at the top of the file: { Import Lucide icons like Heart, Phone, Mail, MapPin, etc. }
-   - Create icon components with React.createElement(IconName, { size: appropriate_size, className: 'text-color-class' })
+   - You can use ANY icon from the Lucide icon library (see https://lucide.dev/icons/ for available icons)
+   - Specify the icon name as a string in your code, like 'Phone', 'Mail', 'MapPin', 'Globe', 'Heart', etc.
+   - Create icon components by referencing the icon name with size and className
    - Maintain a consistent icon style throughout the design
-   - For addresses use MapPin, for phone numbers use Phone, for email use Mail, for websites use Globe
+   - For addresses use 'MapPin', for phone numbers use 'Phone', for email use 'Mail', for websites use 'Globe'
 
 Here's an example structure using React.createElement to inspire you:
 
 \`\`\`
-// First import React and Lucide React icons
-const { Phone, Mail, MapPin, Globe } = require('lucide-react');
+// Specify the icon names you want to use
+const iconNames = {
+  phone: 'Phone',
+  email: 'Mail',
+  address: 'MapPin',
+  website: 'Globe',
+  benefits: 'CheckCircle',
+  // Add any other Lucide icon names you want to use
+};
 
 const PostcardDesign = (props) => {
   // Extract props with defaults
@@ -288,12 +296,13 @@ const PostcardDesign = (props) => {
     transform: \`translate(\${imagePosition.x}px, \${imagePosition.y}px) scale(\${imagePosition.scale})\`,
   };
   
-  // Example of creating a Lucide React icon component
-  const phoneIcon = React.createElement(Phone, { 
+  // Example of creating a Lucide React icon reference
+  const phoneIconProps = { 
+    iconName: iconNames.phone,
     size: 18, 
     className: 'text-blue-500 mr-2',
     strokeWidth: 2 
-  });
+  };
   
   // Create your component with React.createElement
   return React.createElement(
@@ -313,7 +322,13 @@ const PostcardDesign = (props) => {
       // Your creative design structure goes here, using React.createElement for each element
       // Incorporate Lucide React icons for contact information
       contactInfo.phone && React.createElement('div', { className: 'flex items-center' }, [
-        phoneIcon,
+        React.createElement('div', { 
+          className: 'icon',
+          'data-icon': phoneIconProps.iconName,
+          'data-size': phoneIconProps.size,
+          'data-class': phoneIconProps.className,
+          'data-stroke-width': phoneIconProps.strokeWidth
+        }),
         React.createElement('span', { className: 'text-gray-700' }, contactInfo.phone)
       ])
       // Add more elements as needed
