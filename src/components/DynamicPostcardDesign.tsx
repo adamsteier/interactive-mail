@@ -81,22 +81,51 @@ const ErrorDesign: React.FC<PostcardDesignProps & {
   }
 }> = (props) => (
   <div 
-    className={`relative border-2 border-red-500 
+    className={`relative border-2 ${props.isSelected ? 'border-electric-teal' : 'border-electric-teal/30'} 
       rounded-lg aspect-[7/5] overflow-hidden cursor-pointer bg-white`}
     onClick={props.onSelect}
   >
-    <div className="p-5 flex flex-col h-full">
-      <h3 className="text-red-600 font-bold text-lg">Design Generation Error</h3>
-      <p className="text-gray-800 text-sm mb-2">{props.error || "Failed to generate design"}</p>
+    <div className="p-4 flex flex-col h-full">
+      <div className="mb-2">
+        <h3 className="text-gray-800 font-bold text-lg flex items-center">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
+          AI Design Generation Failed
+        </h3>
+        <p className="text-gray-600 text-sm italic">Showing a simple fallback design</p>
+      </div>
       
-      {props.debugInfo?.errorMessage && (
-        <div className="mb-3 text-xs">
-          <p className="font-semibold">Error: {props.debugInfo.errorMessage}</p>
+      {/* Error message */}
+      {props.error && (
+        <div className="mb-3 p-2 text-sm bg-red-50 border border-red-200 rounded text-red-600">
+          {props.error}
         </div>
       )}
+
+      {/* Image placeholder */}
+      <div className="flex-grow flex items-center justify-center bg-gray-100 rounded relative mb-3 overflow-hidden">
+        {props.imageUrl ? (
+          <motion.div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{
+              backgroundImage: `url(${props.imageUrl})`,
+              x: props.imagePosition.x,
+              y: props.imagePosition.y,
+              scale: props.imagePosition.scale,
+            }}
+            drag={props.isSelected}
+            dragMomentum={false}
+            onDragEnd={(_, info) => props.onDragEnd && props.onDragEnd({ offset: { x: info.offset.x, y: info.offset.y } })}
+          />
+        ) : (
+          <div className="text-gray-400">No image available</div>
+        )}
+      </div>
       
-      {props.debugInfo?.codePreview && (
-        <div className="mb-3">
+      {/* Debug info if available */}
+      {props.debugInfo && props.debugInfo.codePreview && (
+        <div className="mb-3 text-xs">
           <p className="text-xs font-semibold">Code preview:</p>
           <div className="bg-gray-100 p-2 text-xs font-mono overflow-auto max-h-20 rounded">
             {props.debugInfo.codePreview.substring(0, 200)}...
@@ -112,11 +141,13 @@ const ErrorDesign: React.FC<PostcardDesignProps & {
             props.onReload?.();
           }}
         >
-          Try Again
+          Regenerate Design
         </button>
       )}
       
-      <p className="text-xs text-gray-600">Using fallback design in the meantime</p>
+      <p className="text-xs text-gray-600">
+        This is a simplified fallback design. Please try regenerating or contact support if the issue persists.
+      </p>
     </div>
   </div>
 );
@@ -140,50 +171,35 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
     errorMessage?: string;
   }>({});
 
-  // Create placeholder design immediately
-  const PlaceholderDesign: React.FC<PostcardDesignProps> = (props) => (
+  // Create a loading indicator component
+  const LoadingDesign: React.FC<PostcardDesignProps> = (props) => (
     <div 
       className={`relative border-2 ${props.isSelected ? 'border-electric-teal' : 'border-electric-teal/30'} 
-        rounded-lg aspect-[7/5] overflow-hidden cursor-pointer bg-white`}
+        rounded-lg aspect-[7/5] overflow-hidden cursor-pointer bg-charcoal-light`}
       onClick={props.onSelect}
     >
-      <div className="p-5 flex flex-col h-full">
-        {/* Header with brand and tagline */}
-        <div className="mb-4">
-          <h3 className="text-gray-800 font-bold text-lg">{props.brandName || brandData.brandName}</h3>
-          <p className="text-gray-600 text-sm italic">{props.tagline || businessData.tagline}</p>
+      <div className="h-full flex flex-col items-center justify-center p-5">
+        <div className="flex items-center space-x-3 mb-4">
+          <motion.div 
+            className="w-3 h-3 bg-electric-teal rounded-full"
+            animate={{ scale: [1, 1.5, 1] }}
+            transition={{ duration: 1, repeat: Infinity }}
+          />
+          <motion.div 
+            className="w-3 h-3 bg-electric-teal rounded-full"
+            animate={{ scale: [1, 1.5, 1] }}
+            transition={{ duration: 1, delay: 0.2, repeat: Infinity }}
+          />
+          <motion.div 
+            className="w-3 h-3 bg-electric-teal rounded-full"
+            animate={{ scale: [1, 1.5, 1] }}
+            transition={{ duration: 1, delay: 0.4, repeat: Infinity }}
+          />
         </div>
-        
-        {/* Image placeholder */}
-        <div className="flex-grow flex items-center justify-center bg-gray-100 rounded relative mb-4 overflow-hidden">
-          {props.imageUrl ? (
-            <motion.div
-              className="absolute inset-0 bg-cover bg-center"
-              style={{
-                backgroundImage: `url(${props.imageUrl})`,
-                x: props.imagePosition.x,
-                y: props.imagePosition.y,
-                scale: props.imagePosition.scale,
-              }}
-              drag={props.isSelected}
-              dragMomentum={false}
-              onDragEnd={(_, info) => props.onDragEnd && props.onDragEnd({ offset: { x: info.offset.x, y: info.offset.y } })}
-            />
-          ) : (
-            <div className="text-gray-400">Image loading...</div>
-          )}
-        </div>
-        
-        {/* Call to action */}
-        <div className="bg-gray-800 text-white p-2 rounded text-center text-sm">
-          {props.callToAction || marketingData.callToAction}
-        </div>
-        
-        {/* Contact Info */}
-        <div className="mt-3 text-xs text-gray-600">
-          {props.contactInfo?.phone && <p>{props.contactInfo.phone}</p>}
-          {props.contactInfo?.website && <p>{props.contactInfo.website}</p>}
-        </div>
+        <p className="text-electric-teal font-medium text-center mb-1">Generating Custom Design</p>
+        <p className="text-electric-teal/70 text-xs text-center">
+          Our AI is creating a beautiful postcard design for {brandData.brandName}
+        </p>
       </div>
     </div>
   );
@@ -672,9 +688,9 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
     }, 100);
   };
 
-  // Always show the placeholder while loading
+  // Show loading indicator while generating the design
   if (loading) {
-    return <PlaceholderDesign {...postcardProps} />;
+    return <LoadingDesign {...postcardProps} />;
   }
 
   if (error || !designComponent) {

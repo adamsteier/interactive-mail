@@ -210,6 +210,7 @@ const ReviewGenerate = ({
   const [generationStep, setGenerationStep] = useState<GenerationStep>('review');
   const [selectedPostcards, setSelectedPostcards] = useState<PostcardDesign[]>([]);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
+  const [useFallbackDesigns, setUseFallbackDesigns] = useState<boolean>(false);
   
   // Copies of data for editing in modals
   const [editBrandData, setEditBrandData] = useState<BrandData>(brandData);
@@ -249,9 +250,10 @@ const ReviewGenerate = ({
     setGenerationStep('generating');
   };
   
-  const handleGenerationComplete = (postcards: PostcardDesign[], images: string[]) => {
+  const handleGenerationComplete = (postcards: PostcardDesign[], images: string[], usesFallback: boolean = false) => {
     setSelectedPostcards(postcards);
     setGeneratedImages(images);
+    setUseFallbackDesigns(usesFallback);
     setGenerationStep('complete');
     onGenerate();
   };
@@ -307,6 +309,7 @@ const ReviewGenerate = ({
         audienceData={audienceData}
         businessData={businessData}
         visualData={visualData}
+        useFallbackDesigns={useFallbackDesigns}
       />
     );
   }

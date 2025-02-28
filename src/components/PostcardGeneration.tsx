@@ -82,7 +82,7 @@ interface PostcardGenerationProps {
   businessData: BusinessData;
   visualData: VisualData;
   onBack: () => void;
-  onComplete: (selectedPostcards: PostcardDesign[], images: string[]) => void;
+  onComplete: (selectedPostcards: PostcardDesign[], images: string[], usingFallbackImages?: boolean) => void;
 }
 
 interface ImagePosition {
@@ -111,6 +111,10 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
   const [isImagesLoading, setIsImagesLoading] = useState(true);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [usingFallbackImages, setUsingFallbackImages] = useState(false);
+  
+  // Countdown timer state
+  const [countdown, setCountdown] = useState(180); // 3 minutes in seconds
   
   // Determine the template style based on user's brand identity preference
   // Use the first style preference, or default to 'professional' if none specified
@@ -157,12 +161,27 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
     
     // Start generating images in the background
     generateAIImages();
+    
+    // Start the countdown timer
+    const timer = setInterval(() => {
+      setCountdown(prevCount => {
+        if (prevCount <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prevCount - 1;
+      });
+    }, 1000);
+    
+    // Clean up the timer
+    return () => clearInterval(timer);
   }, []);
 
   // Generate images asynchronously
   const generateAIImages = async () => {
     setIsImagesLoading(true);
     setError(null);
+    setUsingFallbackImages(false);
     
     try {
       console.log('Generating AI images for postcards...');
@@ -197,6 +216,7 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
           'https://placehold.co/1872x1271/e83e8c/FFFFFF?text=Demo+Image+2',
           'https://placehold.co/1872x1271/e83e8c/FFFFFF?text=Demo+Image+3',
         ]);
+        setUsingFallbackImages(true);
       }
     } catch (err) {
       console.error('Error in generateAIImages:', err);
@@ -208,6 +228,7 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
         'https://placehold.co/1872x1271/e83e8c/FFFFFF?text=Demo+Image+2',
         'https://placehold.co/1872x1271/e83e8c/FFFFFF?text=Demo+Image+3',
       ]);
+      setUsingFallbackImages(true);
     } finally {
       // Ensure loading completes even if there's an error
       setTimeout(() => {
@@ -268,7 +289,7 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
       return;
     }
     
-    onComplete(postcardDesigns, generatedImages);
+    onComplete(postcardDesigns, generatedImages, usingFallbackImages);
   };
 
   // Render initial loading animation
@@ -309,9 +330,17 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
             ))}
           </div>
           
-          <p className="text-center text-electric-teal">
-            Creating your postcard designs...
-          </p>
+          <div className="text-center space-y-2">
+            <p className="text-electric-teal">
+              Creating your postcard designs...
+            </p>
+            <p className="text-electric-teal/70 text-sm">
+              This process may take up to 3 minutes. Please be patient while our AI creates your custom designs.
+            </p>
+            <p className="text-electric-teal font-medium">
+              Time remaining: {Math.floor(countdown / 60)}:{(countdown % 60).toString().padStart(2, '0')}
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -333,7 +362,7 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
         Select Images for Your Postcards
       </h2>
       
-      <p className="text-electric-teal/70 mb-8">
+      <p className="text-electric-teal/70 mb-4">
         Select an image for each postcard design. You can also adjust the position and scale of each image.
       </p>
       
@@ -344,59 +373,102 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
         </div>
       )}
       
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Postcard designs section */}
-        <div className="space-y-8">
-          <h3 className="text-xl font-semibold text-electric-teal">Postcard Designs</h3>
-          
-          {/* Replace the static designs with dynamic designs */}
-          {postcardDesigns.map((design, index) => (
-            <div key={design.id} ref={(el) => { postcardRefs.current[index] = el; return undefined; }}>
-              <p className="text-electric-teal mb-2 font-medium">
+      {/* Countdown timer for when images are still loading */}
+      {isImagesLoading && (
+        <div className="mb-6 p-4 border border-electric-teal/30 rounded-lg bg-charcoal-light">
+          <div className="flex items-center space-x-2">
+            <motion.div 
+              className="w-3 h-3 rounded-full bg-electric-teal"
+              animate={{ opacity: [0.2, 1, 0.2] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+            />
+            <p className="text-electric-teal font-medium">
+              Generating AI images... ETA: {Math.floor(countdown / 60)}:{(countdown % 60).toString().padStart(2, '0')}
+            </p>
+          </div>
+          <p className="text-electric-teal/70 text-sm mt-2">
+            Our AI is creating custom images based on your inputs. This process may take up to 3 minutes.
+          </p>
+        </div>
+      )}
+      
+      {/* AI-generated images section - Sticky at the top */}
+      <div className="sticky top-0 z-10 bg-charcoal pt-2 pb-4 border-b border-electric-teal/30 mb-6">
+        <h3 className="text-xl font-semibold text-electric-teal mb-3">AI-Generated Images</h3>
+        
+        {isImagesLoading ? (
+          /* Image loading indicators */
+          <div className="grid grid-cols-3 gap-4">
+            {[0, 1, 2].map((_, imageIndex) => (
+              <div 
+                key={imageIndex}
+                className="relative aspect-video overflow-hidden rounded-lg bg-charcoal-light"
+              >
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-r from-electric-teal/20 to-electric-teal/40"
+                  animate={{
+                    x: ['0%', '100%', '0%'],
+                  }}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: 'linear',
+                  }}
+                />
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-electric-teal/70">Generating image...</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          /* Actual images */
+          <div className="grid grid-cols-3 gap-4">
+            {generatedImages.map((imageUrl, imageIndex) => (
+              <div 
+                key={imageIndex}
+                className={`relative aspect-video overflow-hidden rounded-lg cursor-pointer
+                  transition-all duration-200 hover:ring-2 hover:ring-electric-teal
+                  ${selectedPostcardIndex !== null && 
+                    postcardDesigns[selectedPostcardIndex].selectedImageIndex === imageIndex ? 
+                    'ring-4 ring-electric-teal' : 'ring-0'}`}
+                onClick={() => {
+                  if (selectedPostcardIndex !== null) {
+                    handleSelectImage(selectedPostcardIndex, imageIndex);
+                  }
+                }}
+              >
+                <img 
+                  src={imageUrl} 
+                  alt={`Generated image ${imageIndex + 1}`}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ))}
+          </div>
+        )}
+        
+        <div className="mt-2 p-2 bg-charcoal-light rounded-lg text-sm border border-electric-teal/30">
+          <p className="text-electric-teal/80 font-medium">
+            Click on a postcard design below, then select an image above to apply it.
+          </p>
+        </div>
+      </div>
+      
+      {/* Postcard designs section - Full width */}
+      <div className="space-y-12">
+        <h3 className="text-xl font-semibold text-electric-teal mb-4">Postcard Designs</h3>
+        
+        {/* Replace the static designs with dynamic designs */}
+        {postcardDesigns.map((design, index) => (
+          <div key={design.id} className="mb-12" ref={(el) => { postcardRefs.current[index] = el; return undefined; }}>
+            <div className="flex flex-wrap items-center justify-between mb-4">
+              <p className="text-electric-teal font-medium text-lg">
                 Design {index + 1}: {templateStyle.charAt(0).toUpperCase() + templateStyle.slice(1)} - {getCreativityDescription(design.creativityLevel)}
               </p>
               
-              <div 
-                className={`relative transition-all duration-300 ease-in-out rounded-lg overflow-hidden
-                  border-2 ${selectedPostcardIndex === index 
-                    ? 'border-electric-teal shadow-lg scale-105' 
-                    : 'border-electric-teal/30 opacity-70'
-                  }`}
-                onClick={() => setSelectedPostcardIndex(index)}
-              >
-                <ZoomablePostcard showControls={selectedPostcardIndex === index}>
-                  <DynamicPostcardDesign
-                    designStyle={(brandData.stylePreferences?.[0] || 'professional') as 'playful' | 'professional' | 'modern' | 'traditional'}
-                    creativityLevel={design.creativityLevel}
-                    brandData={brandData}
-                    marketingData={marketingData}
-                    audienceData={audienceData}
-                    businessData={businessData}
-                    visualData={visualData}
-                    postcardProps={{
-                      imageUrl: design.selectedImageIndex !== null ? generatedImages[design.selectedImageIndex] : null,
-                      isSelected: selectedPostcardIndex === index,
-                      onSelect: () => setSelectedPostcardIndex(index),
-                      imagePosition: design.imagePosition,
-                      onDragEnd: (info) => handleDragEnd(index, info),
-                      isLoading: isImagesLoading, // Pass image loading state
-                      brandName: brandData.brandName,
-                      tagline: businessData.tagline,
-                      contactInfo: {
-                        phone: businessData.contactInfo.phone,
-                        email: businessData.contactInfo.email,
-                        website: businessData.contactInfo.website,
-                        address: businessData.contactInfo.address
-                      },
-                      callToAction: marketingData.callToAction,
-                      extraInfo: businessData.extraInfo
-                    }}
-                  />
-                </ZoomablePostcard>
-              </div>
-              
-              {/* Image controls */}
-              <div className={`mt-2 flex justify-center space-x-4 ${selectedPostcardIndex === index ? 'opacity-100' : 'opacity-0'}`}>
+              {/* Image controls - Moved next to the title */}
+              <div className={`flex space-x-3 ${selectedPostcardIndex === index ? 'opacity-100' : 'opacity-0'}`}>
                 <button
                   onClick={() => handleScaleChange(index, Math.max(0.5, (design.imagePosition.scale - 0.1)))}
                   className="p-2 bg-charcoal-light text-electric-teal rounded-full"
@@ -441,75 +513,58 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
                 </button>
               </div>
             </div>
-          ))}
-        </div>
-          
-        {/* AI-generated images section */}
-        <div className="space-y-6">
-          <h3 className="text-xl font-semibold text-electric-teal">AI-Generated Images</h3>
-          
-          {isImagesLoading ? (
-            /* Image loading indicators */
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {[0, 1, 2].map((_, imageIndex) => (
-                <div 
-                  key={imageIndex}
-                  className="relative aspect-square overflow-hidden rounded-lg bg-charcoal-light"
-                >
-                  <motion.div
-                    className="absolute inset-0 bg-gradient-to-r from-electric-teal/20 to-electric-teal/40"
-                    animate={{
-                      x: ['0%', '100%', '0%'],
-                    }}
-                    transition={{
-                      duration: 2,
-                      repeat: Infinity,
-                      ease: 'linear',
-                    }}
-                  />
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-electric-teal/70">Generating image...</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            /* Actual images */
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {generatedImages.map((imageUrl, imageIndex) => (
-                <div 
-                  key={imageIndex}
-                  className={`relative aspect-square overflow-hidden rounded-lg cursor-pointer
-                    transition-all duration-200 hover:ring-2 hover:ring-electric-teal
-                    ${selectedPostcardIndex !== null && 
-                      postcardDesigns[selectedPostcardIndex].selectedImageIndex === imageIndex ? 
-                      'ring-4 ring-electric-teal' : 'ring-0'}`}
-                  onClick={() => {
-                    if (selectedPostcardIndex !== null) {
-                      handleSelectImage(selectedPostcardIndex, imageIndex);
-                    }
+            
+            <div 
+              className={`relative transition-all duration-300 ease-in-out rounded-lg overflow-hidden
+                border-2 ${selectedPostcardIndex === index 
+                  ? 'border-electric-teal shadow-lg' 
+                  : 'border-electric-teal/30 opacity-80'
+                }`}
+              onClick={() => setSelectedPostcardIndex(index)}
+            >
+              <ZoomablePostcard showControls={selectedPostcardIndex === index}>
+                <DynamicPostcardDesign
+                  designStyle={(brandData.stylePreferences?.[0] || 'professional') as 'playful' | 'professional' | 'modern' | 'traditional'}
+                  creativityLevel={design.creativityLevel}
+                  brandData={brandData}
+                  marketingData={marketingData}
+                  audienceData={audienceData}
+                  businessData={businessData}
+                  visualData={visualData}
+                  postcardProps={{
+                    imageUrl: design.selectedImageIndex !== null ? generatedImages[design.selectedImageIndex] : null,
+                    isSelected: selectedPostcardIndex === index,
+                    onSelect: () => setSelectedPostcardIndex(index),
+                    imagePosition: design.imagePosition,
+                    onDragEnd: (info) => handleDragEnd(index, info),
+                    isLoading: isImagesLoading, // Pass image loading state
+                    brandName: brandData.brandName,
+                    tagline: businessData.tagline,
+                    contactInfo: {
+                      phone: businessData.contactInfo.phone,
+                      email: businessData.contactInfo.email,
+                      website: businessData.contactInfo.website,
+                      address: businessData.contactInfo.address
+                    },
+                    callToAction: marketingData.callToAction,
+                    extraInfo: businessData.extraInfo
                   }}
-                >
-                  <img 
-                    src={imageUrl} 
-                    alt={`Generated image ${imageIndex + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              ))}
+                />
+              </ZoomablePostcard>
             </div>
-          )}
-          
-          <div className="mt-6 p-4 bg-charcoal-light rounded-lg">
-            <h4 className="text-electric-teal font-semibold mb-2">Instructions</h4>
-            <ol className="text-electric-teal/70 list-decimal list-inside space-y-1 text-sm">
-              <li>Click on a postcard design to select it</li>
-              <li>Then click on an image to apply it to the selected postcard</li>
-              <li>Adjust the position by dragging the image (when selected)</li>
-              <li>Use the + and - buttons to resize the image</li>
-              <li>Click R to reset the image position</li>
-            </ol>
           </div>
+        ))}
+        
+        {/* Instructions box */}
+        <div className="p-4 bg-charcoal-light rounded-lg border border-electric-teal/30 mt-6">
+          <h4 className="text-electric-teal font-semibold mb-2">Instructions</h4>
+          <ol className="text-electric-teal/70 list-decimal list-inside space-y-1">
+            <li>Click on a postcard design to select it</li>
+            <li>Then click on an image from the top bar to apply it to the selected postcard</li>
+            <li>Adjust the position by dragging the image (when selected)</li>
+            <li>Use the + and - buttons to resize the image</li>
+            <li>Click the reset button to reset the image position</li>
+          </ol>
         </div>
       </div>
       
