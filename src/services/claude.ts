@@ -246,6 +246,10 @@ TECHNICAL REQUIREMENTS:
    - Supports dragging when onDragEnd is provided (using the transform style property)
 4. The component should include a border that changes color when selected
 5. ‼️ Must use React.createElement() syntax - NO JSX ‼️
+6. SIZE SPECIFICATIONS:
+   - Create the postcard at EXACTLY 1872x1271 pixels
+   - The component will be displayed inside a scaling container that uses CSS transform
+   - Elements should be sized proportionally to this large canvas (e.g., larger fonts, padding, etc.)
 
 Here's an example structure using React.createElement to inspire you:
 
@@ -277,10 +281,14 @@ const PostcardDesign = (props) => {
   return React.createElement(
     'div',
     {
-      className: \`relative overflow-hidden rounded-lg aspect-[7/5] cursor-pointer transition-shadow \${
+      className: \`relative overflow-hidden rounded-lg cursor-pointer transition-shadow \${
         isSelected ? 'ring-2 ring-electric-teal shadow-lg' : 'ring-1 ring-electric-teal/30'
       }\`,
-      style: { /* Your container styles */ },
+      style: { 
+        width: '1872px', 
+        height: '1271px',
+        // Your container styles 
+      },
       onClick: onSelect
     },
     [

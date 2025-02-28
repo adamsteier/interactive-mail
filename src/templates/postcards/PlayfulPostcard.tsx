@@ -36,13 +36,15 @@ const PlayfulPostcard: React.FC<PlayfulPostcardProps> = ({
   
   return (
     <div
-      onClick={onSelect}
-      className={`relative overflow-hidden rounded-lg aspect-[7/5] cursor-pointer transition-shadow ${
+      className={`relative overflow-hidden rounded-lg cursor-pointer transition-shadow ${
         isSelected ? 'ring-2 ring-electric-teal shadow-lg' : 'ring-1 ring-electric-teal/30'
       }`}
       style={{
-        background: 'linear-gradient(to right, #fff3f8, #fffae0)'
+        width: '1872px',
+        height: '1271px',
+        backgroundImage: 'linear-gradient(135deg, #FF9370 0%, #FFCC47 100%)'
       }}
+      onClick={onSelect}
     >
       {/* Background gradient */}
       <div className="absolute inset-0 bg-gradient-to-r from-pink-100 to-yellow-100"></div>

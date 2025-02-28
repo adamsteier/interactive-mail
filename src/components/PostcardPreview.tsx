@@ -3,6 +3,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import DynamicPostcardDesign from './DynamicPostcardDesign';
+import ZoomablePostcard from './ZoomablePostcard';
 import type { BrandData, MarketingData, AudienceData, BusinessData, VisualData } from '../services/claude';
 
 // Type definitions 
@@ -92,27 +93,29 @@ const PostcardPreview: React.FC<PostcardPreviewProps> = ({
             <div key={design.id} className="space-y-2">
               <h3 className="text-lg font-semibold text-electric-teal">Design {index + 1}: {designLabel}</h3>
               <div className="border border-electric-teal/30 rounded-lg p-4">
-                <DynamicPostcardDesign
-                  designStyle={templateStyle as BrandStylePreference}
-                  creativityLevel={design.creativityLevel}
-                  brandData={brandData}
-                  marketingData={marketingData}
-                  audienceData={audienceData}
-                  businessData={businessData}
-                  visualData={visualData}
-                  postcardProps={{
-                    imageUrl: imageUrl,
-                    isSelected: false,
-                    onSelect: () => {},
-                    imagePosition: design.imagePosition,
-                    onDragEnd: () => {},
-                    brandName,
-                    tagline,
-                    contactInfo,
-                    callToAction,
-                    extraInfo,
-                  }}
-                />
+                <ZoomablePostcard>
+                  <DynamicPostcardDesign
+                    designStyle={templateStyle as BrandStylePreference}
+                    creativityLevel={design.creativityLevel}
+                    brandData={brandData}
+                    marketingData={marketingData}
+                    audienceData={audienceData}
+                    businessData={businessData}
+                    visualData={visualData}
+                    postcardProps={{
+                      imageUrl: imageUrl,
+                      isSelected: false,
+                      onSelect: () => {},
+                      imagePosition: design.imagePosition,
+                      onDragEnd: () => {},
+                      brandName,
+                      tagline,
+                      contactInfo,
+                      callToAction,
+                      extraInfo,
+                    }}
+                  />
+                </ZoomablePostcard>
               </div>
             </div>
           );

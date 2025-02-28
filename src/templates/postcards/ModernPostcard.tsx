@@ -35,10 +35,15 @@ const ModernPostcard: React.FC<ModernPostcardProps> = ({
   
   return (
     <div
-      onClick={onSelect}
-      className={`relative overflow-hidden rounded-lg aspect-[7/5] cursor-pointer transition-shadow ${
+      className={`relative overflow-hidden rounded-lg cursor-pointer transition-shadow ${
         isSelected ? 'ring-2 ring-electric-teal shadow-lg' : 'ring-1 ring-electric-teal/30'
       }`}
+      style={{
+        width: '1872px',
+        height: '1271px',
+        backgroundColor: '#ffffff'
+      }}
+      onClick={onSelect}
     >
       <div className="absolute inset-0 flex h-full">
         {/* Left side - Black */}

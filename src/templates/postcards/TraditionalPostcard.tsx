@@ -35,13 +35,15 @@ const TraditionalPostcard: React.FC<TraditionalPostcardProps> = ({
   
   return (
     <div
-      onClick={onSelect}
-      className={`relative overflow-hidden rounded-lg aspect-[7/5] cursor-pointer transition-shadow ${
+      className={`relative overflow-hidden rounded-lg cursor-pointer transition-shadow ${
         isSelected ? 'ring-2 ring-electric-teal shadow-lg' : 'ring-1 ring-electric-teal/30'
       }`}
       style={{
-        backgroundColor: '#f8f3e9'
+        width: '1872px',
+        height: '1271px',
+        backgroundColor: '#fdf6e3'
       }}
+      onClick={onSelect}
     >
       {/* Background texture */}
       <div className="absolute inset-0 bg-[radial-gradient(#7c6c5370_1px,transparent_1px)] bg-[size:20px_20px] opacity-10"></div>

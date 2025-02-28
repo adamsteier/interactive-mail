@@ -61,12 +61,12 @@ const PostcardDesign = (props) => {
   
   // Style objects
   const containerStyle = {
-    backgroundColor: colors.bg,
+    width: '1872px',
+    height: '1271px',
     position: 'relative',
-    borderRadius: '0.5rem',
-    overflow: 'hidden',
     cursor: 'pointer',
-    height: '100%'
+    overflow: 'hidden',
+    background: 'linear-gradient(to bottom, #f5f8fa, #e5e8f5)'
   };
   
   const headerStyle = {
@@ -115,7 +115,7 @@ const PostcardDesign = (props) => {
   return React.createElement(
     'div',
     {
-      className: \`border-2 \${isSelected ? 'border-electric-teal' : 'border-electric-teal/30'} rounded-lg aspect-[7/5]\`,
+      className: \`border-2 \${isSelected ? 'border-electric-teal' : 'border-electric-teal/30'} rounded-lg\`,
       style: containerStyle,
       onClick: onSelect
     },

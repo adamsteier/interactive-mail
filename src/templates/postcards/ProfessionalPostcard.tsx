@@ -51,13 +51,15 @@ const ProfessionalPostcard: React.FC<ProfessionalPostcardProps> = ({
   
   return (
     <div
-      onClick={onSelect}
-      className={`relative overflow-hidden rounded-lg aspect-[7/5] cursor-pointer transition-shadow ${
+      className={`relative overflow-hidden rounded-lg cursor-pointer transition-shadow ${
         isSelected ? 'ring-2 ring-electric-teal shadow-lg' : 'ring-1 ring-electric-teal/30'
       }`}
       style={{
-        background: 'linear-gradient(to bottom right, #1e293b, #1e40af)'
+        width: '1872px',
+        height: '1271px',
+        backgroundColor: '#f5f7fa'
       }}
+      onClick={onSelect}
     >
       {/* Left side design element */}
       <div

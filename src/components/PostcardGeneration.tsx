@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { generateImages, generateImagePrompt } from '../services/openai';
 import DynamicPostcardDesign from './DynamicPostcardDesign';
+import ZoomablePostcard from './ZoomablePostcard';
 
 // Type definitions
 type BrandStylePreference = 'playful' | 'professional' | 'modern' | 'traditional';
@@ -192,20 +193,20 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
         
         // For demo/testing, use placeholder images when API fails
         setGeneratedImages([
-          'https://placehold.co/600x400/e83e8c/FFFFFF?text=Demo+Image+1',
-          'https://placehold.co/600x400/e83e8c/FFFFFF?text=Demo+Image+2',
-          'https://placehold.co/600x400/e83e8c/FFFFFF?text=Demo+Image+3',
+          'https://placehold.co/1872x1271/e83e8c/FFFFFF?text=Demo+Image+1',
+          'https://placehold.co/1872x1271/e83e8c/FFFFFF?text=Demo+Image+2',
+          'https://placehold.co/1872x1271/e83e8c/FFFFFF?text=Demo+Image+3',
         ]);
       }
     } catch (err) {
       console.error('Error in generateAIImages:', err);
       setError('An unexpected error occurred while generating images. Using demo images instead.');
       
-      // For demo/testing, use placeholder images on error
+      // For error recovery, use placeholder images
       setGeneratedImages([
-        'https://placehold.co/600x400/e83e8c/FFFFFF?text=Demo+Image+1',
-        'https://placehold.co/600x400/e83e8c/FFFFFF?text=Demo+Image+2',
-        'https://placehold.co/600x400/e83e8c/FFFFFF?text=Demo+Image+3',
+        'https://placehold.co/1872x1271/e83e8c/FFFFFF?text=Demo+Image+1',
+        'https://placehold.co/1872x1271/e83e8c/FFFFFF?text=Demo+Image+2',
+        'https://placehold.co/1872x1271/e83e8c/FFFFFF?text=Demo+Image+3',
       ]);
     } finally {
       // Ensure loading completes even if there's an error
@@ -355,33 +356,44 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
                 Design {index + 1}: {templateStyle.charAt(0).toUpperCase() + templateStyle.slice(1)} - {getCreativityDescription(design.creativityLevel)}
               </p>
               
-              <DynamicPostcardDesign
-                designStyle={templateStyle as BrandStylePreference}
-                creativityLevel={design.creativityLevel}
-                brandData={brandData}
-                marketingData={marketingData}
-                audienceData={audienceData}
-                businessData={businessData}
-                visualData={visualData}
-                postcardProps={{
-                  imageUrl: design.selectedImageIndex !== null ? generatedImages[design.selectedImageIndex] : null,
-                  isSelected: selectedPostcardIndex === index,
-                  onSelect: () => setSelectedPostcardIndex(index),
-                  imagePosition: design.imagePosition,
-                  onDragEnd: (info) => handleDragEnd(index, info),
-                  isLoading: isImagesLoading, // Pass image loading state
-                  brandName: brandData.brandName,
-                  tagline: businessData.tagline,
-                  contactInfo: {
-                    phone: businessData.contactInfo.phone,
-                    email: businessData.contactInfo.email,
-                    website: businessData.contactInfo.website,
-                    address: businessData.contactInfo.address
-                  },
-                  callToAction: marketingData.callToAction,
-                  extraInfo: businessData.extraInfo
-                }}
-              />
+              <div 
+                className={`relative transition-all duration-300 ease-in-out rounded-lg overflow-hidden
+                  border-2 ${selectedPostcardIndex === index 
+                    ? 'border-electric-teal shadow-lg scale-105' 
+                    : 'border-electric-teal/30 opacity-70'
+                  }`}
+                onClick={() => setSelectedPostcardIndex(index)}
+              >
+                <ZoomablePostcard showControls={selectedPostcardIndex === index}>
+                  <DynamicPostcardDesign
+                    designStyle={(brandData.stylePreferences?.[0] || 'professional') as 'playful' | 'professional' | 'modern' | 'traditional'}
+                    creativityLevel={design.creativityLevel}
+                    brandData={brandData}
+                    marketingData={marketingData}
+                    audienceData={audienceData}
+                    businessData={businessData}
+                    visualData={visualData}
+                    postcardProps={{
+                      imageUrl: design.selectedImageIndex !== null ? generatedImages[design.selectedImageIndex] : null,
+                      isSelected: selectedPostcardIndex === index,
+                      onSelect: () => setSelectedPostcardIndex(index),
+                      imagePosition: design.imagePosition,
+                      onDragEnd: (info) => handleDragEnd(index, info),
+                      isLoading: isImagesLoading, // Pass image loading state
+                      brandName: brandData.brandName,
+                      tagline: businessData.tagline,
+                      contactInfo: {
+                        phone: businessData.contactInfo.phone,
+                        email: businessData.contactInfo.email,
+                        website: businessData.contactInfo.website,
+                        address: businessData.contactInfo.address
+                      },
+                      callToAction: marketingData.callToAction,
+                      extraInfo: businessData.extraInfo
+                    }}
+                  />
+                </ZoomablePostcard>
+              </div>
               
               {/* Image controls */}
               <div className={`mt-2 flex justify-center space-x-4 ${selectedPostcardIndex === index ? 'opacity-100' : 'opacity-0'}`}>
