@@ -55,12 +55,23 @@ const DynamicPostcard: React.FC<{ template: PostcardTemplate }> = ({ template })
       let codeToEvaluate = "";
       let success = false;
       
+      // Remove any initial comments (often causing issues)
+      let cleanedCode = template.code;
+      // Remove any line comments (start with //)
+      cleanedCode = cleanedCode.replace(/\/\/.*$/gm, '');
+      // Remove any block comments (/* ... */)
+      cleanedCode = cleanedCode.replace(/\/\*[\s\S]*?\*\//g, '');
+      // Trim any excess whitespace
+      cleanedCode = cleanedCode.trim();
+      
+      console.log("Cleaned code (no comments):", cleanedCode.substring(0, 100) + "...");
+      
       // Approach 1: Try to directly evaluate the code as-is
       try {
-        const directEval = new Function('React', `return ${template.code}`);
+        const directEval = new Function('React', `return ${cleanedCode}`);
         const testComponent = directEval(React);
         if (typeof testComponent === 'function') {
-          codeToEvaluate = template.code;
+          codeToEvaluate = cleanedCode;
           success = true;
           console.log("Direct evaluation successful");
         }
@@ -71,7 +82,7 @@ const DynamicPostcard: React.FC<{ template: PostcardTemplate }> = ({ template })
       // Approach 2: If direct eval failed, try to extract function from const declaration
       if (!success) {
         // Remove the "const PostcardDesign = " part if it exists
-        let extractedCode = template.code;
+        let extractedCode = cleanedCode;
         if (extractedCode.includes("const PostcardDesign = ")) {
           extractedCode = extractedCode.replace("const PostcardDesign = ", "");
           success = true;
@@ -93,15 +104,26 @@ const DynamicPostcard: React.FC<{ template: PostcardTemplate }> = ({ template })
       
       // Approach 3: Try to extract just the function body for simpler cases
       if (!success) {
-        const arrowPos = template.code.indexOf("=>");
-        const openBracePos = template.code.indexOf("{", arrowPos);
+        const arrowPos = cleanedCode.indexOf("=>");
+        const openBracePos = cleanedCode.indexOf("{", arrowPos);
         
         if (arrowPos > 0 && openBracePos > arrowPos) {
           // Create a simple wrapper function
-          codeToEvaluate = `(props) => ${template.code.substring(openBracePos)}`;
+          codeToEvaluate = `(props) => ${cleanedCode.substring(openBracePos)}`;
           success = true;
           console.log("Created wrapper function with body extraction");
         }
+      }
+      
+      // Approach 4: Check if it might be a React.createElement structure directly
+      if (!success && cleanedCode.includes("React.createElement")) {
+        // Try to wrap the code in a function if it's just React.createElement calls
+        codeToEvaluate = `(props) => { 
+          const { brandName, designStyle, imageUrl, contactInfo } = props;
+          return ${cleanedCode.replace(/return\s+/g, '')};
+        }`;
+        success = true;
+        console.log("Extracted React.createElement structure");
       }
       
       // If all attempts failed, use a simple fallback function
@@ -110,18 +132,40 @@ const DynamicPostcard: React.FC<{ template: PostcardTemplate }> = ({ template })
           return React.createElement('div', { 
             style: { 
               padding: '20px', 
-              backgroundColor: '${template.primaryColor || "#ccc"}',
+              backgroundColor: '${template.primaryColor || "#1a1a1a"}',
               color: 'white',
               height: '100%',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'center',
               alignItems: 'center',
-              textAlign: 'center'
+              textAlign: 'center',
+              fontFamily: 'Arial, sans-serif',
+              borderRadius: '8px'
             } 
           }, [
-            React.createElement('h2', { key: 'title' }, '${template.brandName || "Brand Name"}'),
-            React.createElement('p', { key: 'style' }, 'Style: ${template.designStyle || "modern"}')
+            React.createElement('h2', { 
+              key: 'title', 
+              style: { 
+                color: '${template.accentColor || "#4fc3f7"}',
+                marginBottom: '12px'
+              } 
+            }, '${template.brandName || "Brand Name"}'),
+            React.createElement('p', { 
+              key: 'style',
+              style: {
+                fontSize: '14px',
+                marginBottom: '16px'
+              }
+            }, 'Style: ${template.designStyle || "modern"}'),
+            React.createElement('div', {
+              key: 'created-at',
+              style: {
+                fontSize: '12px',
+                opacity: 0.7,
+                marginTop: '12px'
+              }
+            }, 'Created: ${template.createdAt?.toDate().toLocaleDateString() || "Unknown"}')
           ]);
         }`;
         console.log("Using simple fallback function");
@@ -130,8 +174,96 @@ const DynamicPostcard: React.FC<{ template: PostcardTemplate }> = ({ template })
       // Now we should have a usable function representation
       console.log("Code to evaluate:", codeToEvaluate.substring(0, 100) + "...");
       
+      // Add safety wrapping to handle missing props gracefully
+      const safeCodeToEvaluate = `
+        (props) => {
+          try {
+            // Ensure all potentially used props exist with safe defaults
+            props = {
+              ...props,
+              // Basic props
+              imagePosition: props.imagePosition || { x: 0, y: 0 },
+              imageScale: props.imageScale || 1,
+              
+              // Event handlers
+              onDragEnd: props.onDragEnd || (() => {}),
+              onDragStart: props.onDragStart || (() => {}),
+              onDrag: props.onDrag || (() => {}),
+              onImageChange: props.onImageChange || (() => {}),
+              onScaleChange: props.onScaleChange || (() => {}),
+              
+              // Color theme
+              colors: props.colors || {
+                primary: '${template.primaryColor || "#1a1a1a"}',
+                accent: '${template.accentColor || "#4fc3f7"}',
+                text: "#ffffff",
+                background: "#ffffff"
+              },
+              
+              // Font families and styles
+              fonts: props.fonts || {
+                heading: 'Arial, sans-serif',
+                body: 'Arial, sans-serif',
+                accent: 'Arial, sans-serif'
+              },
+              
+              // Extended properties based on PostcardPreview.tsx
+              brandData: props.brandData || {
+                stylePreferences: ['${template.designStyle || "professional"}'],
+                name: props.brandName || '${template.brandName || "Brand Name"}',
+                colors: {
+                  primary: '${template.primaryColor || "#1a1a1a"}',
+                  accent: '${template.accentColor || "#4fc3f7"}'
+                }
+              },
+              
+              // Marketing and business data
+              marketingData: props.marketingData || {},
+              audienceData: props.audienceData || {},
+              businessData: props.businessData || {},
+              visualData: props.visualData || {},
+              
+              // Additional layout options
+              layout: props.layout || "standard",
+              textOptions: props.textOptions || {
+                brandName: { fontSize: '28px', fontWeight: 'bold' },
+                tagline: { fontSize: '18px' },
+                contact: { fontSize: '14px' }
+              },
+              designStyle: props.designStyle || '${template.designStyle || "modern"}',
+              creativityLevel: props.creativityLevel || 'template',
+              customOptions: props.customOptions || {}
+            };
+            
+            // Main component function
+            const PostcardFunction = ${codeToEvaluate};
+            return PostcardFunction(props);
+          } catch (err) {
+            console.error('Runtime error in postcard component:', err);
+            // Return a simple fallback element if the component fails
+            return React.createElement('div', {
+              style: {
+                padding: '20px',
+                backgroundColor: '${template.primaryColor || "#333"}',
+                color: 'white',
+                textAlign: 'center',
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center'
+              }
+            }, [
+              React.createElement('h3', { key: 'error-title' }, 'Rendering Error'),
+              React.createElement('p', { key: 'error-message' }, err.message || 'Unknown error'),
+              React.createElement('p', { key: 'brand' }, '${template.brandName || "Brand"}')
+            ]);
+          }
+        }
+      `;
+      
       // Convert the function string to a function
-      const constructorFunction = new Function('React', `return ${codeToEvaluate}`);
+      const constructorFunction = new Function('React', `return ${safeCodeToEvaluate}`);
       const PostcardComponent = constructorFunction(React);
       setComponent(() => PostcardComponent);
     } catch (error) {
@@ -211,21 +343,69 @@ const DynamicPostcard: React.FC<{ template: PostcardTemplate }> = ({ template })
         {/* Scale the full-size postcard down to fit */}
         <div className="absolute inset-0 overflow-hidden scale-[0.15] origin-top-left transform-gpu">
           <LucideIconProvider>
-            <Component 
-              imageUrl="/images/placeholder-image.png" 
-              isSelected={false}
-              onSelect={() => {}}
-              brandName={template.brandName || "Brand Name"}
-              tagline="Your brand tagline"
-              contactInfo={{
-                phone: "555-123-4567",
-                email: "example@example.com",
-                website: "www.example.com",
-                address: "123 Main St, Anytown, USA"
-              }}
-              callToAction="Visit our website"
-              extraInfo=""
-            />
+            <div id="postcard-renderer" style={{ 
+              width: '1872px', 
+              height: '1271px', 
+              position: 'relative',
+              overflow: 'hidden',
+              backgroundColor: 'white'
+            }}>
+              <Component 
+                imageUrl="/images/placeholder-image.png" 
+                isSelected={false}
+                onSelect={() => {}}
+                brandName={template.brandName || "Brand Name"}
+                tagline="Your brand tagline"
+                contactInfo={{
+                  phone: "555-123-4567",
+                  email: "example@example.com",
+                  website: "www.example.com",
+                  address: "123 Main St, Anytown, USA"
+                }}
+                callToAction="Visit our website"
+                extraInfo=""
+                imagePosition={{ x: 0, y: 0 }}
+                onDragEnd={() => {}}
+                onDragStart={() => {}}
+                onDrag={() => {}}
+                onImageChange={() => {}}
+                imageScale={1}
+                onScaleChange={() => {}}
+                colors={{
+                  primary: template.primaryColor || "#1a1a1a",
+                  accent: template.accentColor || "#4fc3f7",
+                  text: "#ffffff",
+                  background: "#ffffff"
+                }}
+                fonts={{
+                  heading: "Arial, sans-serif",
+                  body: "Arial, sans-serif",
+                  accent: "Arial, sans-serif"
+                }}
+                layout="standard"
+                textOptions={{
+                  brandName: { fontSize: '28px', fontWeight: 'bold' },
+                  tagline: { fontSize: '18px' },
+                  contact: { fontSize: '14px' }
+                }}
+                designStyle={template.designStyle || "modern"}
+                customOptions={{}}
+                // Add extended props matching PostcardPreview.tsx
+                brandData={{
+                  stylePreferences: [template.designStyle || "professional"],
+                  name: template.brandName || "Brand Name",
+                  colors: {
+                    primary: template.primaryColor || "#1a1a1a",
+                    accent: template.accentColor || "#4fc3f7"
+                  }
+                }}
+                marketingData={{}}
+                audienceData={{}}
+                businessData={{}}
+                visualData={{}}
+                creativityLevel="template"
+              />
+            </div>
           </LucideIconProvider>
         </div>
       </div>
@@ -237,6 +417,8 @@ export default function PostcardPreviewPage() {
   const [postcards, setPostcards] = useState<PostcardTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const [selectedPostcardIndex, setSelectedPostcardIndex] = useState(0);
 
   useEffect(() => {
     async function fetchPostcards() {
@@ -282,6 +464,183 @@ export default function PostcardPreviewPage() {
     fetchPostcards();
   }, []);
 
+  // Debug panel component for development mode
+  const DebugPanel = () => {
+    if (process.env.NODE_ENV !== 'development' || !showDebugPanel || postcards.length === 0) return null;
+    
+    const currentPostcard = postcards[selectedPostcardIndex];
+    
+    // Function to prettify code for display
+    const formatCode = (code: string) => {
+      return code
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\n/g, '<br>')
+        .replace(/\s{2}/g, '&nbsp;&nbsp;');
+    };
+    
+    return (
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 overflow-auto flex">
+        <div className="bg-charcoal-dark m-auto w-full max-w-4xl rounded-lg shadow-2xl p-6 max-h-[90vh] overflow-auto">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold text-electric-teal">Debug Panel</h2>
+            <button 
+              onClick={() => setShowDebugPanel(false)}
+              className="text-electric-teal hover:text-white"
+            >
+              Close
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="bg-charcoal rounded p-3">
+              <h3 className="font-semibold text-electric-teal mb-2">Postcard Info</h3>
+              <p className="text-sm text-electric-teal/80 mb-1">
+                <span className="font-medium">ID:</span> {currentPostcard.id}
+              </p>
+              <p className="text-sm text-electric-teal/80 mb-1">
+                <span className="font-medium">Brand:</span> {currentPostcard.brandName}
+              </p>
+              <p className="text-sm text-electric-teal/80 mb-1">
+                <span className="font-medium">Style:</span> {currentPostcard.designStyle}
+              </p>
+              <p className="text-sm text-electric-teal/80 mb-1">
+                <span className="font-medium">Created:</span> {currentPostcard.createdAt?.toDate().toLocaleDateString()}
+              </p>
+              <div className="flex items-center mt-2">
+                <span className="text-sm text-electric-teal/80 mr-2">Colors:</span>
+                <div 
+                  className="w-4 h-4 rounded-full mr-1" 
+                  style={{ backgroundColor: currentPostcard.primaryColor || '#cccccc' }}
+                  title="Primary Color"
+                />
+                <div 
+                  className="w-4 h-4 rounded-full" 
+                  style={{ backgroundColor: currentPostcard.accentColor || '#cccccc' }}
+                  title="Accent Color"
+                />
+              </div>
+            </div>
+            
+            <div className="bg-charcoal rounded p-3">
+              <h3 className="font-semibold text-electric-teal mb-2">View Options</h3>
+              
+              <div className="flex items-center mb-2">
+                <span className="text-sm text-electric-teal/80 mr-2">Select Postcard:</span>
+                <select 
+                  value={selectedPostcardIndex}
+                  onChange={(e) => setSelectedPostcardIndex(Number(e.target.value))}
+                  className="bg-charcoal-light text-electric-teal border border-electric-teal/30 rounded px-2 py-1 text-sm"
+                >
+                  {postcards.map((postcard, index) => (
+                    <option key={postcard.id} value={index}>
+                      {index + 1}: {postcard.brandName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="space-y-2">
+                <button 
+                  onClick={() => {
+                    const cleanedCode = currentPostcard.code
+                      .replace(/\/\/.*$/gm, '')
+                      .replace(/\/\*[\s\S]*?\*\//g, '')
+                      .trim();
+                    console.log("Cleaned code (no comments):", cleanedCode);
+                  }}
+                  className="w-full text-xs bg-charcoal-light hover:bg-electric-teal/20 text-electric-teal px-2 py-1 rounded"
+                >
+                  Log Cleaned Code
+                </button>
+                
+                <button 
+                  onClick={() => {
+                    const codeWithoutConst = currentPostcard.code.replace(/const\s+PostcardDesign\s*=\s*/, '');
+                    console.log("Code without const declaration:", codeWithoutConst);
+                  }}
+                  className="w-full text-xs bg-charcoal-light hover:bg-electric-teal/20 text-electric-teal px-2 py-1 rounded"
+                >
+                  Log Without Const
+                </button>
+                
+                <button 
+                  onClick={() => {
+                    const debugInfo = {
+                      codeLength: currentPostcard.code?.length || 0,
+                      codeStart: currentPostcard.code?.substring(0, 150),
+                      codeEnd: currentPostcard.code?.substring(currentPostcard.code.length - 150),
+                      hasReactCreateElement: currentPostcard.code.includes('React.createElement'),
+                      hasJSX: currentPostcard.code.includes('<') && currentPostcard.code.includes('/>'),
+                      includesComments: currentPostcard.code.includes('//') || currentPostcard.code.includes('/*'),
+                    };
+                    console.table(debugInfo);
+                  }}
+                  className="w-full text-xs bg-charcoal-light hover:bg-electric-teal/20 text-electric-teal px-2 py-1 rounded"
+                >
+                  Analyze Code
+                </button>
+              </div>
+            </div>
+            
+            <div className="bg-charcoal rounded p-3">
+              <h3 className="font-semibold text-electric-teal mb-2">Rendering Test</h3>
+              
+              <button 
+                onClick={() => {
+                  try {
+                    // Try to run the non-const code
+                    const codeWithoutConst = currentPostcard.code.replace(/const\s+PostcardDesign\s*=\s*/, '');
+                    const evalFunction = new Function('React', `
+                      try {
+                        const fn = ${codeWithoutConst};
+                        return fn;
+                      } catch (err) {
+                        console.error("Evaluation error:", err);
+                        return null;
+                      }
+                    `);
+                    const result = evalFunction(React);
+                    console.log("Evaluation result:", result);
+                    if (typeof result === 'function') {
+                      console.log("Successfully evaluated as function!");
+                    }
+                  } catch (error) {
+                    console.error("Test evaluation failed:", error);
+                  }
+                }}
+                className="w-full text-xs bg-charcoal-light hover:bg-electric-teal/20 text-electric-teal px-2 py-1 rounded mb-2"
+              >
+                Test Evaluation
+              </button>
+              
+              <div className="text-xs text-electric-teal/80 mt-2">
+                <p>Code length: {currentPostcard.code?.length || 0} characters</p>
+                <p>Has fallback: {currentPostcard.usedFallback ? "Yes" : "No"}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-charcoal-light rounded-lg p-3 mb-4">
+            <h3 className="font-semibold text-electric-teal mb-2">Code Preview (First 300 chars)</h3>
+            <pre className="p-3 bg-charcoal overflow-auto text-xs text-electric-teal/90 rounded max-h-40">
+              <code dangerouslySetInnerHTML={{ __html: formatCode(currentPostcard.code.substring(0, 300) + '...') }} />
+            </pre>
+          </div>
+          
+          <div className="text-center mt-4">
+            <button 
+              onClick={() => setShowDebugPanel(false)}
+              className="px-4 py-2 bg-electric-teal text-charcoal rounded-md hover:bg-electric-teal/80 transition"
+            >
+              Close Debug Panel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="max-w-6xl mx-auto p-6">
       <motion.div
@@ -294,14 +653,10 @@ export default function PostcardPreviewPage() {
           <div className="flex space-x-4">
             {process.env.NODE_ENV === 'development' && (
               <button 
-                onClick={() => {
-                  if (postcards.length > 0) {
-                    console.log("Raw code from first postcard:", postcards[0].code);
-                  }
-                }}
+                onClick={() => setShowDebugPanel(true)}
                 className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition"
               >
-                Debug Code
+                Debug Panel
               </button>
             )}
             <Link href="/" className="px-4 py-2 bg-electric-teal text-charcoal rounded-md hover:bg-electric-teal/80 transition">
@@ -309,6 +664,9 @@ export default function PostcardPreviewPage() {
             </Link>
           </div>
         </div>
+        
+        {/* Show debug panel if enabled */}
+        {showDebugPanel && <DebugPanel />}
 
         {loading ? (
           <div className="flex justify-center py-12">
