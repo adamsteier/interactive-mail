@@ -64,6 +64,18 @@ const DynamicPostcard: React.FC<{ template: PostcardTemplate }> = ({ template })
       // Trim any excess whitespace
       cleanedCode = cleanedCode.trim();
       
+      // Fix common CSS property issues that cause evaluation errors
+      // Look for unquoted CSS properties like linear-gradient, etc.
+      cleanedCode = cleanedCode.replace(/linear-gradient\(/g, "'linear-gradient(");
+      cleanedCode = cleanedCode.replace(/radial-gradient\(/g, "'radial-gradient(");
+      // Fix closing parenthesis for gradients
+      cleanedCode = cleanedCode.replace(/gradient\([^)]+\)/g, (match) => {
+        if (!match.endsWith("'")) {
+          return match + "'";
+        }
+        return match;
+      });
+      
       console.log("Cleaned code (no comments):", cleanedCode.substring(0, 100) + "...");
       
       // Approach 1: Try to directly evaluate the code as-is
@@ -128,47 +140,426 @@ const DynamicPostcard: React.FC<{ template: PostcardTemplate }> = ({ template })
       
       // If all attempts failed, use a simple fallback function
       if (!success) {
-        codeToEvaluate = `(props) => {
-          return React.createElement('div', { 
-            style: { 
-              padding: '20px', 
-              backgroundColor: '${template.primaryColor || "#1a1a1a"}',
-              color: 'white',
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              alignItems: 'center',
-              textAlign: 'center',
-              fontFamily: 'Arial, sans-serif',
-              borderRadius: '8px'
-            } 
-          }, [
-            React.createElement('h2', { 
-              key: 'title', 
+        // Try a completely different approach with a hard-coded template
+        // This bypasses the need to evaluate the stored code at all
+        try {
+          // Extract the style details using regex
+          const extractStyle = (codeStr: string) => {
+            const result = {
+              colors: {
+                primary: template.primaryColor || "#1a1a1a",
+                accent: template.accentColor || "#4fc3f7",
+                white: '#ffffff',
+                black: '#000000'
+              },
+              layout: 'standard',
+              fonts: ['Montserrat', 'Arial', 'sans-serif'],
+              hasImage: codeStr.includes('imageContainer') || codeStr.includes('objectFit: "cover"') || codeStr.includes('objectFit: \'cover\'')
+            };
+            
+            // Try to extract colors
+            const colorMatch = codeStr.match(/colors\s*=\s*{[^}]+}/);
+            if (colorMatch) {
+              const primaryMatch = colorMatch[0].match(/primary\s*:\s*['"]([^'"]+)['"]/);
+              const accentMatch = colorMatch[0].match(/accent\s*:\s*['"]([^'"]+)['"]/);
+              if (primaryMatch) result.colors.primary = primaryMatch[1];
+              if (accentMatch) result.colors.accent = accentMatch[1];
+            }
+            
+            // Try to extract fonts
+            const fontMatch = codeStr.match(/fontFamily\s*:\s*['"]([^'"]+)['"]/);
+            if (fontMatch) {
+              result.fonts = fontMatch[1].split(/,\s*/).map((f: string) => f.replace(/['"]/g, ''));
+            }
+            
+            // Try to determine layout
+            if (codeStr.includes('diagonalLayout') || codeStr.includes('clipPath')) {
+              result.layout = 'diagonal';
+            } else if (codeStr.includes('grid-template-columns') || codeStr.includes('gridTemplateColumns')) {
+              result.layout = 'grid';
+            }
+            
+            return result;
+          };
+          
+          // Extract styling information
+          const style = extractStyle(cleanedCode);
+          
+          // Create a simplified template that mimics the design without requiring evaluation
+          codeToEvaluate = `(props) => {
+            // Use extracted style information
+            const colors = {
+              primary: "${style.colors.primary}",
+              accent: "${style.colors.accent}",
+              white: "${style.colors.white}",
+              black: "${style.colors.black}"
+            };
+            
+            // Create a container with the right aspect ratio
+            return React.createElement('div', {
+              style: {
+                width: '1872px',
+                height: '1271px',
+                fontFamily: "${style.fonts.join(', ')}",
+                position: 'relative',
+                overflow: 'hidden',
+                backgroundColor: colors.white
+              }
+            }, [
+              // Background elements
+              ${style.layout === 'diagonal' ? 
+                `React.createElement('div', {
+                  key: 'background',
+                  style: {
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    clipPath: 'polygon(0 0, 65% 0, 45% 100%, 0 100%)',
+                    backgroundColor: colors.primary,
+                    zIndex: 1
+                  }
+                }),` : 
+                `React.createElement('div', {
+                  key: 'background',
+                  style: {
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '30%',
+                    backgroundColor: colors.primary,
+                    zIndex: 1
+                  }
+                }),`
+              }
+              
+              // Brand section
+              React.createElement('div', {
+                key: 'content',
+                style: {
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  padding: '60px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  zIndex: 2
+                }
+              }, [
+                // Brand name
+                React.createElement('h1', {
+                  key: 'brand',
+                  style: {
+                    fontSize: '90px',
+                    fontWeight: 'bold',
+                    color: ${style.layout === 'diagonal' ? 'colors.white' : 'colors.primary'},
+                    marginBottom: '16px',
+                    zIndex: 3
+                  }
+                }, props.brandName || "${template.brandName || 'Brand Name'}"),
+                
+                // Tagline
+                React.createElement('p', {
+                  key: 'tagline',
+                  style: {
+                    fontSize: '36px',
+                    color: ${style.layout === 'diagonal' ? 'colors.white' : 'colors.black'},
+                    marginBottom: '40px',
+                    opacity: 0.9,
+                    zIndex: 3
+                  }
+                }, props.tagline || "Your brand tagline"),
+                
+                // Main content area with flex layout
+                React.createElement('div', {
+                  key: 'mainContent',
+                  style: {
+                    display: 'flex',
+                    flexDirection: ${style.layout === 'diagonal' ? '"row"' : '"column"'},
+                    flex: 1,
+                    zIndex: 3
+                  }
+                }, [
+                  // Left content
+                  React.createElement('div', {
+                    key: 'leftContent',
+                    style: {
+                      flex: ${style.layout === 'diagonal' ? '0.45' : '0.6'},
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      paddingRight: ${style.layout === 'diagonal' ? '40px' : '0'}
+                    }
+                  }, [
+                    // Benefits list
+                    React.createElement('div', {
+                      key: 'benefits',
+                      style: {
+                        marginBottom: '40px'
+                      }
+                    }, [
+                      // Benefit items
+                      React.createElement('div', {
+                        key: 'benefit1',
+                        style: {
+                          display: 'flex',
+                          alignItems: 'center',
+                          marginBottom: '20px'
+                        }
+                      }, [
+                        React.createElement('div', {
+                          className: 'icon',
+                          'data-icon': 'CheckCircle',
+                          'data-size': 42,
+                          'data-class': ${style.layout === 'diagonal' ? '"text-white"' : '"text-primary"'},
+                          style: {
+                            color: ${style.layout === 'diagonal' ? 'colors.white' : 'colors.primary'}
+                          }
+                        }),
+                        React.createElement('span', {
+                          style: {
+                            fontSize: '28px',
+                            marginLeft: '16px',
+                            color: ${style.layout === 'diagonal' ? 'colors.white' : 'colors.black'}
+                          }
+                        }, "Professional Service")
+                      ]),
+                      React.createElement('div', {
+                        key: 'benefit2',
+                        style: {
+                          display: 'flex',
+                          alignItems: 'center',
+                          marginBottom: '20px'
+                        }
+                      }, [
+                        React.createElement('div', {
+                          className: 'icon',
+                          'data-icon': 'Clock',
+                          'data-size': 42,
+                          'data-class': ${style.layout === 'diagonal' ? '"text-white"' : '"text-primary"'},
+                          style: {
+                            color: ${style.layout === 'diagonal' ? 'colors.white' : 'colors.primary'}
+                          }
+                        }),
+                        React.createElement('span', {
+                          style: {
+                            fontSize: '28px',
+                            marginLeft: '16px',
+                            color: ${style.layout === 'diagonal' ? 'colors.white' : 'colors.black'}
+                          }
+                        }, "Fast Turnaround")
+                      ])
+                    ]),
+                    
+                    // Call to action
+                    React.createElement('div', {
+                      key: 'cta',
+                      style: {
+                        marginTop: 'auto'
+                      }
+                    }, [
+                      React.createElement('div', {
+                        style: {
+                          backgroundColor: colors.accent,
+                          color: colors.white,
+                          padding: '20px 30px',
+                          fontSize: '32px',
+                          fontWeight: 'bold',
+                          display: 'inline-block',
+                          borderRadius: '4px'
+                        }
+                      }, props.callToAction || "Visit our website")
+                    ]),
+                    
+                    // Contact info
+                    React.createElement('div', {
+                      key: 'contact',
+                      style: {
+                        marginTop: '30px',
+                        display: 'flex',
+                        flexWrap: 'wrap'
+                      }
+                    }, [
+                      React.createElement('div', {
+                        key: 'contactPhone',
+                        style: {
+                          display: 'flex',
+                          alignItems: 'center',
+                          marginRight: '30px',
+                          marginBottom: '10px'
+                        }
+                      }, [
+                        React.createElement('div', {
+                          className: 'icon',
+                          'data-icon': 'Phone',
+                          'data-size': 24,
+                          'data-class': ${style.layout === 'diagonal' ? '"text-white"' : '"text-primary"'},
+                          style: {
+                            color: ${style.layout === 'diagonal' ? 'colors.white' : 'colors.primary'}
+                          }
+                        }),
+                        React.createElement('span', {
+                          style: {
+                            fontSize: '18px',
+                            marginLeft: '8px',
+                            color: ${style.layout === 'diagonal' ? 'colors.white' : 'colors.black'}
+                          }
+                        }, props.contactInfo?.phone || "555-123-4567")
+                      ]),
+                      React.createElement('div', {
+                        key: 'contactEmail',
+                        style: {
+                          display: 'flex',
+                          alignItems: 'center',
+                          marginRight: '30px',
+                          marginBottom: '10px'
+                        }
+                      }, [
+                        React.createElement('div', {
+                          className: 'icon',
+                          'data-icon': 'Mail',
+                          'data-size': 24,
+                          'data-class': ${style.layout === 'diagonal' ? '"text-white"' : '"text-primary"'},
+                          style: {
+                            color: ${style.layout === 'diagonal' ? 'colors.white' : 'colors.primary'}
+                          }
+                        }),
+                        React.createElement('span', {
+                          style: {
+                            fontSize: '18px',
+                            marginLeft: '8px',
+                            color: ${style.layout === 'diagonal' ? 'colors.white' : 'colors.black'}
+                          }
+                        }, props.contactInfo?.email || "example@example.com")
+                      ])
+                    ])
+                  ]),
+                  
+                  // Right content with image
+                  ${style.hasImage ? `React.createElement('div', {
+                    key: 'rightContent',
+                    style: {
+                      flex: ${style.layout === 'diagonal' ? '0.55' : '0.4'},
+                      paddingLeft: ${style.layout === 'diagonal' ? '40px' : '0'},
+                      paddingTop: ${style.layout === 'diagonal' ? '0' : '40px'}
+                    }
+                  }, [
+                    // Image container
+                    React.createElement('div', {
+                      style: {
+                        width: '100%',
+                        height: '65%',
+                        borderRadius: '12px',
+                        overflow: 'hidden',
+                        position: 'relative',
+                        boxShadow: '0 10px 30px rgba(0,0,0,0.15)'
+                      }
+                    }, [
+                      // Image element
+                      React.createElement('img', {
+                        src: props.imageUrl || "/images/placeholder-image.png",
+                        alt: "Brand image",
+                        style: {
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover'
+                        }
+                      })
+                    ]),
+                    
+                    // Additional text content
+                    React.createElement('div', {
+                      style: {
+                        marginTop: '30px'
+                      }
+                    }, [
+                      React.createElement('h2', {
+                        style: {
+                          fontSize: '36px',
+                          fontWeight: 'bold',
+                          color: colors.accent,
+                          marginBottom: '16px'
+                        }
+                      }, "Quality Service"),
+                      React.createElement('p', {
+                        style: {
+                          fontSize: '24px',
+                          color: colors.black
+                        }
+                      }, props.extraInfo || "We provide exceptional service for all your needs.")
+                    ])
+                  ])` : ''}
+                ])
+              ]),
+              
+              // Accent element
+              React.createElement('div', {
+                key: 'accent',
+                style: {
+                  position: 'absolute',
+                  bottom: 0,
+                  right: 0,
+                  width: '100%',
+                  height: '20px',
+                  backgroundColor: colors.accent
+                }
+              })
+            ]);
+          }`;
+          
+          success = true;
+          console.log("Using extracted template structure");
+          
+        } catch (extractError) {
+          console.error("Error creating custom template:", extractError);
+          
+          // If the smart template fails, use the simple fallback
+          codeToEvaluate = `(props) => {
+            return React.createElement('div', { 
               style: { 
-                color: '${template.accentColor || "#4fc3f7"}',
-                marginBottom: '12px'
+                padding: '20px', 
+                backgroundColor: '${template.primaryColor || "#1a1a1a"}',
+                color: 'white',
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center',
+                textAlign: 'center',
+                fontFamily: 'Arial, sans-serif',
+                borderRadius: '8px'
               } 
-            }, '${template.brandName || "Brand Name"}'),
-            React.createElement('p', { 
-              key: 'style',
-              style: {
-                fontSize: '14px',
-                marginBottom: '16px'
-              }
-            }, 'Style: ${template.designStyle || "modern"}'),
-            React.createElement('div', {
-              key: 'created-at',
-              style: {
-                fontSize: '12px',
-                opacity: 0.7,
-                marginTop: '12px'
-              }
-            }, 'Created: ${template.createdAt?.toDate().toLocaleDateString() || "Unknown"}')
-          ]);
-        }`;
-        console.log("Using simple fallback function");
+            }, [
+              React.createElement('h2', { 
+                key: 'title', 
+                style: { 
+                  color: '${template.accentColor || "#4fc3f7"}',
+                  marginBottom: '12px'
+                } 
+              }, '${template.brandName || "Brand Name"}'),
+              React.createElement('p', { 
+                key: 'style',
+                style: {
+                  fontSize: '14px',
+                  marginBottom: '16px'
+                }
+              }, 'Style: ${template.designStyle || "modern"}'),
+              React.createElement('div', {
+                key: 'created-at',
+                style: {
+                  fontSize: '12px',
+                  opacity: 0.7,
+                  marginTop: '12px'
+                }
+              }, 'Created: ${template.createdAt?.toDate().toLocaleDateString() || "Unknown"}')
+            ]);
+          }`;
+          console.log("Using simple fallback function");
+        }
       }
       
       // Now we should have a usable function representation
