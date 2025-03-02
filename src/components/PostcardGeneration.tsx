@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { generateImages, generateImagePrompt } from '../services/openai';
 import DynamicPostcardDesign from './DynamicPostcardDesign';
 import ZoomablePostcard from './ZoomablePostcard';
+import Image from 'next/image';
 
 // Type definitions
 type BrandStylePreference = 'playful' | 'professional' | 'modern' | 'traditional';
@@ -202,18 +203,15 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
   // Refs for drag constraints
   const postcardRefs = useRef<Array<HTMLDivElement | null>>([]);
 
-  // Display postcard designs immediately and start generating images in the background
+  // Effect to generate AI images on component mount
   useEffect(() => {
     // Set a short timeout to show the initial loading screen
     // This gives the user feedback that something is happening
     setTimeout(() => {
       setIsInitialLoading(false);
-    }, 1500); 
+    }, 1500);
     
-    // Start generating images in the background
-    generateAIImages();
-    
-    // Start the countdown timer
+    // Start a timer to count down to the generation
     const timer = setInterval(() => {
       setCountdown(prevCount => {
         if (prevCount <= 1) {
@@ -288,6 +286,13 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
     }
   };
   
+  // Generate AI images after countdown finishes
+  useEffect(() => {
+    if (countdown === 0) {
+      generateAIImages();
+    }
+  }, [countdown, generateAIImages]);
+
   // Handle selecting an image for a postcard
   const handleSelectImage = (postcardIndex: number, imageIndex: number) => {
     setPostcardDesigns(prev => 
@@ -381,6 +386,15 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
         return updatedDesign;
       })
     );
+  };
+
+  // Fix for the TypeScript error on line 664
+  const handleTextChangeWrapper = (postcardIndex: number) => {
+    return (field: string, value: string) => {
+      // Pass the field parameter as is to the existing function
+      // This works because we know field will always be one of the allowed types
+      handleTextChange(postcardIndex, field as 'brandName' | 'tagline' | 'callToAction' | 'extraInfo' | 'phone' | 'email' | 'website' | 'address', value);
+    };
   };
 
   // Render initial loading animation
@@ -529,10 +543,12 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
                   }
                 }}
               >
-                <img 
+                <Image 
                   src={imageUrl} 
                   alt={`Generated image ${imageIndex + 1}`}
-                  className="w-full h-full object-cover"
+                  fill
+                  style={{ objectFit: 'cover' }}
+                  sizes="(max-width: 768px) 100vw, 300px"
                 />
               </div>
             ))}
@@ -661,7 +677,7 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
                     },
                     callToAction: design.textContent?.callToAction || marketingData.callToAction,
                     extraInfo: design.textContent?.extraInfo || businessData.extraInfo,
-                    onTextChange: (field, value) => handleTextChange(index, field, value),
+                    onTextChange: handleTextChangeWrapper(index),
                   }}
                 />
               </ZoomablePostcard>
