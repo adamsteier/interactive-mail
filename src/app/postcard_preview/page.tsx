@@ -6,6 +6,7 @@ import { db } from '@/lib/firebase';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import LucideIconProvider from '@/components/LucideIconProvider';
+import ZoomablePostcard from '@/components/ZoomablePostcard';
 
 // Define PostcardTemplate interface based on the data structure in Firebase
 interface PostcardTemplate {
@@ -173,74 +174,70 @@ const DynamicPostcard: React.FC<{ template: PostcardTemplate }> = ({ template })
   // Create a container to properly size and display the postcard
   return (
     <div className="postcard-container relative w-full overflow-hidden rounded-lg border border-electric-teal/30">
-      {/* Create an aspect ratio container matching the postcard dimensions */}
-      <div className="relative" style={{ paddingBottom: '67.9%' }}> {/* 1271/1872 = ~0.679 aspect ratio */}
-        {/* Scale the full-size postcard down to fit */}
-        <div className="absolute inset-0 overflow-hidden scale-[0.15] origin-top-left transform-gpu">
-          <div id="postcard-renderer" style={{ 
-            width: '1872px', 
-            height: '1271px', 
-            position: 'relative',
-            overflow: 'hidden',
-            backgroundColor: 'white'
-          }}>
-            <Component 
-              imageUrl="/images/placeholder-image.png" 
-              isSelected={false}
-              onSelect={() => {}}
-              brandName={template.brandName || "Brand Name"}
-              tagline="Your brand tagline"
-              contactInfo={{
-                phone: "555-123-4567",
-                email: "example@example.com",
-                website: "www.example.com",
-                address: "123 Main St, Anytown, USA"
-              }}
-              callToAction="Visit our website"
-              extraInfo=""
-              imagePosition={{ x: 0, y: 0 }}
-              onDragEnd={() => {}}
-              onDragStart={() => {}}
-              onDrag={() => {}}
-              onImageChange={() => {}}
-              imageScale={1}
-              onScaleChange={() => {}}
-              colors={{
+      <ZoomablePostcard>
+        <div id="postcard-renderer" style={{ 
+          width: '1872px', 
+          height: '1271px', 
+          position: 'relative',
+          overflow: 'hidden',
+          backgroundColor: 'white'
+        }}>
+          <Component 
+            imageUrl="/images/placeholder-image.png" 
+            isSelected={false}
+            onSelect={() => {}}
+            brandName={template.brandName || "Brand Name"}
+            tagline="Your brand tagline"
+            contactInfo={{
+              phone: "555-123-4567",
+              email: "example@example.com",
+              website: "www.example.com",
+              address: "123 Main St, Anytown, USA"
+            }}
+            callToAction="Visit our website"
+            extraInfo=""
+            imagePosition={{ x: 0, y: 0 }}
+            onDragEnd={() => {}}
+            onDragStart={() => {}}
+            onDrag={() => {}}
+            onImageChange={() => {}}
+            imageScale={1}
+            onScaleChange={() => {}}
+            colors={{
+              primary: template.primaryColor || "#1a1a1a",
+              accent: template.accentColor || "#4fc3f7",
+              text: "#ffffff",
+              background: "#ffffff"
+            }}
+            fonts={{
+              heading: "Arial, sans-serif",
+              body: "Arial, sans-serif",
+              accent: "Arial, sans-serif"
+            }}
+            layout="standard"
+            textOptions={{
+              brandName: { fontSize: '28px', fontWeight: 'bold' },
+              tagline: { fontSize: '18px' },
+              contact: { fontSize: '14px' }
+            }}
+            designStyle={template.designStyle || "modern"}
+            customOptions={{}}
+            brandData={{
+              stylePreferences: [template.designStyle || "professional"],
+              name: template.brandName || "Brand Name",
+              colors: {
                 primary: template.primaryColor || "#1a1a1a",
-                accent: template.accentColor || "#4fc3f7",
-                text: "#ffffff",
-                background: "#ffffff"
-              }}
-              fonts={{
-                heading: "Arial, sans-serif",
-                body: "Arial, sans-serif",
-                accent: "Arial, sans-serif"
-              }}
-              layout="standard"
-              textOptions={{
-                brandName: { fontSize: '28px', fontWeight: 'bold' },
-                tagline: { fontSize: '18px' },
-                contact: { fontSize: '14px' }
-              }}
-              designStyle={template.designStyle || "modern"}
-              customOptions={{}}
-              brandData={{
-                stylePreferences: [template.designStyle || "professional"],
-                name: template.brandName || "Brand Name",
-                colors: {
-                  primary: template.primaryColor || "#1a1a1a",
-                  accent: template.accentColor || "#4fc3f7"
-                }
-              }}
-              marketingData={{}}
-              audienceData={{}}
-              businessData={{}}
-              visualData={{}}
-              creativityLevel="template"
-            />
-          </div>
+                accent: template.accentColor || "#4fc3f7"
+              }
+            }}
+            marketingData={{}}
+            audienceData={{}}
+            businessData={{}}
+            visualData={{}}
+            creativityLevel="template"
+          />
         </div>
-      </div>
+      </ZoomablePostcard>
     </div>
   );
 };
@@ -312,7 +309,7 @@ export default function PostcardPreviewPage() {
     };
     
     return (
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 overflow-auto flex">
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[1000] overflow-auto flex">
         <div className="bg-charcoal-dark m-auto w-full max-w-4xl rounded-lg shadow-2xl p-6 max-h-[90vh] overflow-auto">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold text-electric-teal">Debug Panel</h2>
@@ -514,44 +511,46 @@ export default function PostcardPreviewPage() {
             <p>Create some designs from the home page to see them here.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-8">
             {postcards.map((postcard) => (
               <motion.div
                 key={postcard.id}
-                whileHover={{ scale: 1.02 }}
-                className="bg-charcoal-light rounded-lg overflow-hidden shadow"
+                whileHover={{ scale: 1.01 }}
+                className="bg-charcoal-light rounded-lg overflow-hidden shadow p-4"
               >
-                <DynamicPostcard template={postcard} />
-                <div className="p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-bold text-electric-teal truncate">{postcard.brandName}</h3>
-                    <span className="text-xs px-2 py-1 bg-charcoal rounded-full text-electric-teal">
-                      {postcard.designStyle}
-                    </span>
+                <div className="mb-4 flex justify-between items-start">
+                  <div>
+                    <h3 className="font-bold text-electric-teal text-xl truncate">{postcard.brandName}</h3>
+                    <div className="flex items-center space-x-2 mt-1">
+                      <span className="text-xs px-2 py-1 bg-charcoal rounded-full text-electric-teal">
+                        {postcard.designStyle}
+                      </span>
+                      <span className="text-xs text-electric-teal/70">
+                        {postcard.createdAt?.toDate().toLocaleDateString() || 'Unknown date'}
+                      </span>
+                    </div>
                   </div>
-                  
-                  <div className="flex items-center space-x-2 mb-2">
+                  <div className="flex space-x-2">
                     <div 
-                      className="w-4 h-4 rounded-full" 
-                      style={{ backgroundColor: postcard.primaryColor || '#cccccc' }}
+                      className="w-5 h-5 rounded-full" 
+                      style={{ backgroundColor: postcard.primaryColor || '#cccccc' }} 
                       title="Primary Color"
                     />
                     <div 
-                      className="w-4 h-4 rounded-full" 
-                      style={{ backgroundColor: postcard.accentColor || '#cccccc' }}
+                      className="w-5 h-5 rounded-full" 
+                      style={{ backgroundColor: postcard.accentColor || '#cccccc' }} 
                       title="Accent Color"
                     />
-                    <div className="text-xs text-electric-teal/70 ml-auto">
-                      {postcard.createdAt?.toDate().toLocaleDateString() || 'Unknown date'}
-                    </div>
                   </div>
-                  
-                  {postcard.usedFallback && (
-                    <div className="text-xs text-amber-500 mt-2">
-                      <span>⚠️ Fallback design</span>
-                    </div>
-                  )}
                 </div>
+                
+                <DynamicPostcard template={postcard} />
+                
+                {postcard.usedFallback && (
+                  <div className="text-xs text-amber-500 mt-2">
+                    <span>⚠️ Fallback design</span>
+                  </div>
+                )}
               </motion.div>
             ))}
           </div>
