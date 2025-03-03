@@ -3,9 +3,7 @@
 import { useState, useEffect } from 'react';
 import { BusinessTarget, DatabaseTarget } from '@/types/marketing';
 import { BusinessAnalysis } from '@/types/businessAnalysis';
-import LeadsCollection from '@/components/LeadsCollection';
 import PlacesLeadsCollection from '@/components/PlacesLeadsCollection';
-import { GooglePlace } from '@/types/places';
 import { useMarketingStore } from '@/store/marketingStore';
 import { MarketingStrategy } from '@/types/marketing';
 
@@ -15,57 +13,17 @@ interface MarketingResultsProps {
   onClose: () => void;
 }
 
-interface TaskInfo {
-  id: string;
-  businessType: string;
-  source: 'browse-ai' | 'google-places';
-  places?: GooglePlace[];
-  isLoading?: boolean;
-  progress?: number;
-  totalGridPoints?: number;
-  currentGridPoint?: number;
-}
-
-const generateSearchQuery = (businessType: string, boundingBox: BusinessAnalysis['boundingBox']) => {
-  // Calculate grid points for better coverage
-  const gridSize = 3; // 3x3 grid
-  const latStep = (boundingBox.northeast.lat - boundingBox.southwest.lat) / (gridSize - 1);
-  const lngStep = (boundingBox.northeast.lng - boundingBox.southwest.lng) / (gridSize - 1);
-
-  const searchUrls: string[] = [];
-
-  // Generate search URLs for each grid point
-  for (let i = 0; i < gridSize; i++) {
-    for (let j = 0; j < gridSize; j++) {
-      const lat = boundingBox.southwest.lat + (i * latStep);
-      const lng = boundingBox.southwest.lng + (j * lngStep);
-      
-      // Encode the business type for URL
-      const encodedType = encodeURIComponent(businessType);
-      
-      // Create Google Maps search URL
-      const searchUrl = `https://www.google.com/maps/search/${encodedType}/@${lat},${lng},12z`;
-      searchUrls.push(searchUrl);
-    }
-  }
-
-  return {
-    businessType,
-    searchUrls
-  };
-};
-
 const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsProps) => {
   const { 
     setMarketingStrategy,
     setSelectedBusinessTypes,
     selectedBusinessTypes,
     handleGoogleSearch,
-    updateSearchResults
+    updateSearchResults,
+    setBusinessAnalysis
   } = useMarketingStore();
 
   const [showLeadsCollection, setShowLeadsCollection] = useState(false);
-  const [taskInfos, setTaskInfos] = useState<TaskInfo[]>([]);
 
   useEffect(() => {
     // Only update if marketingStrategy exists
@@ -87,53 +45,29 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
   };
 
   const handleGetData = async () => {
-    try {
-      const newTaskInfos: TaskInfo[] = [];
+    if (selectedBusinessTypes.size > 0) {
+      // Start loading state immediately
+      updateSearchResults({
+        places: [],
+        isLoading: true,
+        progress: 0,
+        totalGridPoints: 0,
+        currentGridPoint: 0
+      });
       
-      // Create tasks for each selected business type
-      for (const businessType of selectedBusinessTypes) {
-        const query = generateSearchQuery(businessType, boundingBox);
-        console.log(`\nProcessing ${businessType}:`);
-        console.log('Search URLs:', query.searchUrls);
-
-        // Create tasks for each search URL
-        for (const searchUrl of query.searchUrls) {
-          try {
-            const browseResponse = await fetch('/api/browse-ai', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                inputParameters: {
-                  google_map_url: searchUrl,
-                  max_results: 100
-                }
-              })
-            });
-
-            if (!browseResponse.ok) {
-              throw new Error(`Failed to create Browse.ai task: ${await browseResponse.text()}`);
-            }
-
-            const browseData = await browseResponse.json();
-            console.log('Task created successfully:', browseData.result.id);
-            
-            // Store task ID with its business type
-            newTaskInfos.push({
-              id: browseData.result.id,
-              businessType,
-              source: 'browse-ai'
-            });
-          } catch (error) {
-            console.error('Failed to create task for URL:', searchUrl, error);
-          }
-        }
-      }
-
-      console.log('Total tasks created:', newTaskInfos.length);
-      setTaskInfos(newTaskInfos);
+      // Update the store with the bounding box
+      setBusinessAnalysis({
+        industry: strategy.method1Analysis.businessTargets[0]?.type || '',
+        description: strategy.primaryRecommendation,
+        customerTypes: strategy.method1Analysis.businessTargets.map(t => t.type),
+        boundingBox
+      });
+      
+      // Then trigger the search
+      handleGoogleSearch();
+      
+      // Show the leads collection view
       setShowLeadsCollection(true);
-    } catch (error) {
-      console.error('Error:', error);
     }
   };
 
@@ -146,6 +80,14 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
         progress: 0,
         totalGridPoints: 0,
         currentGridPoint: 0
+      });
+      
+      // Update the store with the bounding box
+      setBusinessAnalysis({
+        industry: strategy.method1Analysis.businessTargets[0]?.type || '',
+        description: strategy.primaryRecommendation,
+        customerTypes: strategy.method1Analysis.businessTargets.map(t => t.type),
+        boundingBox
       });
       
       // Then trigger the search
@@ -297,22 +239,12 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
           </div>
         </div>
       ) : (
-        taskInfos[0]?.source === 'google-places' ? (
-          <PlacesLeadsCollection
-            onClose={() => {
-              setShowLeadsCollection(false);
-              onClose();
-            }}
-          />
-        ) : (
-          <LeadsCollection
-            taskInfos={taskInfos}
-            onClose={() => {
-              setShowLeadsCollection(false);
-              onClose();
-            }}
-          />
-        )
+        <PlacesLeadsCollection
+          onClose={() => {
+            setShowLeadsCollection(false);
+            onClose();
+          }}
+        />
       )}
     </>
   );
