@@ -279,15 +279,6 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
                     Close
                   </button>
                   <button
-                    onClick={handleGetData}
-                    disabled={selectedBusinessTypes.size === 0}
-                    className="rounded border-2 border-electric-teal bg-electric-teal/10 px-6 py-2 
-                      text-electric-teal shadow-glow hover:bg-electric-teal/20 hover:shadow-glow-strong 
-                      active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {selectedBusinessTypes.size === 0 ? 'Select some businesses to get data' : 'Scrape Data'}
-                  </button>
-                  <button
                     onClick={handleSearch}
                     disabled={selectedBusinessTypes.size === 0}
                     className={`rounded border-2 border-electric-teal bg-electric-teal/10 px-6 py-2 
