@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 interface GenerateImagesRequest {
   prompt: string;
   numImages?: number;
+  templateId?: string; // Optional ID to link the image to a specific template
 }
 
 // Custom interface for extended generation config that includes responseModalities
@@ -15,11 +18,36 @@ interface ExtendedGenerationConfig {
   maxOutputTokens?: number;
 }
 
+/**
+ * Saves the generated image data to Firestore
+ */
+const saveImageToFirestore = async (
+  imageUrl: string, 
+  prompt: string, 
+  templateId: string | null = null
+) => {
+  try {
+    const docRef = await addDoc(collection(db, 'postcard_images'), {
+      imageUrl,
+      prompt,
+      templateId,
+      createdAt: serverTimestamp(),
+    });
+    console.log('Image saved to Firestore with ID:', docRef.id);
+    return docRef.id;
+  } catch (error) {
+    console.error('Error saving image to Firestore:', error);
+    // Continue even if saving fails
+    return null;
+  }
+};
+
 export async function POST(request: Request) {
   try {
     const data = await request.json() as GenerateImagesRequest;
     const prompt = data.prompt;
     const numImages = data.numImages || 3;
+    const templateId = data.templateId || null;
     
     // Initialize the Gemini API client
     const apiKey = process.env.GOOGLE_AI_API_KEY;
@@ -35,6 +63,7 @@ export async function POST(request: Request) {
     
     // Array to store image data
     const imageUrls: string[] = [];
+    const imageIds: string[] = [];
     
     // Generate multiple images
     for (let i = 0; i < numImages; i++) {
@@ -72,6 +101,13 @@ export async function POST(request: Request) {
               const mimeType = part.inlineData.mimeType || 'image/jpeg';
               const dataUrl = `data:${mimeType};base64,${part.inlineData.data}`;
               imageUrls.push(dataUrl);
+              
+              // Save the image to Firestore and keep track of the ID
+              const imageId = await saveImageToFirestore(dataUrl, adjustedPrompt, templateId);
+              if (imageId) {
+                imageIds.push(imageId);
+              }
+              
               break; // Just get one image per request
             }
           }
@@ -99,6 +135,7 @@ export async function POST(request: Request) {
           'https://placehold.co/1872x1271/e83e8c/FFFFFF?text=Please+Try+Again',
           'https://placehold.co/1872x1271/e83e8c/FFFFFF?text=Or+Use+Different+Prompt',
         ],
+        imageIds: [],
         error: 'Failed to generate any images with Gemini'
       });
     }
@@ -106,7 +143,9 @@ export async function POST(request: Request) {
     console.log(`Successfully generated ${imageUrls.length} images`);
     return NextResponse.json({
       success: true,
-      images: imageUrls
+      images: imageUrls,
+      imageIds: imageIds,
+      prompt: prompt
     });
     
   } catch (error) {
@@ -114,6 +153,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: false,
       images: [],
+      imageIds: [],
       error: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }

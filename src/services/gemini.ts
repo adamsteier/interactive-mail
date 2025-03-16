@@ -4,6 +4,8 @@ import axios from 'axios';
 export interface GeminiImageResponse {
   success: boolean;
   images: string[];
+  imageIds?: string[];
+  prompt?: string;
   error?: string;
 }
 
@@ -55,13 +57,15 @@ Important:
  */
 export const generateImages = async (
   prompt: string,
-  numImages: number = 3
+  numImages: number = 3,
+  templateId?: string
 ): Promise<GeminiImageResponse> => {
   try {
     // Call our API route for Gemini
     const response = await axios.post('/api/generate-images-gemini', {
       prompt,
-      numImages
+      numImages,
+      templateId
     });
     
     return response.data;
