@@ -24,6 +24,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
   } = useMarketingStore();
 
   const [showLeadsCollection, setShowLeadsCollection] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     // Only update if marketingStrategy exists
@@ -46,6 +47,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
   const handleGetData = async () => {
     if (selectedBusinessTypes.size > 0) {
+      setIsLoading(true);
       // Start loading state immediately
       updateSearchResults({
         places: [],
@@ -66,13 +68,17 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       // Then trigger the search
       handleGoogleSearch();
       
-      // Show the leads collection view
-      setShowLeadsCollection(true);
+      // Show the leads collection view after a short delay to show animation
+      setTimeout(() => {
+        setShowLeadsCollection(true);
+        setIsLoading(false);
+      }, 1500);
     }
   };
 
   const handleSearch = () => {
     if (selectedBusinessTypes.size > 0) {
+      setIsLoading(true);
       // Start loading state immediately
       updateSearchResults({
         places: [],
@@ -92,6 +98,12 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       
       // Then trigger the search
       handleGoogleSearch();
+      
+      // Show the leads collection view after a short delay to show animation
+      setTimeout(() => {
+        setShowLeadsCollection(true);
+        setIsLoading(false);
+      }, 1500);
     }
   };
 
@@ -222,20 +234,102 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
                   </button>
                   <button
                     onClick={handleSearch}
-                    disabled={selectedBusinessTypes.size === 0}
-                    className={`rounded border-2 border-electric-teal bg-electric-teal/10 px-6 py-2 
-                      text-electric-teal shadow-glow hover:bg-electric-teal/20 hover:shadow-glow-strong 
-                      active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
-                        selectedBusinessTypes.size > 0
-                          ? 'border-2 border-electric-teal bg-electric-teal text-charcoal hover:bg-electric-teal/90'
-                          : 'border-2 border-electric-teal/50 bg-transparent text-electric-teal/50'
-                      }`}
+                    disabled={selectedBusinessTypes.size === 0 || isLoading}
+                    className={`relative rounded border-2 ${
+                      isLoading ? 'border-electric-teal bg-electric-teal/10 text-electric-teal' :
+                      selectedBusinessTypes.size > 0
+                        ? 'border-electric-teal bg-electric-teal text-charcoal hover:bg-electric-teal/90'
+                        : 'border-electric-teal/50 bg-transparent text-electric-teal/50'
+                      } px-6 py-2 shadow-glow hover:shadow-glow-strong 
+                      active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300`}
                   >
-                    Search Selected Types
+                    {isLoading ? (
+                      <>
+                        <span className="opacity-0">Search Selected Types</span>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="flex space-x-1">
+                            {/* Wave animation dots */}
+                            {[0, 1, 2, 3, 4].map((i) => (
+                              <div 
+                                key={i}
+                                className="h-2 w-2 rounded-full bg-electric-teal"
+                                style={{
+                                  animation: `wave 1.5s ease-in-out ${i * 0.1}s infinite`,
+                                }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                        <style jsx>{`
+                          @keyframes wave {
+                            0%, 100% {
+                              transform: translateY(0);
+                              opacity: 0.6;
+                            }
+                            50% {
+                              transform: translateY(-10px);
+                              opacity: 1;
+                            }
+                          }
+                        `}</style>
+                      </>
+                    ) : (
+                      "Search Selected Types"
+                    )}
                   </button>
                 </div>
               </div>
             </div>
+            
+            {/* Full screen loading overlay */}
+            {isLoading && (
+              <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-charcoal/90 backdrop-blur-sm">
+                <div className="mb-8 text-electric-teal text-xl font-medium">Processing your selection...</div>
+                <div className="relative w-32 h-32">
+                  {/* Circular wave animation */}
+                  {[1, 2, 3].map((i) => (
+                    <div 
+                      key={i}
+                      className="absolute inset-0 rounded-full border-2 border-electric-teal"
+                      style={{
+                        animation: `pulse ${2 + i * 0.5}s cubic-bezier(0.4, 0, 0.6, 1) infinite`,
+                        opacity: 0.2,
+                      }}
+                    />
+                  ))}
+                  {/* Neon Magenta accent */}
+                  <div 
+                    className="absolute inset-0 rounded-full border-2 border-[#FF00B8]"
+                    style={{
+                      animation: 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                      opacity: 0.6,
+                    }}
+                  />
+                  {/* Center dot */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="h-4 w-4 rounded-full bg-electric-teal shadow-[0_0_15px_#00F0FF]"></div>
+                  </div>
+                </div>
+                <div className="mt-8 text-electric-teal/70 text-center max-w-md">
+                  <p>Finding potential leads in your selected area...</p>
+                </div>
+                <style jsx>{`
+                  @keyframes pulse {
+                    0% {
+                      transform: scale(0.5);
+                      opacity: 0.8;
+                    }
+                    50% {
+                      opacity: 0.4;
+                    }
+                    100% {
+                      transform: scale(2.5);
+                      opacity: 0;
+                    }
+                  }
+                `}</style>
+              </div>
+            )}
           </div>
         </div>
       ) : (
