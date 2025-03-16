@@ -1,7 +1,22 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { 
+  collection, 
+  addDoc, 
+  serverTimestamp, 
+  query, 
+  where, 
+  orderBy, 
+  limit, 
+  getDocs,
+  DocumentData
+} from 'firebase/firestore';
+import { 
+  ref, 
+  uploadString, 
+  getDownloadURL
+} from 'firebase/storage';
+import { db, storage } from '@/lib/firebase';
 
 interface GenerateImagesRequest {
   prompt: string;
@@ -19,7 +34,7 @@ interface ExtendedGenerationConfig {
 }
 
 /**
- * Saves the generated image data to Firestore
+ * Saves the generated image to Firebase Storage and stores the URL in Firestore
  */
 const saveImageToFirestore = async (
   imageUrl: string, 
@@ -27,18 +42,40 @@ const saveImageToFirestore = async (
   templateId: string | null = null
 ) => {
   try {
+    // Extract base64 data (remove the data:image/png;base64, part)
+    const base64Data = imageUrl.split(',')[1];
+    
+    // Generate a unique filename
+    const timestamp = Date.now();
+    const filename = `postcard_images/${timestamp}_${Math.random().toString(36).substring(2, 15)}.png`;
+    
+    // Create storage reference
+    const storageRef = ref(storage, filename);
+    
+    // Upload the image to Firebase Storage
+    await uploadString(storageRef, base64Data, 'base64');
+    
+    // Get the public URL
+    const publicUrl = await getDownloadURL(storageRef);
+    
+    // Save metadata to Firestore
     const docRef = await addDoc(collection(db, 'postcard_images'), {
-      imageUrl,
+      imageUrl: publicUrl,
+      storageRef: filename,
       prompt,
       templateId,
       createdAt: serverTimestamp(),
+      // Also save a thumbnail version of the base64 data for quick preview
+      // This creates a smaller version for quick loading in the UI
+      thumbnailData: imageUrl.length > 10000 ? imageUrl.substring(0, 10000) : imageUrl
     });
-    console.log('Image saved to Firestore with ID:', docRef.id);
-    return docRef.id;
+    
+    console.log('Image saved to Storage and Firestore with ID:', docRef.id);
+    return { id: docRef.id, url: publicUrl };
   } catch (error) {
-    console.error('Error saving image to Firestore:', error);
-    // Continue even if saving fails
-    return null;
+    console.error('Error saving image to Storage/Firestore:', error);
+    // Return original data URL as fallback
+    return { id: null, url: imageUrl };
   }
 };
 
@@ -85,11 +122,20 @@ export async function POST(request: Request) {
         const result = await model.generateContent(adjustedPrompt);
         const response = result.response;
         
+        // Add more detailed logging to debug the response structure
+        console.log('Gemini response structure:', JSON.stringify({
+          hasCandidates: !!response.candidates,
+          candidatesLength: response.candidates?.length || 0,
+          firstCandidateHasContent: !!response.candidates?.[0]?.content,
+          partsLength: response.candidates?.[0]?.content?.parts?.length || 0
+        }));
+        
         // Process response to extract images
         if (response.candidates && response.candidates[0]?.content?.parts) {
-          console.log('Got response with parts:', response.candidates[0].content.parts.length);
+          const parts = response.candidates[0].content.parts;
+          console.log('Got response with parts:', parts.length);
           
-          for (const part of response.candidates[0].content.parts) {
+          for (const part of parts) {
             if (part.inlineData?.data) {
               console.log('Found inline data with mimeType:', part.inlineData.mimeType);
               
@@ -97,13 +143,22 @@ export async function POST(request: Request) {
               const mimeType = part.inlineData.mimeType || 'image/jpeg';
               const dataUrl = `data:${mimeType};base64,${part.inlineData.data}`;
               
-              // Save the image to Firestore and keep track of the ID
-              const imageId = await saveImageToFirestore(dataUrl, adjustedPrompt, templateId);
+              // Save the image to Firebase Storage and Firestore
+              const savedImage = await saveImageToFirestore(dataUrl, adjustedPrompt, templateId);
               
               // Return the image URL and ID
-              return { imageUrl: dataUrl, imageId };
+              return { 
+                imageUrl: savedImage.url, 
+                imageId: savedImage.id,
+                // Include original data URL for immediate display while storage URL is processing
+                originalDataUrl: dataUrl
+              };
             }
           }
+          
+          // If we get here, we found no inline data in any parts
+          console.log('No inline data found in any parts. Part types:', 
+            parts.map(p => p.inlineData ? 'inlineData' : (p.text ? 'text' : 'unknown')).join(', '));
         } else {
           console.log('No candidates or parts found in response');
         }
@@ -123,6 +178,7 @@ export async function POST(request: Request) {
     // Extract image URLs and IDs, filtering out null results
     const imageUrls: string[] = [];
     const imageIds: string[] = [];
+    const originalDataUrls: string[] = [];
     
     results.forEach(result => {
       if (result) {
@@ -130,12 +186,62 @@ export async function POST(request: Request) {
         if (result.imageId) {
           imageIds.push(result.imageId);
         }
+        if (result.originalDataUrl) {
+          originalDataUrls.push(result.originalDataUrl);
+        }
       }
     });
     
-    // Fallback to placeholder images if generation fails
+    console.log(`Generated ${imageUrls.length} images out of ${numImages} requested`);
+    
+    // Check if we have any images in Firestore even if generation seemingly failed
     if (imageUrls.length === 0) {
-      console.log('No images were generated, returning fallback images');
+      try {
+        // Query the most recent images from Firestore
+        const imagesQuery = query(
+          collection(db, 'postcard_images'),
+          where('prompt', '==', prompt),
+          orderBy('createdAt', 'desc'),
+          limit(numImages)
+        );
+        
+        const querySnapshot = await getDocs(imagesQuery);
+        
+        if (!querySnapshot.empty) {
+          console.log(`Found ${querySnapshot.docs.length} recent images in Firestore with matching prompt`);
+          
+          // Extract images from Firestore
+          querySnapshot.docs.forEach((doc) => {
+            const data = doc.data() as DocumentData;
+            if (data.imageUrl) {
+              imageUrls.push(data.imageUrl);
+              imageIds.push(doc.id);
+              // If there's thumbnail data, use it for faster loading
+              if (data.thumbnailData) {
+                originalDataUrls.push(data.thumbnailData);
+              }
+            }
+          });
+          
+          // If we found images in Firestore, return them
+          if (imageUrls.length > 0) {
+            console.log(`Returning ${imageUrls.length} images from Firestore`);
+            return NextResponse.json({
+              success: true,
+              images: imageUrls,
+              imageIds: imageIds,
+              originalDataUrls: originalDataUrls.length > 0 ? originalDataUrls : undefined,
+              prompt: prompt,
+              note: 'Images retrieved from Firestore instead of direct generation'
+            });
+          }
+        }
+      } catch (firestoreErr) {
+        console.error('Error trying to retrieve images from Firestore:', firestoreErr);
+      }
+      
+      // Fallback to placeholder images if generation fails and Firestore retrieval fails
+      console.log('No images were generated or found in Firestore, returning fallback images');
       return NextResponse.json({
         success: false,
         images: [
@@ -153,6 +259,7 @@ export async function POST(request: Request) {
       success: true,
       images: imageUrls,
       imageIds: imageIds,
+      originalDataUrls: originalDataUrls.length > 0 ? originalDataUrls : undefined,
       prompt: prompt
     });
     

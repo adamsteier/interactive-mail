@@ -3,10 +3,12 @@ import axios from 'axios';
 
 export interface GeminiImageResponse {
   success: boolean;
-  images: string[];
-  imageIds?: string[];
+  images: string[];               // URLs to the images (now Firebase Storage URLs)
+  imageIds?: string[];            // Firestore document IDs
+  originalDataUrls?: string[];    // Original base64 data URLs for immediate display
   prompt?: string;
   error?: string;
+  note?: string;
 }
 
 /**

@@ -131,6 +131,7 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
   // State for managing generated images
   const [isImagesLoading, setIsImagesLoading] = useState(true);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
+  const [originalDataUrls, setOriginalDataUrls] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [usingFallbackImages, setUsingFallbackImages] = useState(false);
   
@@ -233,16 +234,23 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  // Generate images asynchronously - wrapped in useCallback to prevent recreating on each render
+  // Generate AI images based on the data
   const generateAIImages = useCallback(async () => {
-    setIsImagesLoading(true);
-    setError(null);
-    setUsingFallbackImages(false);
-    
     try {
-      console.log('Generating AI images for postcards...');
-      
-      // Create a prompt based on the data
+      // Set loading state
+      setIsImagesLoading(true);
+      setError(null);
+      setUsingFallbackImages(false);
+
+      console.log('Generating AI images with data:', 
+        { brandData, audienceData, visualData, postcardTemplateIds });
+
+      // Clear any previous images
+      setGeneratedImages([]);
+      setOriginalDataUrls([]);
+      setSaveSuccess(null);
+
+      // Generate a prompt using the brand and target information
       const prompt = generateImagePrompt(
         brandData.brandName,
         brandData.stylePreferences,
@@ -264,51 +272,82 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
       
       if (response.success) {
         console.log('Successfully generated images:', response.images.length);
-        setGeneratedImages(response.images);
         
-        // Save image IDs if they exist
-        if (response.imageIds && response.imageIds.length > 0) {
-          try {
-            // Automatically save all designs with all images
-            await autoSavePostcardDesigns(response.imageIds, prompt);
-          } catch (saveError) {
-            console.error('Error saving designs to Firestore:', saveError);
-            // Show an error message but don't prevent the user from seeing the generated images
-            setError('Images generated successfully but there was a problem saving to the database. You can still continue using the designs.');
+        // Check if we actually got images back
+        if (response.images && response.images.length > 0) {
+          setGeneratedImages(response.images);
+          
+          // If we have original data URLs for immediate display, use them
+          if (response.originalDataUrls && response.originalDataUrls.length > 0) {
+            setOriginalDataUrls(response.originalDataUrls);
+          }
+          
+          // If we got a "note" back, these might be from Firestore retrieval
+          if (response.note) {
+            console.log('Note from API:', response.note);
+            setSaveSuccess('Images loaded from previous generation');
+          }
+          
+          // Save image IDs if they exist
+          if (response.imageIds && response.imageIds.length > 0) {
+            try {
+              // Automatically save all designs with all images
+              await autoSavePostcardDesigns(response.imageIds, prompt);
+            } catch (saveError) {
+              console.error('Error saving designs to Firestore:', saveError);
+              // Show an error message but don't prevent the user from seeing the generated images
+              setError('Images generated successfully but there was a problem saving to the database. You can still continue using the designs.');
+            }
+          } else {
+            console.log('No image IDs returned from API, skipping save to Firestore');
           }
         } else {
-          console.log('No image IDs returned from API, skipping save to Firestore');
+          // This shouldn't happen if success is true, but just in case
+          console.error('API returned success but no images');
+          setError('No images were received from the generation service');
+          fallbackToPlaceholders();
         }
       } else {
         console.error('Failed to generate images:', response.error);
         setError(response.error || 'Failed to generate images');
-        
-        // For demo/testing, use placeholder images when API fails
-        setGeneratedImages([
-          'https://placehold.co/1872x1271/e83e8c/FFFFFF?text=Demo+Image+1',
-          'https://placehold.co/1872x1271/e83e8c/FFFFFF?text=Demo+Image+2',
-          'https://placehold.co/1872x1271/e83e8c/FFFFFF?text=Demo+Image+3',
-        ]);
-        setUsingFallbackImages(true);
+        fallbackToPlaceholders();
       }
     } catch (err) {
       console.error('Error in generateAIImages:', err);
       setError('An unexpected error occurred while generating images. Using demo images instead.');
-      
-      // For error recovery, use placeholder images
-      setGeneratedImages([
-        'https://placehold.co/1872x1271/e83e8c/FFFFFF?text=Demo+Image+1',
-        'https://placehold.co/1872x1271/e83e8c/FFFFFF?text=Demo+Image+2',
-        'https://placehold.co/1872x1271/e83e8c/FFFFFF?text=Demo+Image+3',
-      ]);
-      setUsingFallbackImages(true);
+      fallbackToPlaceholders();
     } finally {
       // Always clear the loading state, even if there were errors
       console.log('Clearing loading state');
       setIsImagesLoading(false);
     }
-  }, [brandData, audienceData, visualData, postcardTemplateIds]); // Add dependencies
+  }, [brandData, audienceData, visualData, postcardTemplateIds]);
   
+  // Helper function to set placeholder images
+  const fallbackToPlaceholders = () => {
+    setGeneratedImages([
+      'https://placehold.co/1872x1271/e83e8c/FFFFFF?text=Demo+Image+1',
+      'https://placehold.co/1872x1271/e83e8c/FFFFFF?text=Demo+Image+2',
+      'https://placehold.co/1872x1271/e83e8c/FFFFFF?text=Demo+Image+3',
+    ]);
+    setOriginalDataUrls([]);
+    setUsingFallbackImages(true);
+  };
+
+  // Get the best image URL to display - prefer the original data URL for immediate display
+  // while the storage URL is loading
+  const getDisplayImageUrl = (index: number): string => {
+    if (index >= generatedImages.length) return '';
+    
+    // If we have an original data URL for this index, use it for immediate display
+    if (originalDataUrls && originalDataUrls.length > index && originalDataUrls[index]) {
+      return originalDataUrls[index];
+    }
+    
+    // Otherwise fall back to the storage URL
+    return generatedImages[index];
+  };
+
   // Generate AI images after countdown finishes
   useEffect(() => {
     if (countdown === 0) {
@@ -630,7 +669,7 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
                         width: '1872px', 
                         height: '1271px',
                         position: 'relative',
-                        backgroundImage: `url(${generatedImages[design.selectedImageIndex]})`,
+                        backgroundImage: `url(${getDisplayImageUrl(design.selectedImageIndex)})`,
                         backgroundSize: 'cover',
                         backgroundPosition: 'center',
                         transform: `translate(${design.imagePosition.x}px, ${design.imagePosition.y}px) scale(${design.imagePosition.scale})`,
@@ -690,7 +729,7 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
                     >
                       <div className="aspect-video relative">
                         <Image
-                          src={img}
+                          src={getDisplayImageUrl(imgIndex)}
                           alt={`Generated image ${imgIndex + 1}`}
                           fill
                           className="object-cover"
