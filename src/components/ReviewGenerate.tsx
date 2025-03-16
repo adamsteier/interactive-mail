@@ -43,11 +43,6 @@ interface MarketingData {
 interface AudienceData {
   industry: string;
   targetDescription: string;
-  audienceAgeRange: string[];
-  incomeLevel: string[];
-  interests: string[];
-  customAudience: boolean;
-  customAudienceDescription: string;
 }
 
 interface BusinessData {
@@ -475,42 +470,6 @@ const ReviewGenerate = ({
               {audienceData.targetDescription || 'Not specified'}
             </p>
           </div>
-          
-          <div>
-            <p className="text-white text-sm mb-1">Age Range</p>
-            <p className="text-electric-teal">
-              {audienceData.audienceAgeRange.length > 0 
-                ? audienceData.audienceAgeRange.join(', ') 
-                : 'Not specified'}
-            </p>
-          </div>
-          
-          <div>
-            <p className="text-white text-sm mb-1">Income Level</p>
-            <p className="text-electric-teal">
-              {audienceData.incomeLevel.length > 0 
-                ? audienceData.incomeLevel.join(', ') 
-                : 'Not specified'}
-            </p>
-          </div>
-          
-          <div>
-            <p className="text-white text-sm mb-1">Interests</p>
-            <p className="text-electric-teal">
-              {audienceData.interests.length > 0 
-                ? audienceData.interests.join(', ') 
-                : 'Not specified'}
-            </p>
-          </div>
-          
-          {audienceData.customAudience && (
-            <div>
-              <p className="text-white text-sm mb-1">Custom Audience</p>
-              <p className="text-electric-teal">
-                {audienceData.customAudienceDescription || 'Not specified'}
-              </p>
-            </div>
-          )}
         </div>
       </section>
 
@@ -861,28 +820,6 @@ const ReviewGenerate = ({
                 text-electric-teal focus:border-electric-teal focus:outline-none min-h-[100px]"
               placeholder="Describe your target audience"
             />
-          </div>
-          
-          <div>
-            <label className="block text-electric-teal mb-2">Age Ranges</label>
-            <div className="grid grid-cols-3 gap-2">
-              {['18-24', '25-34', '35-44', '45-54', '55-64', '65+'].map((range) => (
-                <label key={range} className="flex items-center space-x-2 p-2 rounded hover:bg-charcoal-light">
-                  <input
-                    type="checkbox"
-                    checked={editAudienceData.audienceAgeRange.includes(range)}
-                    onChange={(e) => {
-                      const newRanges = e.target.checked
-                        ? [...editAudienceData.audienceAgeRange, range]
-                        : editAudienceData.audienceAgeRange.filter(r => r !== range);
-                      setEditAudienceData({...editAudienceData, audienceAgeRange: newRanges});
-                    }}
-                    className="text-electric-teal"
-                  />
-                  <span className="text-electric-teal">{range}</span>
-                </label>
-              ))}
-            </div>
           </div>
         </div>
       </EditModal>

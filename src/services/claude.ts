@@ -35,11 +35,6 @@ export interface MarketingData {
 export interface AudienceData {
   industry: string;
   targetDescription: string;
-  audienceAgeRange: string[];
-  incomeLevel: string[];
-  interests: string[];
-  customAudience: boolean;
-  customAudienceDescription: string;
 }
 
 export interface ContactInfo {
@@ -184,7 +179,6 @@ MARKETING OBJECTIVE:
 TARGET AUDIENCE:
 - Industry: ${audienceData.industry || 'General'}
 - Description: ${audienceData.targetDescription || 'Business professionals'}
-- Interests: ${audienceData.interests?.join(', ') || 'Efficiency and reliability'}
 
 BUSINESS INFORMATION TO INCLUDE:
 - Business name: ${brandData.brandName}

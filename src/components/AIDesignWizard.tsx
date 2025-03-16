@@ -92,11 +92,6 @@ interface WizardMarketingData {
 interface AudienceData {
   industry: string;
   targetDescription: string;
-  audienceAgeRange: string[];
-  incomeLevel: string[];
-  interests: string[];
-  customAudience: boolean;
-  customAudienceDescription: string;
 }
 
 interface WizardBusinessData {
@@ -249,11 +244,6 @@ const AIDesignWizard = ({ onBack }: AIDesignWizardProps) => {
     audienceData: {
       industry: '',
       targetDescription: '',
-      audienceAgeRange: [],
-      incomeLevel: [],
-      interests: [],
-      customAudience: false,
-      customAudienceDescription: '',
     },
     businessData: {
       tagline: '',

@@ -7,11 +7,6 @@ import { useMarketingStore } from '@/store/marketingStore';
 interface AudienceData {
   industry: string;
   targetDescription: string;
-  audienceAgeRange: string[];
-  incomeLevel: string[];
-  interests: string[];
-  customAudience: boolean;
-  customAudienceDescription: string;
 }
 
 interface TargetAudienceProps {
@@ -20,49 +15,12 @@ interface TargetAudienceProps {
   segment?: string;
 }
 
-// Age range options
-const ageRangeOptions = [
-  { id: '18-24', label: '18-24' },
-  { id: '25-34', label: '25-34' },
-  { id: '35-44', label: '35-44' },
-  { id: '45-54', label: '45-54' },
-  { id: '55-64', label: '55-64' },
-  { id: '65+', label: '65+' }
-];
-
-// Income level options
-const incomeLevelOptions = [
-  { id: 'low', label: 'Budget-conscious' },
-  { id: 'medium', label: 'Middle income' },
-  { id: 'high', label: 'Affluent' },
-  { id: 'luxury', label: 'Luxury/Premium' }
-];
-
-// Interest categories
-const interestOptions = [
-  { id: 'health', label: 'Health & Wellness' },
-  { id: 'tech', label: 'Technology' },
-  { id: 'home', label: 'Home & Family' },
-  { id: 'fashion', label: 'Fashion & Beauty' },
-  { id: 'food', label: 'Food & Dining' },
-  { id: 'travel', label: 'Travel & Adventure' },
-  { id: 'sports', label: 'Sports & Fitness' },
-  { id: 'finance', label: 'Finance & Investment' },
-  { id: 'education', label: 'Education & Learning' },
-  { id: 'arts', label: 'Arts & Entertainment' }
-];
-
 const TargetAudience = ({ onComplete, initialData = {}, segment }: TargetAudienceProps) => {
   const businessAnalysis = useMarketingStore(state => state.businessInfo.businessAnalysis);
   
   const [audienceData, setAudienceData] = useState<AudienceData>({
     industry: initialData.industry ?? '',
-    targetDescription: initialData.targetDescription ?? '',
-    audienceAgeRange: initialData.audienceAgeRange ?? [],
-    incomeLevel: initialData.incomeLevel ?? [],
-    interests: initialData.interests ?? [],
-    customAudience: initialData.customAudience ?? false,
-    customAudienceDescription: initialData.customAudienceDescription ?? ''
+    targetDescription: initialData.targetDescription ?? ''
   });
 
   // Pre-fill industry if available from business analysis
@@ -74,45 +32,6 @@ const TargetAudience = ({ onComplete, initialData = {}, segment }: TargetAudienc
       }));
     }
   }, [businessAnalysis, audienceData.industry]);
-
-  const toggleAgeRange = (range: string) => {
-    setAudienceData(prev => {
-      const newRanges = prev.audienceAgeRange.includes(range)
-        ? prev.audienceAgeRange.filter(r => r !== range)
-        : [...prev.audienceAgeRange, range];
-      
-      return {
-        ...prev,
-        audienceAgeRange: newRanges
-      };
-    });
-  };
-
-  const toggleIncomeLevel = (level: string) => {
-    setAudienceData(prev => {
-      const newLevels = prev.incomeLevel.includes(level)
-        ? prev.incomeLevel.filter(l => l !== level)
-        : [...prev.incomeLevel, level];
-      
-      return {
-        ...prev,
-        incomeLevel: newLevels
-      };
-    });
-  };
-
-  const toggleInterest = (interest: string) => {
-    setAudienceData(prev => {
-      const newInterests = prev.interests.includes(interest)
-        ? prev.interests.filter(i => i !== interest)
-        : [...prev.interests, interest];
-      
-      return {
-        ...prev,
-        interests: newInterests
-      };
-    });
-  };
 
   const handleSubmit = () => {
     onComplete(audienceData);
@@ -164,145 +83,9 @@ const TargetAudience = ({ onComplete, initialData = {}, segment }: TargetAudienc
     </motion.div>
   );
 
-  const demographicsSection = (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.2 }}
-      className="mb-10"
-    >
-      <h3 className="text-xl font-semibold text-electric-teal mb-4">Demographics</h3>
-      
-      <div className="mb-8">
-        <h4 className="text-lg text-electric-teal mb-3">Age Range (select all that apply)</h4>
-        <div className="flex flex-wrap gap-3">
-          {ageRangeOptions.map(age => (
-            <button
-              key={age.id}
-              onClick={() => toggleAgeRange(age.id)}
-              className={`px-4 py-2 rounded-lg border-2 transition-colors duration-200 ${
-                audienceData.audienceAgeRange.includes(age.id)
-                  ? 'bg-electric-teal text-charcoal border-electric-teal'
-                  : 'border-electric-teal/50 text-electric-teal hover:border-electric-teal'
-              }`}
-            >
-              {age.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <h4 className="text-lg text-electric-teal mb-3">Income Level (select all that apply)</h4>
-        <div className="flex flex-wrap gap-3">
-          {incomeLevelOptions.map(income => (
-            <button
-              key={income.id}
-              onClick={() => toggleIncomeLevel(income.id)}
-              className={`px-4 py-2 rounded-lg border-2 transition-colors duration-200 ${
-                audienceData.incomeLevel.includes(income.id)
-                  ? 'bg-electric-teal text-charcoal border-electric-teal'
-                  : 'border-electric-teal/50 text-electric-teal hover:border-electric-teal'
-              }`}
-            >
-              {income.label}
-            </button>
-          ))}
-        </div>
-      </div>
-    </motion.div>
-  );
-
-  const interestsSection = (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.3 }}
-      className="mb-10"
-    >
-      <h3 className="text-xl font-semibold text-electric-teal mb-4">Interests & Lifestyle</h3>
-      <p className="text-electric-teal/70 mb-6">
-        Select interests relevant to your target audience (optional)
-      </p>
-      
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-        {interestOptions.map(interest => (
-          <button
-            key={interest.id}
-            onClick={() => toggleInterest(interest.id)}
-            className={`px-3 py-2 text-sm rounded-lg border-2 transition-colors duration-200 ${
-              audienceData.interests.includes(interest.id)
-                ? 'bg-electric-teal text-charcoal border-electric-teal'
-                : 'border-electric-teal/50 text-electric-teal hover:border-electric-teal'
-            }`}
-          >
-            {interest.label}
-          </button>
-        ))}
-      </div>
-    </motion.div>
-  );
-
-  const customAudienceSection = (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.4 }}
-      className="mb-10"
-    >
-      <div className="flex items-center gap-3 mb-4">
-        <button
-          onClick={() => setAudienceData(prev => ({ 
-            ...prev, 
-            customAudience: !prev.customAudience,
-            customAudienceDescription: !prev.customAudience ? prev.customAudienceDescription : ''
-          }))}
-          className="w-6 h-6 rounded-md border-2 border-electric-teal flex items-center justify-center"
-        >
-          {audienceData.customAudience && (
-            <motion.div 
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className="w-3 h-3 bg-electric-teal rounded-sm"
-            />
-          )}
-        </button>
-        <h3 className="text-xl font-semibold text-electric-teal">
-          I have a custom audience segment
-        </h3>
-      </div>
-      
-      {audienceData.customAudience && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
-          className="pl-9"
-        >
-          <p className="text-electric-teal/70 mb-4">
-            Describe your specific audience segment in detail
-          </p>
-          <textarea
-            value={audienceData.customAudienceDescription}
-            onChange={(e) => setAudienceData(prev => ({ 
-              ...prev, 
-              customAudienceDescription: e.target.value 
-            }))}
-            placeholder="Describe your custom audience segment in detail (demographics, behaviors, preferences, etc.)"
-            className="w-full h-32 bg-charcoal border-2 border-electric-teal/50 rounded-lg p-4
-              text-electric-teal placeholder:text-electric-teal/40 focus:border-electric-teal
-              focus:outline-none transition-colors"
-          />
-        </motion.div>
-      )}
-    </motion.div>
-  );
-
   const isValid = 
     audienceData.industry.trim() !== '' && 
-    audienceData.targetDescription.trim() !== '' &&
-    audienceData.audienceAgeRange.length > 0 &&
-    audienceData.incomeLevel.length > 0 &&
-    (!audienceData.customAudience || (audienceData.customAudience && audienceData.customAudienceDescription.trim() !== ''));
+    audienceData.targetDescription.trim() !== '';
 
   return (
     <div className="max-w-3xl mx-auto px-4">
@@ -323,9 +106,6 @@ const TargetAudience = ({ onComplete, initialData = {}, segment }: TargetAudienc
 
       {industrySection}
       {targetDescriptionSection}
-      {demographicsSection}
-      {interestsSection}
-      {customAudienceSection}
 
       <div className="flex justify-end mt-8">
         <button

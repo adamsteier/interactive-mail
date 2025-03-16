@@ -43,11 +43,6 @@ interface MarketingData {
 interface AudienceData {
   industry: string;
   targetDescription: string;
-  audienceAgeRange: string[];
-  incomeLevel: string[];
-  interests: string[];
-  customAudience: boolean;
-  customAudienceDescription: string;
 }
 
 interface BusinessData {
