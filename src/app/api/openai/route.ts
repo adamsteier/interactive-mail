@@ -5,6 +5,19 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// Define an interface for OpenAI API errors
+interface OpenAIError extends Error {
+  code?: string;
+  response?: {
+    status?: number;
+    data?: {
+      error?: {
+        message?: string;
+      };
+    };
+  };
+}
+
 export async function POST(req: Request) {
   try {
     const { targetArea, businessName, businessType, userLocation, geocodeResult } = await req.json();
@@ -16,6 +29,8 @@ export async function POST(req: Request) {
     // Note: The Responses API is still in preview at the time of writing
     // If your OpenAI library version doesn't support it, you'll need to update
     try {
+      console.log('🔍 Attempting to use Web Search with Responses API...');
+      
       // Define types for address components
       interface AddressComponent {
         long_name: string;
@@ -35,6 +50,9 @@ export async function POST(req: Request) {
       const region = geocodeResult.address_components.find(
         (c: AddressComponent) => c.types.includes("administrative_area_level_1")
       )?.long_name || "";
+
+      console.log(`🌐 Searching for: ${businessName} in ${targetArea}`);
+      console.log(`📍 Location context: ${city}, ${region}, ${country}`);
 
       // Use the Responses API with web search capabilities
       // @ts-expect-error - Responses API may not yet be in the type definitions
@@ -65,6 +83,11 @@ export async function POST(req: Request) {
           If you can't find specific information about this exact business, provide general information about similar businesses with this name or in this industry in the specified area.
         `
       });
+
+      console.log('✅ Web search completed successfully!');
+      if (response.output_annotations && response.output_annotations.length > 0) {
+        console.log(`🔗 Found ${response.output_annotations.length} web sources`);
+      }
 
       // Get the web search results from the response
       const webResults = response.output_text;
@@ -140,12 +163,25 @@ export async function POST(req: Request) {
           annotations: response.output_annotations
         }
       });
-    } catch (webSearchError) {
-      console.error('Web search error, falling back to standard analysis:', webSearchError);
+    } catch (error) {
+      const webSearchError = error as OpenAIError;
+      console.error('⚠️ WEB SEARCH FAILED - USING FALLBACK METHOD ⚠️');
+      console.error('Error details:', webSearchError.message);
+      console.error('Error name:', webSearchError.name);
+      console.error('Error code:', webSearchError.code);
+      
+      if (webSearchError.response) {
+        console.error('OpenAI response status:', webSearchError.response.status);
+        console.error('OpenAI error message:', webSearchError.response.data?.error?.message);
+      }
+      
+      console.log('🔄 Switching to fallback method (no web search)');
       // Continue to fallback approach
     }
     
     // Fallback approach if web search fails or is not available
+    console.log('🚨 USING FALLBACK METHOD - No web search, using standard completion');
+    
     const fallbackPrompt = `I need to analyze a business and its target market:
       Business Name: ${businessName}
       Target Area: ${targetArea}
@@ -202,6 +238,9 @@ export async function POST(req: Request) {
 
     const fallbackAnalysis = JSON.parse(fallbackContent);
 
+    console.log('⚠️ NOTE: Analysis was performed WITHOUT web search data');
+    console.log('📊 Generated analysis using only the business name and location');
+
     return NextResponse.json({ 
       analysis: fallbackAnalysis,
       source: 'openai',
@@ -209,7 +248,7 @@ export async function POST(req: Request) {
     });
     
   } catch (error) {
-    console.error('API error:', error);
+    console.error('❌ API FATAL ERROR:', error);
     return NextResponse.json(
       { error: 'Failed to process request' },
       { status: 500 }

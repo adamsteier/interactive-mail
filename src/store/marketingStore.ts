@@ -21,6 +21,7 @@ interface MarketingState {
     targetArea: string;
     businessName: string;
     businessAnalysis: BusinessAnalysis | null;
+    webSearched?: boolean;
   };
 
   // Step 3: Marketing Strategy
@@ -313,6 +314,7 @@ export const useMarketingStore = create<MarketingState>((set, get) => ({
         const data = await openAIResponse.json();
         if (data.analysis) {
           state.setBusinessAnalysis(data.analysis);
+          state.updateBusinessInfo({ webSearched: data.webSearched });
         }
         state.setStep(2);
       }

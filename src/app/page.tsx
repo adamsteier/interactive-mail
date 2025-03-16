@@ -119,6 +119,14 @@ export default function Home() {
       }] : [])
     ];
 
+    // Log whether web search was used when business analysis is available
+    if (businessInfo.businessAnalysis) {
+      console.log('--- Business Analysis Data Source ---');
+      console.log(`Web search used: ${businessInfo.webSearched ? 'YES' : 'NO'}`);
+      console.log(`Industry: ${businessInfo.businessAnalysis.industry}`);
+      console.log('----------------------------------');
+    }
+
     setDisplayInfos(newDisplayInfos);
   }, [businessInfo, setDisplayInfos]);
 
@@ -241,6 +249,7 @@ export default function Home() {
                     show={true}
                     position="below"
                     subInfo={info.subInfo}
+                    webSearched={businessInfo.webSearched}
                     onClick={() => {
                       setStep(1);
                       setUserInput(info.value);

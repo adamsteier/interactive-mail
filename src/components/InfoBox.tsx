@@ -14,6 +14,7 @@ interface InfoBoxProps {
     description: string;
   };
   isLoading?: boolean;
+  webSearched?: boolean;
 }
 
 const InfoBox = ({ 
@@ -24,6 +25,7 @@ const InfoBox = ({
   position = 'first',
   subInfo,
   isLoading = false,
+  webSearched,
 }: InfoBoxProps) => {
   const [isVisible, setIsVisible] = useState(false);
 
@@ -32,6 +34,14 @@ const InfoBox = ({
       setIsVisible(true);
     }
   }, [show]);
+
+  // Log web search status to console only
+  useEffect(() => {
+    if (webSearched !== undefined && subInfo) {
+      console.log(`Business Analysis: ${webSearched ? '✅ Web verified data' : '⚠️ Generated without web search'}`);
+      console.log(`Industry: ${subInfo.industry}`);
+    }
+  }, [webSearched, subInfo]);
 
   if (!show) return null;
 
@@ -62,7 +72,14 @@ const InfoBox = ({
       >
         {subInfo ? (
           <>
-            <div className="text-sm text-electric-teal/80 mb-2">Industry</div>
+            <div className="flex justify-between items-center mb-2">
+              <div className="text-sm text-electric-teal/80">Industry</div>
+              {webSearched !== undefined && (
+                <div className={`px-2 py-1 rounded-full text-xs opacity-70 ${webSearched ? 'text-green-400' : 'text-orange-400'}`}>
+                  {webSearched ? '🌐' : '⚙️'}
+                </div>
+              )}
+            </div>
             {isLoading ? (
               <LoadingBar height="28px" />
             ) : (
