@@ -61,12 +61,8 @@ export async function POST(request: Request) {
     
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // Array to store image data
-    const imageUrls: string[] = [];
-    const imageIds: string[] = [];
-    
-    // Generate multiple images
-    for (let i = 0; i < numImages; i++) {
+    // Create an array of promises to generate images in parallel
+    const generateImagePromises = Array.from({ length: numImages }).map(async (_, i) => {
       try {
         // Create a very explicit image generation prompt
         const adjustedPrompt = i === 0 
@@ -100,30 +96,42 @@ export async function POST(request: Request) {
               // Add the base64 data URL to our collection
               const mimeType = part.inlineData.mimeType || 'image/jpeg';
               const dataUrl = `data:${mimeType};base64,${part.inlineData.data}`;
-              imageUrls.push(dataUrl);
               
               // Save the image to Firestore and keep track of the ID
               const imageId = await saveImageToFirestore(dataUrl, adjustedPrompt, templateId);
-              if (imageId) {
-                imageIds.push(imageId);
-              }
               
-              break; // Just get one image per request
+              // Return the image URL and ID
+              return { imageUrl: dataUrl, imageId };
             }
           }
         } else {
           console.log('No candidates or parts found in response');
         }
+        
+        // Return null if no image was found
+        return null;
       } catch (err) {
         console.error(`Error generating image ${i+1}:`, err);
         console.error('Error details:', err instanceof Error ? err.message : err);
+        return null;
       }
-      
-      // Small delay between requests to avoid rate limiting
-      if (i < numImages - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+    });
+    
+    // Wait for all images to be generated in parallel
+    const results = await Promise.all(generateImagePromises);
+    
+    // Extract image URLs and IDs, filtering out null results
+    const imageUrls: string[] = [];
+    const imageIds: string[] = [];
+    
+    results.forEach(result => {
+      if (result) {
+        imageUrls.push(result.imageUrl);
+        if (result.imageId) {
+          imageIds.push(result.imageId);
+        }
       }
-    }
+    });
     
     // Fallback to placeholder images if generation fails
     if (imageUrls.length === 0) {
