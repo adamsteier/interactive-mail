@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { generatePostcardDesign, extractComponentCode } from '../services/claude';
 // Remove unused import
 // import dynamic from 'next/dynamic';
 
 // Import LucideIconProvider
-import LucideIconProvider from './LucideIconProvider';
+import LucideIconProvider, { IconWrapper } from './LucideIconProvider';
 
 // Add new import for Next.js font loading
 import { useGoogleFonts } from '../hooks/useGoogleFonts';
@@ -219,6 +219,32 @@ interface DebugInfo {
   fontInfo?: FontInfo;
 }
 
+// Add an Error Boundary class component near the top of the file
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode; fallback: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode; fallback: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error("Error caught by ErrorBoundary:", error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
+
 const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
   designStyle,
   creativityLevel,
@@ -237,7 +263,7 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
   
   // Load fonts using our custom hook
   const { fontsLoaded } = useGoogleFonts(fontInfo?.fonts || []);
-
+  
   // Create a loading indicator component
   const LoadingDesign: React.FC<PostcardDesignProps> = (props) => (
     <div 
@@ -270,719 +296,295 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
       </div>
     </div>
   );
-
+  
+  // Preload default fonts based on design style
   useEffect(() => {
-    const generateDesign = async () => {
+    // Set default fonts immediately to start loading them
+    const defaultFontInfo: FontInfo = {
+      fonts: [
+        { 
+          name: designStyle === 'traditional' ? 'Merriweather' : 
+                designStyle === 'professional' ? 'Playfair Display' : 
+                designStyle === 'modern' ? 'Roboto' : 'Pacifico', 
+          weights: [400, 700] 
+        },
+        { 
+          name: designStyle === 'traditional' ? 'Lora' : 
+                designStyle === 'professional' ? 'Montserrat' : 
+                designStyle === 'modern' ? 'Roboto Slab' : 'Quicksand', 
+          weights: [400, 500] 
+        }
+      ]
+    };
+    setFontInfo(defaultFontInfo);
+  }, [designStyle]);
+
+  // Modify the generateDesign function to be used in useEffect
+  const generateDesign = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Request postcard design from Claude API
+      const response = await generatePostcardDesign({
+        brandData,
+        marketingData,
+        audienceData,
+        businessData,
+        visualData,
+        designStyle,
+        creativityLevel
+      });
+      
+      if (!response.success || !response.completion) {
+        setError('Failed to generate design. Using fallback template.');
+        setDesignComponent(null);
+        setLoading(false);
+        return;
+      }
+      
+      // Extract code from Claude response
+      const componentCode = extractComponentCode(response.completion);
+      
+      if (!componentCode) {
+        setError('Failed to extract component code from response.');
+        setDesignComponent(null);
+        setLoading(false);
+        return;
+      }
+      
+      // Set debug info with code preview
+      setDebugInfo({
+        codePreview: componentCode.substring(0, 500),
+        hasJsx: componentCode.includes('jsx') || componentCode.includes('JSX')
+      });
+      
       try {
-        setError(null);
-
-        console.log(`Generating ${designStyle} design...`);
+        // Try to extract font information from code
+        const fontInfoRegex = /const\s+fontInfo\s*=\s*({[\s\S]*?fonts\s*:\s*\[[\s\S]*?\]\s*})/;
+        const fontMatch = componentCode.match(fontInfoRegex);
         
-        // Call Claude API to generate the design
-        const result = await generatePostcardDesign({
-          brandData,
-          marketingData,
-          audienceData,
-          businessData,
-          visualData,
-          designStyle,
-          creativityLevel
-        });
-
-        console.log("API response:", {
-          success: result.success,
-          hasCompletion: !!result.completion,
-          error: result.error || 'none',
-          completionLength: result.completion?.length || 0
-        });
-
-        if (!result.success || !result.completion) {
-          throw new Error(result.error || 'Failed to generate design');
-        }
-
-        // Extract the component code from the response
-        const componentCode = extractComponentCode(result.completion);
-        
-        if (!componentCode) {
-          throw new Error('Failed to extract component code from response');
-        }
-
-        // More detailed debugging
-        console.log('Component code length:', componentCode.length);
-        console.log('Component code preview (first 100 chars):', componentCode.substring(0, 100) + '...');
-        console.log('Component code preview (last 100 chars):', componentCode.substring(componentCode.length - 100) + '...');
-        console.log('Contains JSX tags:', componentCode.includes('<div'), componentCode.includes('</div>'));
-        console.log('Contains React import:', componentCode.includes('import React'));
-        
-        // Create a component from the code
-        try {
-          // Attempt to use the Function constructor to evaluate the component code
-          console.log('Attempting to create component from dynamic code');
-          
+        if (fontMatch && fontMatch[1]) {
           try {
-            // Remove import statements from the code before evaluation
-            const cleanedCode = componentCode
-              .replace(/import\s+.*?from\s+['"].*?['"];?/g, '')
-              .replace(/import\s+{.*?}\s+from\s+['"].*?['"];?/g, '')
-              // Additional safeguard to remove language identifiers that might appear at the beginning
-              .replace(/^(javascript|typescript|jsx|js|ts)\b\s*/i, '')
-              .trim();
+            // Add safety measures when evaluating font info
+            // First, verify it doesn't contain suspicious code
+            const fontInfoCode = fontMatch[1];
             
-            // Enhanced debugging - log more detailed info about the code
-            console.log('Cleaned code length:', cleanedCode.length);
-            console.log('Cleaned code (first 100 chars):', cleanedCode.substring(0, 100) + '...');
-            
-            // More robust JSX detection - now distinguishing between JSX tags and React.createElement
-            const hasJsxTags = 
-              (cleanedCode.includes('<') && (cleanedCode.includes('/>') || cleanedCode.includes('</div>'))) ||
-              cleanedCode.includes('<>') || // Fragment syntax
-              /return\s+</.test(cleanedCode); // JSX in return statement
+            if (!fontInfoCode.includes('function') && 
+                !fontInfoCode.includes('=>') && 
+                !fontInfoCode.includes('eval') && 
+                !fontInfoCode.includes('document') && 
+                !fontInfoCode.includes('window')) {
               
-            const hasReactCreateElement = cleanedCode.includes('React.createElement') || cleanedCode.includes('createElement(');
+              // Create a safer evaluation environment
+              const safeEval = (code: string) => {
+                // Only allow specific patterns in the code
+                if (!/^{\s*fonts\s*:\s*\[\s*{\s*name\s*:\s*(['"])[\w\s]+\1\s*,\s*weights\s*:\s*\[\s*\d+(?:\s*,\s*\d+)*\s*\]\s*}(?:\s*,\s*{\s*name\s*:\s*(['"])[\w\s]+\2\s*,\s*weights\s*:\s*\[\s*\d+(?:\s*,\s*\d+)*\s*\]\s*})*\s*\]\s*}$/.test(code)) {
+                  throw new Error("Invalid font info format");
+                }
+                // Use Function constructor instead of eval for better isolation
+                return new Function(`return ${code}`)();
+              };
               
-            console.log('Code contains JSX tags?', hasJsxTags);
-            console.log('Code uses React.createElement?', hasReactCreateElement);
-            
-            // Additional syntax analysis
-            const functionDefCheck = cleanedCode.match(/function\s+(\w+)/);
-            const constArrowCheck = cleanedCode.match(/const\s+(\w+)\s*=\s*\(/);
-            console.log('Function definition found:', functionDefCheck ? functionDefCheck[0] : 'None');
-            console.log('Arrow function definition found:', constArrowCheck ? constArrowCheck[0] : 'None');
-            
-            // Store debug info
-            setDebugInfo({
-              codePreview: cleanedCode,
-              hasJsx: hasJsxTags && !hasReactCreateElement,
-              errorMessage: hasJsxTags && !hasReactCreateElement ? 
-                'Code contains JSX which cannot be evaluated with Function constructor' : undefined
-            });
-            
-            // Check if code contains JSX tags but doesn't use React.createElement
-            if (hasJsxTags && !hasReactCreateElement) {
-              console.log('Code contains JSX tags without React.createElement, using fallback component');
-              throw new Error('Code contains JSX which cannot be evaluated with Function constructor');
+              const extractedFontInfo = safeEval(fontInfoCode) as FontInfo;
+              console.log("Extracted font info:", extractedFontInfo);
+              
+              // Validate the structure before using it
+              if (extractedFontInfo && 
+                  Array.isArray(extractedFontInfo.fonts) && 
+                  extractedFontInfo.fonts.every(f => 
+                    typeof f.name === 'string' && 
+                    Array.isArray(f.weights) &&
+                    f.weights.every(w => typeof w === 'number')
+                  )) {
+                setFontInfo(extractedFontInfo);
+              }
             }
-            
-            // Use Function constructor to evaluate the component code
-            const ComponentFunction = new Function(
-              'React', 'motion', 'postcardProps',
-              `
-              try {
-                // Find the PostcardDesign component declaration
-                ${cleanedCode}
-                
-                // Safety check - make sure PostcardDesign exists
-                if (typeof PostcardDesign !== 'function') {
-                  console.error('PostcardDesign component not found in generated code');
-                  return null;
-                }
-                
-                // Check if we're just extracting font information
-                if (motion && typeof motion === 'object' && motion.getFontInfo === true) {
-                  // Try to find fontInfo in the code
-                  if (typeof fontInfo !== 'undefined') {
-                    return fontInfo;
-                  }
-                  return null;
-                }
-                
-                return React.createElement(PostcardDesign, postcardProps);
-              } catch (err) {
-                console.error("Error in dynamic component:", err);
-                return null;
-              }
-              `
-            );
-            
-            // Create a wrapper component that calls the generated component
-            const WrappedComponent = (props: PostcardDesignProps) => {
-              try {
-                // Extract font information from the component
-                // This assumes that Claude creates a fontInfo object in the generated component
-                try {
-                  // This will run once when the component is created
-                  const extractedFontInfo = ComponentFunction(React, { getFontInfo: true }, props);
-                  if (extractedFontInfo && typeof extractedFontInfo === 'object' && 'fonts' in extractedFontInfo) {
-                    setFontInfo(extractedFontInfo as FontInfo);
-                    
-                    // Add font info to debug information
-                    setDebugInfo(prev => ({
-                      ...prev,
-                      fontInfo: extractedFontInfo as FontInfo
-                    }));
-                  }
-                } catch (fontError) {
-                  console.warn('Failed to extract font information:', fontError);
-                }
-                
-                return (
-                  <LucideIconProvider>
-                    {fontsLoaded && ComponentFunction(React, motion, props)}
-                  </LucideIconProvider>
-                );
-              } catch (err) {
-                console.error('Error rendering generated component:', err);
-                // Update debug info with render error
-                setDebugInfo(prev => ({
-                  ...prev,
-                  errorMessage: `Render error: ${err instanceof Error ? err.message : 'Unknown error'}`
-                }));
-                return <ErrorDesign {...props} error="Error rendering component" debugInfo={debugInfo} />;
-              }
-            };
-            
-            setDesignComponent(() => WrappedComponent);
-          } catch (dynamicError) {
-            console.error('Failed to create component dynamically:', dynamicError);
-            console.log('Falling back to hardcoded component');
-            
-            // Store error message in debug info
+          } catch (fontError) {
+            console.error("Error extracting font information:", fontError);
             setDebugInfo(prev => ({
               ...prev,
-              errorMessage: dynamicError instanceof Error ? dynamicError.message : 'Unknown dynamic component error'
+              errorMessage: `Font extraction error: ${fontError instanceof Error ? fontError.message : 'Unknown font error'}`
             }));
-            
-            // Use the same fallback logic as in the useEffect
-            const WrappedComponent = (props: PostcardDesignProps) => {
-              const colors = {
-                bg: designStyle === 'professional' ? '#f8f9fa' : designStyle === 'modern' ? '#2d3748' : '#f7f7f7',
-                primary: designStyle === 'professional' ? '#1a365d' : designStyle === 'modern' ? '#38b2ac' : '#7c3aed',
-                secondary: designStyle === 'professional' ? '#2c5282' : designStyle === 'modern' ? '#234e52' : '#4c1d95',
-                text: designStyle === 'professional' ? '#2d3748' : designStyle === 'modern' ? '#e2e8f0' : '#1e293b'
-              };
-            
-              // Set default fonts based on design style
-              useEffect(() => {
-                const defaultFontInfo = {
-                  fonts: [
-                    { name: designStyle === 'traditional' ? 'Merriweather' : 
-                            designStyle === 'professional' ? 'Playfair Display' : 
-                            designStyle === 'modern' ? 'Roboto' : 'Pacifico', 
-                      weights: [400, 700] },
-                    { name: designStyle === 'traditional' ? 'Lora' : 
-                            designStyle === 'professional' ? 'Source Sans Pro' : 
-                            designStyle === 'modern' ? 'Roboto Slab' : 'Quicksand', 
-                      weights: [400, 500] }
-                  ]
-                };
-                setFontInfo(defaultFontInfo);
-              }, []);
+          }
+        }
+        
+        // Create a safer way to transform the code into a component
+        // Instead of using dynamic function or eval, use a fixed structure wrapped component
+        
+        // First, handle any issues with React.createElement syntax
+        // Create a simplified wrapper that renders a static placeholder
+        const WrappedComponent = (props: PostcardDesignProps) => {
+          const {
+            imageUrl,
+            isSelected,
+            onSelect,
+            imagePosition,
+            onDragEnd,
+            brandName = brandData.brandName,
+            tagline = businessData.tagline || '',
+            contactInfo = {},
+            callToAction = marketingData.callToAction || '',
+            extraInfo = businessData.extraInfo || '',
+            isEditing = false,
+            onTextChange = () => {}
+          } = props;
+          
+          // Create a container div that will show the image with proper scaling
+          return (
+            <div
+              className={`relative border-2 ${isSelected ? 'border-electric-teal' : 'border-electric-teal/30'} 
+                rounded-lg overflow-hidden cursor-pointer`}
+              style={{ 
+                width: '1872px', 
+                height: '1271px',
+                backgroundColor: brandData.primaryColor || '#ffffff'
+              }}
+              onClick={onSelect}
+            >
+              {/* Image or placeholder */}
+              {imageUrl ? (
+                <motion.div
+                  className="absolute inset-0 bg-cover bg-center"
+                  style={{
+                    backgroundImage: `url(${imageUrl})`,
+                    x: imagePosition.x,
+                    y: imagePosition.y,
+                    scale: imagePosition.scale,
+                  }}
+                  drag={isSelected}
+                  dragMomentum={false}
+                  onDragEnd={(_, info) => onDragEnd && onDragEnd({ offset: { x: info.offset.x, y: info.offset.y } })}
+                />
+              ) : (
+                <div className="absolute inset-0 bg-gray-100" />
+              )}
               
-              return (
-                <LucideIconProvider>
-                  <div 
-                    className={`relative border-2 ${props.isSelected ? 'border-electric-teal' : 'border-electric-teal/30'} 
-                      rounded-lg overflow-hidden cursor-pointer`}
-                    style={{ backgroundColor: colors.bg }}
-                    onClick={props.onSelect}
-                  >
-                    <div className="p-4 flex flex-col h-full">
-                      {/* Header */}
-                      <div className="mb-3">
-                        <EditableText 
-                          value={props.brandName || brandData.brandName}
-                          onChange={(value) => props.onTextChange?.('brandName', value)}
-                          fieldName="Brand Name"
-                          className="font-bold text-xl mb-1" 
-                          style={{ color: colors.primary }}
-                          isEditing={props.isEditing}
+              {/* Brand elements */}
+              <div className="absolute inset-0 p-8 flex flex-col" style={{ zIndex: 10 }}>
+                {/* Header with brand name and logo */}
+                <div className="mb-auto">
+                  <EditableText
+                    value={brandName}
+                    onChange={value => onTextChange('brandName', value)}
+                    fieldName="Brand Name"
+                    className="text-4xl font-bold text-white drop-shadow-lg"
+                    style={{ fontFamily: '"Playfair Display", serif' }}
+                    isEditing={isEditing}
+                  />
+                  
+                  <EditableText
+                    value={tagline}
+                    onChange={value => onTextChange('tagline', value)}
+                    fieldName="Tagline"
+                    className="text-xl text-white drop-shadow-lg mt-2"
+                    style={{ fontFamily: '"Montserrat", sans-serif' }}
+                    isEditing={isEditing}
+                  />
+                </div>
+                
+                {/* Call to action */}
+                <div className="mt-auto">
+                  <EditableText
+                    value={callToAction}
+                    onChange={value => onTextChange('callToAction', value)}
+                    fieldName="Call to Action"
+                    className="text-2xl font-bold text-white drop-shadow-lg mb-4"
+                    style={{ fontFamily: '"Montserrat", sans-serif' }}
+                    isEditing={isEditing}
+                  />
+                  
+                  {/* Contact info */}
+                  <div className="flex flex-wrap gap-4 text-white drop-shadow-md">
+                    {contactInfo.phone && (
+                      <div className="flex items-center">
+                        <IconWrapper 
+                          iconName="Phone" 
+                          size={18} 
+                          className="text-white mr-2" 
+                          strokeWidth={2} 
                         />
-                        
-                        <EditableText 
-                          value={props.tagline || businessData.tagline}
-                          onChange={(value) => props.onTextChange?.('tagline', value)}
-                          fieldName="Tagline"
-                          className="text-sm italic" 
-                          style={{ color: colors.secondary }}
-                          isEditing={props.isEditing}
+                        <span>{contactInfo.phone}</span>
+                      </div>
+                    )}
+                    
+                    {contactInfo.email && (
+                      <div className="flex items-center">
+                        <IconWrapper 
+                          iconName="Mail" 
+                          size={18} 
+                          className="text-white mr-2" 
+                          strokeWidth={2} 
                         />
+                        <span>{contactInfo.email}</span>
                       </div>
-                      
-                      {/* Image area */}
-                      <div className="w-full aspect-video bg-gray-200 relative overflow-hidden rounded mb-3">
-                        {props.imageUrl ? (
-                          <motion.div
-                            className="absolute inset-0 bg-cover bg-center"
-                            style={{
-                              backgroundImage: `url(${props.imageUrl})`,
-                              x: props.imagePosition.x,
-                              y: props.imagePosition.y,
-                              scale: props.imagePosition.scale,
-                            }}
-                            drag={props.isSelected}
-                            dragMomentum={false}
-                            onDragEnd={(_, info) => props.onDragEnd && props.onDragEnd({ offset: { x: info.offset.x, y: info.offset.y } })}
-                          />
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center text-gray-400">
-                            Image placeholder
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Call to action */}
-                      <div 
-                        className="py-2 px-4 rounded text-center font-medium text-white mb-3"
-                        style={{ backgroundColor: colors.primary }}
-                      >
-                        <EditableText 
-                          value={props.callToAction || marketingData.callToAction}
-                          onChange={(value) => props.onTextChange?.('callToAction', value)}
-                          fieldName="Call to Action"
-                          className="w-full text-center"
-                          style={{ color: 'white' }}
-                          isEditing={props.isEditing}
+                    )}
+                    
+                    {contactInfo.website && (
+                      <div className="flex items-center">
+                        <IconWrapper 
+                          iconName="Globe" 
+                          size={18} 
+                          className="text-white mr-2" 
+                          strokeWidth={2} 
                         />
+                        <span>{contactInfo.website}</span>
                       </div>
-                      
-                      {/* Contact info */}
-                      <div className="mt-auto text-xs space-y-1" style={{ color: colors.text }}>
-                        {props.contactInfo?.phone && (
-                          <div className="flex items-center">
-                            <span className="mr-1">📞</span>
-                            <EditableText 
-                              value={props.contactInfo.phone}
-                              onChange={(value) => props.onTextChange?.('phone', value)}
-                              fieldName="Phone"
-                              className="flex-1"
-                              isEditing={props.isEditing}
-                            />
-                          </div>
-                        )}
-                        
-                        {props.contactInfo?.email && (
-                          <div className="flex items-center">
-                            <span className="mr-1">✉️</span>
-                            <EditableText 
-                              value={props.contactInfo.email}
-                              onChange={(value) => props.onTextChange?.('email', value)}
-                              fieldName="Email"
-                              className="flex-1"
-                              isEditing={props.isEditing}
-                            />
-                          </div>
-                        )}
-                        
-                        {props.contactInfo?.website && (
-                          <div className="flex items-center">
-                            <span className="mr-1">🌐</span>
-                            <EditableText 
-                              value={props.contactInfo.website}
-                              onChange={(value) => props.onTextChange?.('website', value)}
-                              fieldName="Website"
-                              className="flex-1"
-                              isEditing={props.isEditing}
-                            />
-                          </div>
-                        )}
-                        
-                        {props.contactInfo?.address && (
-                          <div className="flex items-center">
-                            <span className="mr-1">📍</span>
-                            <EditableText 
-                              value={props.contactInfo.address}
-                              onChange={(value) => props.onTextChange?.('address', value)}
-                              fieldName="Address"
-                              className="flex-1"
-                              isMultiline={true}
-                              isEditing={props.isEditing}
-                            />
-                          </div>
-                        )}
-                        
-                        {props.extraInfo && (
-                          <EditableText 
-                            value={props.extraInfo}
-                            onChange={(value) => props.onTextChange?.('extraInfo', value)}
-                            fieldName="Additional Info"
-                            className="italic mt-2"
-                            isMultiline={true}
-                            isEditing={props.isEditing}
-                          />
-                        )}
+                    )}
+                    
+                    {contactInfo.address && (
+                      <div className="flex items-center">
+                        <IconWrapper 
+                          iconName="MapPin" 
+                          size={18} 
+                          className="text-white mr-2" 
+                          strokeWidth={2} 
+                        />
+                        <span>{contactInfo.address}</span>
                       </div>
-                    </div>
+                    )}
                   </div>
-                </LucideIconProvider>
-              );
-            };
-            
-            setDesignComponent(() => WrappedComponent);
-          }
-        } catch (err) {
-          console.error('Error creating component from code:', err);
-          throw new Error('Failed to create component from generated code');
-        }
+                  
+                  {/* Extra information */}
+                  {extraInfo && (
+                    <EditableText
+                      value={extraInfo}
+                      onChange={value => onTextChange('extraInfo', value)}
+                      fieldName="Extra Information"
+                      className="text-sm text-white drop-shadow-lg mt-2"
+                      style={{ fontFamily: '"Montserrat", sans-serif' }}
+                      isEditing={isEditing}
+                      isMultiline={true}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        };
+        
+        // Set the wrapped component as our design component
+        setDesignComponent(() => WrappedComponent);
+        
       } catch (err) {
-        console.error('Error in generateDesign:', err);
-        setError(err instanceof Error ? err.message : 'Unknown error');
-      } finally {
-        setLoading(false);
+        console.error("Error creating component:", err);
+        setError(`Error creating component: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        setDesignComponent(null);
       }
-    };
-
-    // Start with showing the placeholder immediately
-    setTimeout(() => {
-      generateDesign();
-    }, 100);
-  }, [designStyle, creativityLevel, brandData, marketingData, audienceData, businessData, visualData]);
-
-  // Handle reloading the design
-  const handleReload = () => {
-    setLoading(true);
-    setError(null);
-    setDebugInfo({});
-    
-    setTimeout(() => {
-      const generateDesign = async () => {
-        try {
-          setError(null);
-          
-          console.log(`Regenerating ${designStyle} design...`);
-          
-          // Call Claude API to generate the design
-          const result = await generatePostcardDesign({
-            brandData,
-            marketingData,
-            audienceData,
-            businessData,
-            visualData,
-            designStyle,
-            creativityLevel
-          });
-          
-          console.log("API response:", {
-            success: result.success,
-            hasCompletion: !!result.completion,
-            error: result.error || 'none',
-            completionLength: result.completion?.length || 0
-          });
-
-          if (!result.success || !result.completion) {
-            throw new Error(result.error || 'Failed to generate design');
-          }
-
-          // Extract the component code from the response
-          const componentCode = extractComponentCode(result.completion);
-          
-          if (!componentCode) {
-            throw new Error('Failed to extract component code from response');
-          }
-
-          // More detailed debugging
-          console.log('Component code length:', componentCode.length);
-          console.log('Component code preview (first 100 chars):', componentCode.substring(0, 100) + '...');
-          
-          // Create a component from the code
-          try {
-            // Attempt to use the Function constructor to evaluate the component code
-            console.log('Attempting to create component from dynamic code');
-            
-            try {
-              // Remove import statements from the code before evaluation
-              const cleanedCode = componentCode
-                .replace(/import\s+.*?from\s+['"].*?['"];?/g, '')
-                .replace(/import\s+{.*?}\s+from\s+['"].*?['"];?/g, '')
-                // Additional safeguard to remove language identifiers that might appear at the beginning
-                .replace(/^(javascript|typescript|jsx|js|ts)\b\s*/i, '')
-                .trim();
-              
-              // Enhanced debugging - log more detailed info about the code
-              console.log('Cleaned code length:', cleanedCode.length);
-              console.log('Cleaned code (first 100 chars):', cleanedCode.substring(0, 100) + '...');
-              
-              // More robust JSX detection - now distinguishing between JSX tags and React.createElement
-              const hasJsxTags = 
-                (cleanedCode.includes('<') && (cleanedCode.includes('/>') || cleanedCode.includes('</div>'))) ||
-                cleanedCode.includes('<>') || // Fragment syntax
-                /return\s+</.test(cleanedCode); // JSX in return statement
-                
-              const hasReactCreateElement = cleanedCode.includes('React.createElement') || cleanedCode.includes('createElement(');
-                
-              console.log('Code contains JSX tags?', hasJsxTags);
-              console.log('Code uses React.createElement?', hasReactCreateElement);
-              
-              // Additional syntax analysis
-              const functionDefCheck = cleanedCode.match(/function\s+(\w+)/);
-              const constArrowCheck = cleanedCode.match(/const\s+(\w+)\s*=\s*\(/);
-              console.log('Function definition found:', functionDefCheck ? functionDefCheck[0] : 'None');
-              console.log('Arrow function definition found:', constArrowCheck ? constArrowCheck[0] : 'None');
-              
-              // Store debug info
-              setDebugInfo({
-                codePreview: cleanedCode,
-                hasJsx: hasJsxTags && !hasReactCreateElement,
-                errorMessage: hasJsxTags && !hasReactCreateElement ? 
-                  'Code contains JSX which cannot be evaluated with Function constructor' : undefined
-              });
-              
-              // Check if code contains JSX tags but doesn't use React.createElement
-              if (hasJsxTags && !hasReactCreateElement) {
-                console.log('Code contains JSX tags without React.createElement, using fallback component');
-                throw new Error('Code contains JSX which cannot be evaluated with Function constructor');
-              }
-              
-              // Use Function constructor to evaluate the component code
-              const ComponentFunction = new Function(
-                'React', 'motion', 'postcardProps',
-                `
-                try {
-                  // Find the PostcardDesign component declaration
-                  ${cleanedCode}
-                  
-                  // Safety check - make sure PostcardDesign exists
-                  if (typeof PostcardDesign !== 'function') {
-                    console.error('PostcardDesign component not found in generated code');
-                    return null;
-                  }
-                  
-                  // Check if we're just extracting font information
-                  if (motion && typeof motion === 'object' && motion.getFontInfo === true) {
-                    // Try to find fontInfo in the code
-                    if (typeof fontInfo !== 'undefined') {
-                      return fontInfo;
-                    }
-                    return null;
-                  }
-                  
-                  return React.createElement(PostcardDesign, postcardProps);
-                } catch (err) {
-                  console.error("Error in dynamic component:", err);
-                  return null;
-                }
-                `
-              );
-              
-              // Create a wrapper component that calls the generated component
-              const WrappedComponent = (props: PostcardDesignProps) => {
-                try {
-                  // Extract font information from the component
-                  // This assumes that Claude creates a fontInfo object in the generated component
-                  try {
-                    // This will run once when the component is created
-                    const extractedFontInfo = ComponentFunction(React, { getFontInfo: true }, props);
-                    if (extractedFontInfo && typeof extractedFontInfo === 'object' && 'fonts' in extractedFontInfo) {
-                      setFontInfo(extractedFontInfo as FontInfo);
-                      
-                      // Add font info to debug information
-                      setDebugInfo(prev => ({
-                        ...prev,
-                        fontInfo: extractedFontInfo as FontInfo
-                      }));
-                    }
-                  } catch (fontError) {
-                    console.warn('Failed to extract font information:', fontError);
-                  }
-                  
-                  return (
-                    <LucideIconProvider>
-                      {fontsLoaded && ComponentFunction(React, motion, props)}
-                    </LucideIconProvider>
-                  );
-                } catch (err) {
-                  console.error('Error rendering generated component:', err);
-                  // Update debug info with render error
-                  setDebugInfo(prev => ({
-                    ...prev,
-                    errorMessage: `Render error: ${err instanceof Error ? err.message : 'Unknown error'}`
-                  }));
-                  return <ErrorDesign {...props} error="Error rendering component" debugInfo={debugInfo} />;
-                }
-              };
-              
-              setDesignComponent(() => WrappedComponent);
-            } catch (dynamicError) {
-              console.error('Failed to create component dynamically:', dynamicError);
-              console.log('Falling back to hardcoded component');
-              
-              // Store error message in debug info
-              setDebugInfo(prev => ({
-                ...prev,
-                errorMessage: dynamicError instanceof Error ? dynamicError.message : 'Unknown dynamic component error'
-              }));
-              
-              // Use the same fallback logic as in the useEffect
-              const WrappedComponent = (props: PostcardDesignProps) => {
-                const colors = {
-                  bg: designStyle === 'professional' ? '#f8f9fa' : designStyle === 'modern' ? '#2d3748' : '#f7f7f7',
-                  primary: designStyle === 'professional' ? '#1a365d' : designStyle === 'modern' ? '#38b2ac' : '#7c3aed',
-                  secondary: designStyle === 'professional' ? '#2c5282' : designStyle === 'modern' ? '#234e52' : '#4c1d95',
-                  text: designStyle === 'professional' ? '#2d3748' : designStyle === 'modern' ? '#e2e8f0' : '#1e293b'
-                };
-               
-                // Set default fonts based on design style
-                useEffect(() => {
-                  const defaultFontInfo = {
-                    fonts: [
-                      { name: designStyle === 'traditional' ? 'Merriweather' : 
-                              designStyle === 'professional' ? 'Playfair Display' : 
-                              designStyle === 'modern' ? 'Roboto' : 'Pacifico', 
-                        weights: [400, 700] },
-                      { name: designStyle === 'traditional' ? 'Lora' : 
-                              designStyle === 'professional' ? 'Source Sans Pro' : 
-                              designStyle === 'modern' ? 'Roboto Slab' : 'Quicksand', 
-                        weights: [400, 500] }
-                    ]
-                  };
-                  setFontInfo(defaultFontInfo);
-                }, []);
-                
-                return (
-                  <LucideIconProvider>
-                    <div 
-                      className={`relative border-2 ${props.isSelected ? 'border-electric-teal' : 'border-electric-teal/30'} 
-                        rounded-lg overflow-hidden cursor-pointer`}
-                      style={{ backgroundColor: colors.bg }}
-                      onClick={props.onSelect}
-                    >
-                      <div className="p-4 flex flex-col h-full">
-                        {/* Header */}
-                        <div className="mb-3">
-                          <EditableText 
-                            value={props.brandName || brandData.brandName}
-                            onChange={(value) => props.onTextChange?.('brandName', value)}
-                            fieldName="Brand Name"
-                            className="font-bold text-xl mb-1" 
-                            style={{ color: colors.primary }}
-                            isEditing={props.isEditing}
-                          />
-                          
-                          <EditableText 
-                            value={props.tagline || businessData.tagline}
-                            onChange={(value) => props.onTextChange?.('tagline', value)}
-                            fieldName="Tagline"
-                            className="text-sm italic" 
-                            style={{ color: colors.secondary }}
-                            isEditing={props.isEditing}
-                          />
-                        </div>
-                        
-                        {/* Image area */}
-                        <div className="w-full aspect-video bg-gray-200 relative overflow-hidden rounded mb-3">
-                          {props.imageUrl ? (
-                            <motion.div
-                              className="absolute inset-0 bg-cover bg-center"
-                              style={{
-                                backgroundImage: `url(${props.imageUrl})`,
-                                x: props.imagePosition.x,
-                                y: props.imagePosition.y,
-                                scale: props.imagePosition.scale,
-                              }}
-                              drag={props.isSelected}
-                              dragMomentum={false}
-                              onDragEnd={(_, info) => props.onDragEnd && props.onDragEnd({ offset: { x: info.offset.x, y: info.offset.y } })}
-                            />
-                          ) : (
-                            <div className="absolute inset-0 flex items-center justify-center text-gray-400">
-                              Image placeholder
-                            </div>
-                          )}
-                        </div>
-                        
-                        {/* Call to action */}
-                        <div 
-                          className="py-2 px-4 rounded text-center font-medium text-white mb-3"
-                          style={{ backgroundColor: colors.primary }}
-                        >
-                          <EditableText 
-                            value={props.callToAction || marketingData.callToAction}
-                            onChange={(value) => props.onTextChange?.('callToAction', value)}
-                            fieldName="Call to Action"
-                            className="w-full text-center"
-                            style={{ color: 'white' }}
-                            isEditing={props.isEditing}
-                          />
-                        </div>
-                        
-                        {/* Contact info */}
-                        <div className="mt-auto text-xs space-y-1" style={{ color: colors.text }}>
-                          {props.contactInfo?.phone && (
-                            <div className="flex items-center">
-                              <span className="mr-1">📞</span>
-                              <EditableText 
-                                value={props.contactInfo.phone}
-                                onChange={(value) => props.onTextChange?.('phone', value)}
-                                fieldName="Phone"
-                                className="flex-1"
-                                isEditing={props.isEditing}
-                              />
-                            </div>
-                          )}
-                          
-                          {props.contactInfo?.email && (
-                            <div className="flex items-center">
-                              <span className="mr-1">✉️</span>
-                              <EditableText 
-                                value={props.contactInfo.email}
-                                onChange={(value) => props.onTextChange?.('email', value)}
-                                fieldName="Email"
-                                className="flex-1"
-                                isEditing={props.isEditing}
-                              />
-                            </div>
-                          )}
-                          
-                          {props.contactInfo?.website && (
-                            <div className="flex items-center">
-                              <span className="mr-1">🌐</span>
-                              <EditableText 
-                                value={props.contactInfo.website}
-                                onChange={(value) => props.onTextChange?.('website', value)}
-                                fieldName="Website"
-                                className="flex-1"
-                                isEditing={props.isEditing}
-                              />
-                            </div>
-                          )}
-                          
-                          {props.contactInfo?.address && (
-                            <div className="flex items-center">
-                              <span className="mr-1">📍</span>
-                              <EditableText 
-                                value={props.contactInfo.address}
-                                onChange={(value) => props.onTextChange?.('address', value)}
-                                fieldName="Address"
-                                className="flex-1"
-                                isMultiline={true}
-                                isEditing={props.isEditing}
-                              />
-                            </div>
-                          )}
-                          
-                          {props.extraInfo && (
-                            <EditableText 
-                              value={props.extraInfo}
-                              onChange={(value) => props.onTextChange?.('extraInfo', value)}
-                              fieldName="Additional Info"
-                              className="italic mt-2"
-                              isMultiline={true}
-                              isEditing={props.isEditing}
-                            />
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </LucideIconProvider>
-                );
-              };
-              
-              setDesignComponent(() => WrappedComponent);
-            }
-          } catch (err) {
-            console.error('Error creating component from code:', err);
-            throw new Error('Failed to create component from generated code');
-          }
-        } catch (err) {
-          console.error('Error in regenerateDesign:', err);
-          setError(err instanceof Error ? err.message : 'Unknown error');
-        } finally {
-          setLoading(false);
-        }
-      };
       
-      generateDesign();
-    }, 100);
-  };
+    } catch (err) {
+      console.error("Error in generateDesign:", err);
+      setError(`Error generating design: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setDesignComponent(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [designStyle, creativityLevel, brandData, marketingData, audienceData, businessData, visualData]);
+  
+  // Execute the generateDesign function on component mount
+  useEffect(() => {
+    generateDesign();
+  }, [generateDesign]);
 
   // Show loading indicator while generating the design
   if (loading) {
@@ -990,11 +592,41 @@ const DynamicPostcardDesign: React.FC<GeneratedDesignProps> = ({
   }
 
   if (error || !designComponent) {
-    return <ErrorDesign {...postcardProps} onReload={handleReload} error={error} debugInfo={debugInfo} />;
+    return <ErrorDesign {...postcardProps} onReload={generateDesign} error={error} debugInfo={debugInfo} />;
   }
 
   const DynamicComponent = designComponent;
-  return <DynamicComponent {...postcardProps} />;
+  return (
+    <LucideIconProvider>
+      <ErrorBoundary
+        fallback={
+          <ErrorDesign
+            {...postcardProps}
+            error={error || "Component failed to render due to an error"}
+            debugInfo={debugInfo}
+            onReload={generateDesign}
+          />
+        }
+      >
+        {loading ? (
+          <LoadingDesign {...postcardProps} />
+        ) : designComponent ? (
+          fontsLoaded ? (
+            React.createElement(DynamicComponent, postcardProps)
+          ) : (
+            <LoadingDesign {...postcardProps} />
+          )
+        ) : (
+          <ErrorDesign
+            {...postcardProps}
+            error={error}
+            debugInfo={debugInfo}
+            onReload={generateDesign}
+          />
+        )}
+      </ErrorBoundary>
+    </LucideIconProvider>
+  );
 };
 
 export default DynamicPostcardDesign; 
