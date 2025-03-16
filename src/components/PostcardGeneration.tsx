@@ -79,8 +79,9 @@ interface PostcardGenerationProps {
   audienceData: AudienceData;
   businessData: BusinessData;
   visualData: VisualData;
-  templateStyle: BrandStylePreference;
-  onComplete?: () => void;
+  templateStyle?: BrandStylePreference;
+  onComplete?: (postcards: PostcardDesign[], images: string[], usesFallback?: boolean) => void;
+  onBack?: () => void;
 }
 
 interface ImagePosition {
@@ -119,9 +120,14 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
   audienceData,
   businessData,
   visualData,
-  templateStyle,
+  templateStyle: propTemplateStyle,
   onComplete,
+  onBack,
 }) => {
+  // Use provided templateStyle or default to the first style preference from brandData
+  const templateStyle = propTemplateStyle || 
+    (brandData.stylePreferences.length > 0 ? brandData.stylePreferences[0] : 'modern');
+
   // State for managing generated images
   const [isImagesLoading, setIsImagesLoading] = useState(true);
   const [generatedImages, setGeneratedImages] = useState<string[]>([]);
@@ -408,7 +414,8 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
       return;
     }
     
-    onComplete?.();
+    // Call onComplete with the current postcard designs, generated images, and fallback status
+    onComplete?.(postcardDesigns, generatedImages, usingFallbackImages);
   };
 
   // Toggle editing mode
@@ -493,6 +500,14 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
         <h2 className="text-2xl font-semibold text-charcoal-dark">Your Postcard Designs</h2>
         <div className="flex flex-wrap gap-3">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="px-4 py-2 bg-white border border-charcoal-light text-charcoal-dark rounded-lg shadow hover:bg-gray-50 transition-colors"
+            >
+              Back
+            </button>
+          )}
           <button
             onClick={generateAIImages}
             disabled={isImagesLoading}
