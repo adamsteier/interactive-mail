@@ -54,8 +54,20 @@ export async function POST(req: Request) {
       console.log(`🌐 Searching for: ${businessName} in ${targetArea}`);
       console.log(`📍 Location context: ${city}, ${region}, ${country}`);
 
+      // Define a type that includes the properties we expect from the Responses API
+      interface ResponseWithAnnotations {
+        output_text: string;
+        output_annotations?: Array<{
+          type: string;
+          url?: string;
+          title?: string;
+          [key: string]: unknown;
+        }>;
+        [key: string]: unknown; // Allow other properties with unknown type
+      }
+
       // Use the Responses API with web search capabilities
-      // @ts-expect-error - Responses API may not yet be in the type definitions
+      // Type assertion to use our custom type
       const response = await openai.responses.create({
         model: "gpt-4o",
         tools: [{ 
@@ -82,11 +94,16 @@ export async function POST(req: Request) {
           
           If you can't find specific information about this exact business, provide general information about similar businesses with this name or in this industry in the specified area.
         `
-      });
+      }) as unknown as ResponseWithAnnotations;
 
       console.log('✅ Web search completed successfully!');
+
+      // Check if the response has annotations and handle accordingly
+      // Using our custom type to avoid TypeScript errors
       if (response.output_annotations && response.output_annotations.length > 0) {
         console.log(`🔗 Found ${response.output_annotations.length} web sources`);
+      } else {
+        console.log('🔗 No web sources found in the response');
       }
 
       // Get the web search results from the response
@@ -157,10 +174,10 @@ export async function POST(req: Request) {
         analysis,
         source: 'openai',
         webSearched: true,
-        // This allows the front end to display the sources if desired
+        // Using our custom type, safely access output_annotations
         webResults: {
           text: response.output_text,
-          annotations: response.output_annotations
+          annotations: response.output_annotations || []
         }
       });
     } catch (error) {

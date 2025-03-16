@@ -14,7 +14,7 @@ const LucideIconProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const originalCreateElement = React.createElement;
     
     // Override React.createElement to intercept icon elements
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const patchedCreateElement = function(
       type: ElementType | string,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
