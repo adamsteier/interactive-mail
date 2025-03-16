@@ -72,7 +72,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       setTimeout(() => {
         setShowLeadsCollection(true);
         setIsLoading(false);
-      }, 1500);
+      }, 800); // Reduced from 1500ms to 800ms since we just need a brief animation
     }
   };
 
@@ -103,7 +103,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       setTimeout(() => {
         setShowLeadsCollection(true);
         setIsLoading(false);
-      }, 1500);
+      }, 800); // Reduced from 1500ms to 800ms since we just need a brief animation
     }
   };
 
@@ -254,20 +254,21 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
                                 key={i}
                                 className="h-2 w-2 rounded-full bg-electric-teal"
                                 style={{
-                                  animation: `wave 1.5s ease-in-out ${i * 0.1}s infinite`,
+                                  animation: `waveButton 1s ease-in-out ${i * 0.1}s infinite`,
+                                  boxShadow: '0 0 8px #00F0FF',
                                 }}
                               />
                             ))}
                           </div>
                         </div>
                         <style jsx>{`
-                          @keyframes wave {
+                          @keyframes waveButton {
                             0%, 100% {
                               transform: translateY(0);
-                              opacity: 0.6;
+                              opacity: 0.7;
                             }
                             50% {
-                              transform: translateY(-10px);
+                              transform: translateY(-6px);
                               opacity: 1;
                             }
                           }
@@ -280,56 +281,6 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
                 </div>
               </div>
             </div>
-            
-            {/* Full screen loading overlay */}
-            {isLoading && (
-              <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-charcoal/90 backdrop-blur-sm">
-                <div className="mb-8 text-electric-teal text-xl font-medium">Processing your selection...</div>
-                <div className="relative w-32 h-32">
-                  {/* Circular wave animation */}
-                  {[1, 2, 3].map((i) => (
-                    <div 
-                      key={i}
-                      className="absolute inset-0 rounded-full border-2 border-electric-teal"
-                      style={{
-                        animation: `pulse ${2 + i * 0.5}s cubic-bezier(0.4, 0, 0.6, 1) infinite`,
-                        opacity: 0.2,
-                      }}
-                    />
-                  ))}
-                  {/* Neon Magenta accent */}
-                  <div 
-                    className="absolute inset-0 rounded-full border-2 border-[#FF00B8]"
-                    style={{
-                      animation: 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                      opacity: 0.6,
-                    }}
-                  />
-                  {/* Center dot */}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="h-4 w-4 rounded-full bg-electric-teal shadow-[0_0_15px_#00F0FF]"></div>
-                  </div>
-                </div>
-                <div className="mt-8 text-electric-teal/70 text-center max-w-md">
-                  <p>Finding potential leads in your selected area...</p>
-                </div>
-                <style jsx>{`
-                  @keyframes pulse {
-                    0% {
-                      transform: scale(0.5);
-                      opacity: 0.8;
-                    }
-                    50% {
-                      opacity: 0.4;
-                    }
-                    100% {
-                      transform: scale(2.5);
-                      opacity: 0;
-                    }
-                  }
-                `}</style>
-              </div>
-            )}
           </div>
         </div>
       ) : (
