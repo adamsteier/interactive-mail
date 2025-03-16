@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { generateImages, generateImagePrompt } from '../services/openai';
+import { generateImages, generateImagePrompt } from '../services/gemini';
 import DynamicPostcardDesign from './DynamicPostcardDesign';
 import ZoomablePostcard from './ZoomablePostcard';
 import Image from 'next/image';
