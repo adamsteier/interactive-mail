@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { collection, getDocs, orderBy, query, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, orderBy, query, Timestamp, limit, startAfter, DocumentData, QueryDocumentSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
@@ -248,49 +248,134 @@ export default function PostcardPreviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [selectedPostcardIndex, setSelectedPostcardIndex] = useState(0);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(10);
+  const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [firstVisible, setFirstVisible] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [hasPrevPage, setHasPrevPage] = useState(false);
+  const [pageHistory, setPageHistory] = useState<Array<QueryDocumentSnapshot<DocumentData> | null>>([null]);
 
-  useEffect(() => {
-    async function fetchPostcards() {
-      try {
-        // Create a query to fetch postcards sorted by creation date (newest first)
-        const postcardQuery = query(
+  // Function to fetch postcards with pagination
+  const fetchPostcards = async (pageAction: 'first' | 'next' | 'prev' = 'first') => {
+    setLoading(true);
+    try {
+      let postcardQuery;
+      
+      if (pageAction === 'first') {
+        // First page query
+        postcardQuery = query(
           collection(db, 'postcard_template'),
-          orderBy('createdAt', 'desc')
+          orderBy('createdAt', 'desc'),
+          limit(pageSize + 1) // Get one extra to check if there's a next page
+        );
+        setPageHistory([null]);
+      } else if (pageAction === 'next' && lastVisible) {
+        // Next page query
+        postcardQuery = query(
+          collection(db, 'postcard_template'),
+          orderBy('createdAt', 'desc'),
+          startAfter(lastVisible),
+          limit(pageSize + 1)
+        );
+        // Add current first document to history for back navigation
+        setPageHistory([...pageHistory, firstVisible]);
+      } else if (pageAction === 'prev') {
+        // Previous page query - use the document from history
+        const prevPageStart = pageHistory[pageHistory.length - 2]; // Get previous page's start
+        
+        postcardQuery = query(
+          collection(db, 'postcard_template'),
+          orderBy('createdAt', 'desc'),
+          startAfter(prevPageStart),
+          limit(pageSize + 1)
         );
         
-        const querySnapshot = await getDocs(postcardQuery);
-        const postcardData: PostcardTemplate[] = [];
+        // Remove the last item from history
+        setPageHistory(pageHistory.slice(0, -1));
+      } else {
+        // Fallback to first page if something goes wrong
+        postcardQuery = query(
+          collection(db, 'postcard_template'),
+          orderBy('createdAt', 'desc'),
+          limit(pageSize + 1)
+        );
+      }
+      
+      const querySnapshot = await getDocs(postcardQuery);
+      const postcardData: PostcardTemplate[] = [];
+      
+      // Set pagination metadata
+      if (!querySnapshot.empty) {
+        // Store first and last visible documents for pagination
+        setFirstVisible(querySnapshot.docs[0]);
         
-        querySnapshot.forEach((doc) => {
+        // Check if we have more pages
+        const hasNext = querySnapshot.docs.length > pageSize;
+        setHasNextPage(hasNext);
+        
+        // Process only pageSize documents (discard the extra one we used to check for next page)
+        const docsToProcess = hasNext ? querySnapshot.docs.slice(0, pageSize) : querySnapshot.docs;
+        
+        // Set last visible for next page
+        setLastVisible(docsToProcess[docsToProcess.length - 1]);
+        
+        // Convert documents to data
+        docsToProcess.forEach((doc) => {
           postcardData.push({
             id: doc.id,
             ...doc.data()
           } as PostcardTemplate);
         });
-        
-        // Debug: Log the first postcard's code format
-        if (postcardData.length > 0) {
-          console.log("First postcard data:", {
-            id: postcardData[0].id,
-            designStyle: postcardData[0].designStyle,
-            brandName: postcardData[0].brandName,
-            codeLength: postcardData[0].code?.length || 0,
-            codeStart: postcardData[0].code?.substring(0, 100) + "..." || "No code"
-          });
-        } else {
-          console.log("No postcards found in database");
-        }
-        
-        setPostcards(postcardData);
-        setLoading(false);
-      } catch (err) {
-        console.error('Error fetching postcards:', err);
-        setError('Failed to load postcards. Please try again later.');
-        setLoading(false);
+      } else {
+        setHasNextPage(false);
       }
+      
+      // Update previous page state
+      setHasPrevPage(currentPage > 1);
+      
+      // Debug: Log the first postcard's code format
+      if (postcardData.length > 0) {
+        console.log("First postcard data:", {
+          id: postcardData[0].id,
+          designStyle: postcardData[0].designStyle,
+          brandName: postcardData[0].brandName,
+          codeLength: postcardData[0].code?.length || 0,
+          codeStart: postcardData[0].code?.substring(0, 100) + "..." || "No code"
+        });
+      } else {
+        console.log("No postcards found in database");
+      }
+      
+      setPostcards(postcardData);
+      setLoading(false);
+    } catch (err) {
+      console.error('Error fetching postcards:', err);
+      setError('Failed to load postcards. Please try again later.');
+      setLoading(false);
     }
+  };
 
-    fetchPostcards();
+  // Handle pagination
+  const handleNextPage = () => {
+    if (hasNextPage) {
+      setCurrentPage(currentPage + 1);
+      fetchPostcards('next');
+    }
+  };
+  
+  const handlePrevPage = () => {
+    if (hasPrevPage && currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+      fetchPostcards('prev');
+    }
+  };
+
+  useEffect(() => {
+    // Initial fetch
+    fetchPostcards('first');
   }, []);
 
   // Debug panel component for development mode
@@ -511,49 +596,80 @@ export default function PostcardPreviewPage() {
             <p>Create some designs from the home page to see them here.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-8">
-            {postcards.map((postcard) => (
-              <motion.div
-                key={postcard.id}
-                whileHover={{ scale: 1.01 }}
-                className="bg-charcoal-light rounded-lg overflow-hidden shadow p-4"
-              >
-                <div className="mb-4 flex justify-between items-start">
-                  <div>
-                    <h3 className="font-bold text-electric-teal text-xl truncate">{postcard.brandName}</h3>
-                    <div className="flex items-center space-x-2 mt-1">
-                      <span className="text-xs px-2 py-1 bg-charcoal rounded-full text-electric-teal">
-                        {postcard.designStyle}
-                      </span>
-                      <span className="text-xs text-electric-teal/70">
-                        {postcard.createdAt?.toDate().toLocaleDateString() || 'Unknown date'}
-                      </span>
+          <>
+            <div className="grid grid-cols-1 gap-8">
+              {postcards.map((postcard) => (
+                <motion.div
+                  key={postcard.id}
+                  whileHover={{ scale: 1.01 }}
+                  className="bg-charcoal-light rounded-lg overflow-hidden shadow p-4"
+                >
+                  <div className="mb-4 flex justify-between items-start">
+                    <div>
+                      <h3 className="font-bold text-electric-teal text-xl truncate">{postcard.brandName}</h3>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <span className="text-xs px-2 py-1 bg-charcoal rounded-full text-electric-teal">
+                          {postcard.designStyle}
+                        </span>
+                        <span className="text-xs text-electric-teal/70">
+                          {postcard.createdAt?.toDate().toLocaleDateString() || 'Unknown date'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex space-x-2">
+                      <div 
+                        className="w-5 h-5 rounded-full" 
+                        style={{ backgroundColor: postcard.primaryColor || '#cccccc' }} 
+                        title="Primary Color"
+                      />
+                      <div 
+                        className="w-5 h-5 rounded-full" 
+                        style={{ backgroundColor: postcard.accentColor || '#cccccc' }} 
+                        title="Accent Color"
+                      />
                     </div>
                   </div>
-                  <div className="flex space-x-2">
-                    <div 
-                      className="w-5 h-5 rounded-full" 
-                      style={{ backgroundColor: postcard.primaryColor || '#cccccc' }} 
-                      title="Primary Color"
-                    />
-                    <div 
-                      className="w-5 h-5 rounded-full" 
-                      style={{ backgroundColor: postcard.accentColor || '#cccccc' }} 
-                      title="Accent Color"
-                    />
-                  </div>
-                </div>
-                
-                <DynamicPostcard template={postcard} />
-                
-                {postcard.usedFallback && (
-                  <div className="text-xs text-amber-500 mt-2">
-                    <span>⚠️ Fallback design</span>
-                  </div>
-                )}
-              </motion.div>
-            ))}
-          </div>
+                  
+                  <DynamicPostcard template={postcard} />
+                  
+                  {postcard.usedFallback && (
+                    <div className="text-xs text-amber-500 mt-2">
+                      <span>⚠️ Fallback design</span>
+                    </div>
+                  )}
+                </motion.div>
+              ))}
+            </div>
+            
+            {/* Pagination Controls */}
+            <div className="flex justify-center items-center mt-8 space-x-4">
+              <button
+                onClick={handlePrevPage}
+                disabled={!hasPrevPage}
+                className={`px-4 py-2 rounded-md transition ${
+                  hasPrevPage 
+                    ? 'bg-electric-teal text-charcoal hover:bg-electric-teal/80' 
+                    : 'bg-charcoal-light text-electric-teal/50 cursor-not-allowed'
+                }`}
+              >
+                Previous
+              </button>
+              
+              <span className="text-electric-teal">Page {currentPage}</span>
+              
+              <button
+                onClick={handleNextPage}
+                disabled={!hasNextPage}
+                className={`px-4 py-2 rounded-md transition ${
+                  hasNextPage 
+                    ? 'bg-electric-teal text-charcoal hover:bg-electric-teal/80' 
+                    : 'bg-charcoal-light text-electric-teal/50 cursor-not-allowed'
+                }`}
+              >
+                Next
+              </button>
+            </div>
+          </>
         )}
       </motion.div>
     </div>

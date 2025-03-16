@@ -45,7 +45,7 @@ const TargetAudience = ({ onComplete, initialData = {}, segment }: TargetAudienc
     >
       <h3 className="text-xl font-semibold text-electric-teal mb-4">Business Industry</h3>
       <p className="text-electric-teal/70 mb-6">
-        What is your business or industry?
+        What is your target business or industry?
       </p>
       
       <input
