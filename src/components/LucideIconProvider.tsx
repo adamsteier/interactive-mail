@@ -2,36 +2,40 @@
 
 import React, { memo } from 'react';
 import * as LucideIcons from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+
+// Define what props Lucide icons can accept
+interface LucideIconProps extends React.SVGAttributes<SVGElement> {
+  size?: number | string;
+  strokeWidth?: number;
+  absoluteStrokeWidth?: boolean;
+  color?: string;
+}
 
 // Interface for the IconWrapper props
-interface IconWrapperProps {
+interface IconWrapperProps extends LucideIconProps {
   iconName: string;
-  size?: number;
-  className?: string;
-  strokeWidth?: number;
-  [key: string]: any;
 }
 
 // Create a safer IconWrapper component that doesn't patch React.createElement
 const IconWrapper = memo(({ 
   iconName, 
-  size = 24, 
-  className = '', 
-  strokeWidth = 2,
   ...rest 
 }: IconWrapperProps) => {
-  // Use unknown as an intermediate type to avoid typing issues
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const icons = LucideIcons as { [key: string]: any };
-  const IconComponent = icons[iconName] as LucideIcon | undefined;
+  // Use type casting through unknown to access the icon components
+  // We do a runtime check first to ensure the icon exists
+  const hasIcon = Object.prototype.hasOwnProperty.call(LucideIcons, iconName);
   
-  if (!IconComponent) {
+  if (!hasIcon) {
     console.warn(`Icon "${iconName}" not found in Lucide icons`);
     return null;
   }
   
-  return <IconComponent size={size} className={className} strokeWidth={strokeWidth} {...rest} />;
+  // We know the icon exists at this point, so it's safe to use it
+  const icons = LucideIcons as unknown as Record<string, React.ComponentType<LucideIconProps>>;
+  const IconComponent = icons[iconName];
+  
+  // Render the icon component with the props (iconName is excluded by rest spread)
+  return <IconComponent {...rest} />;
 });
 
 // Set display name for debugging
