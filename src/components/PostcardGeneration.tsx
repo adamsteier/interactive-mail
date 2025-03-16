@@ -268,8 +268,16 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
         
         // Save image IDs if they exist
         if (response.imageIds && response.imageIds.length > 0) {
-          // Automatically save all designs with all images
-          await autoSavePostcardDesigns(response.imageIds, prompt);
+          try {
+            // Automatically save all designs with all images
+            await autoSavePostcardDesigns(response.imageIds, prompt);
+          } catch (saveError) {
+            console.error('Error saving designs to Firestore:', saveError);
+            // Show an error message but don't prevent the user from seeing the generated images
+            setError('Images generated successfully but there was a problem saving to the database. You can still continue using the designs.');
+          }
+        } else {
+          console.log('No image IDs returned from API, skipping save to Firestore');
         }
       } else {
         console.error('Failed to generate images:', response.error);
@@ -295,10 +303,9 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
       ]);
       setUsingFallbackImages(true);
     } finally {
-      // Ensure loading completes even if there's an error
-      setTimeout(() => {
-        setIsImagesLoading(false);
-      }, 500); // Small delay for smooth transition
+      // Always clear the loading state, even if there were errors
+      console.log('Clearing loading state');
+      setIsImagesLoading(false);
     }
   }, [brandData, audienceData, visualData, postcardTemplateIds]); // Add dependencies
   
@@ -311,41 +318,66 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
 
   // New function to automatically save all postcard designs with all images
   const autoSavePostcardDesigns = async (imgIds: string[], prompt: string) => {
+    // Add local timeout to ensure this function doesn't block UI updates
+    let saveTimeout: NodeJS.Timeout | null = null;
+    
     try {
+      console.log('Starting autoSavePostcardDesigns with image IDs:', imgIds);
+      // Set a timeout to ensure that even if this function takes too long, 
+      // we eventually show success or error feedback to the user
+      saveTimeout = setTimeout(() => {
+        console.log('Save operation taking longer than expected');
+        setSaveSuccess("Images generated! Still saving designs...");
+      }, 3000);
+      
       const newTemplateIds: string[] = [];
       
       // Save each design type (template, creative, very_creative)
       for (let i = 0; i < postcardDesigns.length; i++) {
         const design = postcardDesigns[i];
         
-        // Create a document in the postcard_template collection
-        const docRef = await addDoc(collection(db, 'postcard_template'), {
-          designStyle: templateStyle,
-          code: "// Component code would be extracted here",
-          brandName: brandData.brandName,
-          createdAt: serverTimestamp(),
-          primaryColor: brandData.primaryColor,
-          accentColor: brandData.accentColor,
-          creativityLevel: design.creativityLevel,
-          imagePrompt: prompt,
-          imageIds: imgIds, // Store all image IDs with each design
-          usedFallback: usingFallbackImages
-        });
-        
-        console.log(`Design ${i+1} (${design.creativityLevel}) automatically saved with ID:`, docRef.id);
-        newTemplateIds.push(docRef.id);
-        
-        // Link all images to this template
-        for (const imageId of imgIds) {
-          try {
-            const imageDocRef = doc(db, 'postcard_images', imageId);
-            await updateDoc(imageDocRef, {
-              templateIds: [...(postcardTemplateIds || []), docRef.id]
-            });
-          } catch (updateErr) {
-            console.error('Error linking image to template:', updateErr);
+        try {
+          console.log(`Saving design ${i+1} (${design.creativityLevel}) to Firestore...`);
+          // Create a document in the postcard_template collection
+          const docRef = await addDoc(collection(db, 'postcard_template'), {
+            designStyle: templateStyle,
+            code: "// Component code would be extracted here",
+            brandName: brandData.brandName,
+            createdAt: serverTimestamp(),
+            primaryColor: brandData.primaryColor,
+            accentColor: brandData.accentColor,
+            creativityLevel: design.creativityLevel,
+            imagePrompt: prompt,
+            imageIds: imgIds, // Store all image IDs with each design
+            usedFallback: usingFallbackImages
+          });
+          
+          console.log(`Design ${i+1} (${design.creativityLevel}) saved with ID:`, docRef.id);
+          newTemplateIds.push(docRef.id);
+          
+          // Link all images to this template
+          for (const imageId of imgIds) {
+            try {
+              console.log(`Linking image ${imageId} to template ${docRef.id}...`);
+              const imageDocRef = doc(db, 'postcard_images', imageId);
+              await updateDoc(imageDocRef, {
+                templateIds: [...(postcardTemplateIds || []), docRef.id]
+              });
+            } catch (updateErr) {
+              console.error(`Error linking image ${imageId} to template:`, updateErr);
+              // Continue with the next image even if one fails
+            }
           }
+        } catch (designErr) {
+          console.error(`Error saving design ${i+1}:`, designErr);
+          // Continue with the next design even if one fails
         }
+      }
+      
+      // Clear the timeout since we completed normally
+      if (saveTimeout) {
+        clearTimeout(saveTimeout);
+        saveTimeout = null;
       }
       
       // Update the template IDs state
@@ -357,6 +389,12 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
       
       return newTemplateIds;
     } catch (err) {
+      // Clear the timeout if it exists
+      if (saveTimeout) {
+        clearTimeout(saveTimeout);
+        saveTimeout = null;
+      }
+      
       console.error('Error auto-saving postcard designs:', err);
       setError('Failed to automatically save designs, but you can continue using them.');
       return [];
@@ -511,15 +549,26 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
           <button
             onClick={generateAIImages}
             disabled={isImagesLoading}
-            className={`px-4 py-2 bg-electric-teal text-white rounded-lg shadow ${
-              isImagesLoading ? 'opacity-60 cursor-not-allowed' : 'hover:bg-electric-teal-dark'
-            } transition-colors`}
+            className={`px-4 py-2 ${isImagesLoading ? 'bg-gray-400' : 'bg-electric-teal hover:bg-electric-teal-dark'} text-white rounded-lg shadow 
+              ${isImagesLoading ? 'opacity-70 cursor-not-allowed' : ''} transition-colors`}
           >
-            {isImagesLoading ? 'Generating Images...' : usingFallbackImages ? 'Try Again' : 'Regenerate Images'}
+            {isImagesLoading ? (
+              <span className="flex items-center">
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Generating...
+              </span>
+            ) : (
+              usingFallbackImages ? 'Try Again with AI' : generatedImages.length > 0 ? 'Regenerate Images' : 'Generate Images'
+            )}
           </button>
           <button
             onClick={handleComplete}
-            className="px-4 py-2 bg-white border border-electric-teal text-electric-teal rounded-lg shadow hover:bg-gray-50 transition-colors"
+            disabled={isImagesLoading}
+            className={`px-4 py-2 bg-white border border-electric-teal text-electric-teal rounded-lg shadow 
+              ${isImagesLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'} transition-colors`}
           >
             Continue
           </button>
