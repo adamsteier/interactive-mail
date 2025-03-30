@@ -12,6 +12,7 @@ const config: Config = {
         background: "var(--background)",
         foreground: "var(--foreground)",
         'charcoal': '#1a1a1a',
+        'charcoal-light': '#2F2F2F',
         'electric-teal': '#00F0FF',
         'neon-magenta': '#FF00FF',
       },

@@ -1,8 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { getAnalytics } from 'firebase/analytics';
-import { getStorage } from 'firebase/storage';
+import { getAnalytics, Analytics } from 'firebase/analytics';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -18,18 +17,41 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 // Initialize Firebase Authentication and get a reference to the service
-export const auth = getAuth(app);
+const auth = getAuth(app);
 
 // Initialize Cloud Firestore and get a reference to the service
-export const db = getFirestore(app);
+const db = getFirestore(app);
 
-// Initialize Cloud Storage and get a reference to the service
-export const storage = getStorage(app);
+// Create flag variables to track whether each auth method is available
+let isEmailPasswordEnabled = true;
+let isGoogleAuthEnabled = true;
 
-// Initialize Analytics (only in browser environment)
-let analytics;
-if (typeof window !== 'undefined') {
-  analytics = getAnalytics(app);
+// This will help prevent auth errors if the Firebase config is incomplete
+try {
+  auth.useDeviceLanguage();
+} catch (error) {
+  console.error("Firebase authentication error", error);
+  isEmailPasswordEnabled = false;
+  isGoogleAuthEnabled = false;
 }
 
-export { analytics }; 
+// Function to check if auth methods are enabled
+export const getEnabledAuthMethods = async () => {
+  return {
+    emailPassword: isEmailPasswordEnabled,
+    google: isGoogleAuthEnabled
+  };
+};
+
+// Initialize Analytics (only in browser environment)
+let analytics: Analytics | null = null;
+
+if (typeof window !== 'undefined') {
+  try {
+    analytics = getAnalytics(app);
+  } catch (error) {
+    console.error("Analytics initialization error", error);
+  }
+}
+
+export { auth, db, analytics }; 
