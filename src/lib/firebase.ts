@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getAnalytics, Analytics } from 'firebase/analytics';
+import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -21,6 +22,9 @@ const auth = getAuth(app);
 
 // Initialize Cloud Firestore and get a reference to the service
 const db = getFirestore(app);
+
+// Initialize Cloud Storage and get a reference to the service
+const storage = getStorage(app);
 
 // Create flag variables to track whether each auth method is available
 let isEmailPasswordEnabled = true;
@@ -54,4 +58,4 @@ if (typeof window !== 'undefined') {
   }
 }
 
-export { auth, db, analytics }; 
+export { auth, db, storage, analytics }; 
