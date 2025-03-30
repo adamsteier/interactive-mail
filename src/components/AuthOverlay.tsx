@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
+import { FirebaseError } from 'firebase/app';
 
 interface AuthOverlayProps {
   isOpen: boolean;
@@ -31,9 +32,13 @@ const AuthOverlay = ({ isOpen, onClose }: AuthOverlayProps) => {
     try {
       await signInWithGoogle();
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Google sign-in error:', err);
-      setError(err.message || 'Failed to sign in with Google');
+      if (err instanceof FirebaseError) {
+        setError(err.message);
+      } else {
+        setError('Failed to sign in with Google');
+      }
     } finally {
       setIsGoogleLoading(false);
     }
@@ -80,15 +85,19 @@ const AuthOverlay = ({ isOpen, onClose }: AuthOverlayProps) => {
         await signUp(email, password);
         onClose();
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Authentication error:', err);
-      // Handle different Firebase auth errors
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-        setError('Invalid email or password');
-      } else if (err.code === 'auth/email-already-in-use') {
-        setError('This email is already registered');
+      if (err instanceof FirebaseError) {
+        // Handle different Firebase auth errors
+        if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+          setError('Invalid email or password');
+        } else if (err.code === 'auth/email-already-in-use') {
+          setError('This email is already registered');
+        } else {
+          setError(err.message);
+        }
       } else {
-        setError(err.message || 'An error occurred during authentication');
+        setError('An error occurred during authentication');
       }
     } finally {
       setIsLoading(false);
