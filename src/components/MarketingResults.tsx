@@ -6,6 +6,8 @@ import { BusinessAnalysis } from '@/types/businessAnalysis';
 import PlacesLeadsCollection from '@/components/PlacesLeadsCollection';
 import { useMarketingStore } from '@/store/marketingStore';
 import { MarketingStrategy } from '@/types/marketing';
+import { useAuth } from '@/contexts/AuthContext';
+import AuthOverlay from '@/components/AuthOverlay';
 
 interface MarketingResultsProps {
   strategy: MarketingStrategy;
@@ -25,6 +27,9 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
   const [showLeadsCollection, setShowLeadsCollection] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showAuthOverlay, setShowAuthOverlay] = useState(false);
+  
+  const { user } = useAuth();
 
   useEffect(() => {
     // Only update if marketingStrategy exists
@@ -32,6 +37,13 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       setMarketingStrategy(strategy);
     }
   }, [strategy, setMarketingStrategy]);
+
+  useEffect(() => {
+    // If user becomes authenticated and overlay is shown, close it
+    if (user && showAuthOverlay) {
+      setShowAuthOverlay(false);
+    }
+  }, [user, showAuthOverlay]);
 
   const handleCheckboxChange = (targetType: string) => {
     setSelectedBusinessTypes((prev: Set<string>) => {
@@ -47,8 +59,8 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
   const handleGetData = async () => {
     if (selectedBusinessTypes.size > 0) {
+      // Always start loading state immediately
       setIsLoading(true);
-      // Start loading state immediately
       updateSearchResults({
         places: [],
         isLoading: true,
@@ -65,14 +77,19 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
         boundingBox
       });
       
-      // Then trigger the search
+      // Check if user is authenticated
+      if (!user) {
+        setShowAuthOverlay(true);
+      }
+      
+      // Always trigger the search in the background
       handleGoogleSearch();
       
       // Show the leads collection view after a short delay to show animation
       setTimeout(() => {
         setShowLeadsCollection(true);
         setIsLoading(false);
-      }, 800); // Reduced from 1500ms to 800ms since we just need a brief animation
+      }, 800); 
     }
   };
 
@@ -96,14 +113,19 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
         boundingBox
       });
       
-      // Then trigger the search
+      // Check if user is authenticated
+      if (!user) {
+        setShowAuthOverlay(true);
+      }
+      
+      // Always trigger the search in the background
       handleGoogleSearch();
       
       // Show the leads collection view after a short delay to show animation
       setTimeout(() => {
         setShowLeadsCollection(true);
         setIsLoading(false);
-      }, 800); // Reduced from 1500ms to 800ms since we just need a brief animation
+      }, 800);
     }
   };
 
@@ -291,6 +313,11 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
           }}
         />
       )}
+
+      <AuthOverlay 
+        isOpen={showAuthOverlay}
+        onClose={() => setShowAuthOverlay(false)}
+      />
     </>
   );
 };

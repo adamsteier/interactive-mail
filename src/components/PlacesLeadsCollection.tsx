@@ -7,6 +7,8 @@ import { useMarketingStore } from '@/store/marketingStore';
 import LoadingBar from './LoadingBar';
 import type { GooglePlace } from '@/types/places';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import AuthOverlay from '@/components/AuthOverlay';
 
 interface PlacesLeadsCollectionProps {
   onClose: () => void;
@@ -23,7 +25,9 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
   const [selectedPlaces, setSelectedPlaces] = useState<Set<string>>(new Set());
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+  const [showAuthOverlay, setShowAuthOverlay] = useState(false);
 
+  const { user } = useAuth();
   const router = useRouter();
 
   // Get unique business types for filtering
@@ -66,6 +70,17 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
       filteredCount: filteredPlaces.length
     });
   }, [places, isLoading, progress, filteredPlaces, businessTypes, activeFilter]);
+
+  // Add useEffect for authentication
+  useEffect(() => {
+    // If the user is not authenticated, show auth overlay
+    if (!user && places.length > 0) {
+      setShowAuthOverlay(true);
+    } else if (user && showAuthOverlay) {
+      // If user becomes authenticated, hide overlay
+      setShowAuthOverlay(false);
+    }
+  }, [user, places.length, showAuthOverlay]);
 
   const handleSelectPlace = (placeId: string, shiftKey: boolean) => {
     if (!shiftKey) {
@@ -299,6 +314,12 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
           }}
         />
       </div>
+
+      {/* Add AuthOverlay */}
+      <AuthOverlay 
+        isOpen={showAuthOverlay}
+        onClose={() => setShowAuthOverlay(false)}
+      />
     </div>
   );
 };

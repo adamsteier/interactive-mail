@@ -13,6 +13,7 @@ The home page is the main entry point for users and serves as a wizard-like inte
 3. **Business Analysis**: The application analyzes the business information to determine the industry and provides a description.
 4. **Marketing Strategy Generation**: Based on the business analysis, the app generates a tailored marketing strategy.
 5. **Leads Collection**: The app searches for potential business leads in the specified target area.
+6. **Authentication**: When users try to view their leads, they're prompted to sign in or create an account while data processing continues in the background.
 
 #### Key Components on Home Page:
 - `AnimatedBackground`: Provides an interactive background that reacts to user input
@@ -25,6 +26,7 @@ The home page is the main entry point for users and serves as a wizard-like inte
 - `PlacesLeadsCollection`: Shows potential business leads in the target area
 - `LocationSelector`: Allows users to select specific locations
 - `TechnoConfetti`: Celebratory animation displayed when analysis is complete
+- `AuthOverlay`: Displays authentication options when users try to access premium features
 
 #### Marketing Results Component (src/components/MarketingResults.tsx)
 The Marketing Results component presents the generated marketing strategy to the user, including:
@@ -92,6 +94,29 @@ The `DynamicPostcard` component uses an innovative approach to render postcards:
 
 ## Components Overview
 
+### Authentication Components
+
+#### `AuthContext.tsx`
+Provides Firebase authentication functionality throughout the application. Features include:
+- User state tracking (logged in/out status)
+- Email/password sign in and sign up methods
+- Google sign-in integration
+- Logout functionality
+- Authentication state persistence
+
+The authentication system is integrated at the root layout level, making it available app-wide.
+
+#### `AuthOverlay.tsx`
+A modal overlay component that appears when users try to access premium features without being authenticated. Features include:
+- Tabbed interface for switching between sign-in and sign-up modes
+- Email/password authentication
+- Google sign-in option
+- Form validation with error handling
+- Semi-transparent background that allows users to see activity happening behind it
+- Smooth animations for a polished user experience
+
+The overlay is designed to maintain the application flow by allowing data processing to continue in the background while users authenticate. This creates a seamless experience without interrupting the workflow.
+
 ### Home Page & Wizard Components
 
 #### `AnimatedBackground.tsx`
@@ -156,7 +181,12 @@ Collects information about the target audience demographics, interests, and pref
 Gathers business contact information, taglines, and other details to be included on the postcard. Ensures the postcard contains all necessary business information.
 
 #### `VisualElements.tsx`
-Enables selection of design style, layout, and image preferences for the postcard. Controls the visual aspects of the postcard design.
+Enables selection of design style, layout, and image preferences for the postcard. Controls the visual aspects of the postcard design. Specifically, users can choose:
+- Image styles (photograph, illustration, abstract, minimal)
+- Image sources (AI-generated, stock photos, custom uploads)
+- Primary image subject
+- Layout styles (clean, bold, elegant, playful)
+- Color scheme preferences, with automatic suggestions based on brand colors
 
 #### `ReviewGenerate.tsx`
 Provides a summary of all selected design options and initiates the postcard generation process. Allows users to review their choices before final generation.
@@ -209,6 +239,7 @@ The store also contains key actions like:
 - `handleSubmit`: Processes user input at each step
 - `fetchMarketingStrategy`: Generates a marketing strategy based on business analysis
 - `handleGoogleSearch`: Searches for leads in the target area using a hexagonal grid approach for optimal coverage
+- `setSelectedBusinessTypes`: Manages the selection of business types for targeting
 
 ## Technical Components
 
@@ -224,7 +255,8 @@ The store also contains key actions like:
 - **Fallback System**: Provides fallback rendering when dynamic rendering fails
 
 ### External Integrations
-- **Firebase/Firestore**: Stores and retrieves postcard designs
+- **Firebase Authentication**: Handles user authentication and session management
+- **Firebase/Firestore**: Stores and retrieves postcard designs and user data
 - **Google Places API**: Used for lead generation and location data
 
 ## User Experience Flow
@@ -233,13 +265,24 @@ The store also contains key actions like:
 2. User enters their business name
 3. The system analyzes the business and generates a marketing strategy
 4. User reviews the strategy and selects which business types to target
-5. The system searches for leads matching the selected business types in the target area
-6. User can select leads of interest and export or save them for future marketing efforts
-7. User can navigate to the postcard designer to create marketing materials
-8. In the postcard designer, user can choose a design method (AI is the most sophisticated option)
-9. If using AI, the wizard guides user through various steps to collect necessary information
-10. The system generates a postcard design based on all the collected information
-11. User can save the design and view it in the postcard preview page
-12. All saved designs are accessible in the postcard preview page for future reference
+5. When the user clicks "Looks good, now show me my leads", the authentication overlay appears if the user is not logged in
+6. The system continues processing data in the background while the user signs in or creates an account
+7. Once authenticated, the overlay closes and the user can see their leads
+8. The system searches for leads matching the selected business types in the target area
+9. User can select leads of interest and export or save them for future marketing efforts
+10. User can navigate to the postcard designer to create marketing materials
+11. In the postcard designer, user can choose a design method (AI is the most sophisticated option)
+12. If using AI, the wizard guides user through various steps to collect necessary information:
+   - Design Method (single or multiple designs)
+   - Audience Segmentation (if multiple designs selected)
+   - Brand Identity (colors, style preferences, logo)
+   - Marketing Goals (objectives, call to action)
+   - Target Audience (industry, description)
+   - Business Details (tagline, contact info)
+   - Visual Elements (image style, source, layout)
+   - Review & Generate
+13. The system generates a postcard design based on all the collected information
+14. User can save the design and view it in the postcard preview page
+15. All saved designs are accessible in the postcard preview page for future reference
 
 This application combines market analysis, lead generation, and customized marketing material creation in one integrated workflow to help businesses reach their target audience effectively.
