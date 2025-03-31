@@ -71,16 +71,8 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
     });
   }, [places, isLoading, progress, filteredPlaces, businessTypes, activeFilter]);
 
-  // Add useEffect for authentication
-  useEffect(() => {
-    // If the user is not authenticated, show auth overlay
-    if (!user && places.length > 0) {
-      setShowAuthOverlay(true);
-    } else if (user && showAuthOverlay) {
-      // If user becomes authenticated, hide overlay
-      setShowAuthOverlay(false);
-    }
-  }, [user, places.length, showAuthOverlay]);
+  // Remove the automatic authentication check when places load
+  // and only show auth overlay when explicitly triggered
 
   const handleSelectPlace = (placeId: string, shiftKey: boolean) => {
     if (!shiftKey) {
@@ -137,6 +129,39 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
       placesToDeselect.forEach(place => newSet.delete(place.place_id));
       return newSet;
     });
+  };
+
+  // New function to handle starting the campaign
+  const handleStartCampaign = () => {
+    // Prepare the data for the store regardless of authentication
+    const selectedBusinesses = filteredPlaces.filter(place => 
+      selectedPlaces.has(place.place_id)
+    );
+    
+    // Get unique business types from selected places
+    const businessTypes = new Set(
+      selectedBusinesses.map(place => place.businessType)
+    );
+    
+    // Update both leads and business types in store
+    setCollectedLeads(selectedBusinesses);
+    setSelectedBusinessTypes(businessTypes);
+    
+    // Check authentication before navigation
+    if (!user) {
+      // Show auth overlay if user is not authenticated
+      setShowAuthOverlay(true);
+    } else {
+      // Navigate to design page if user is authenticated
+      router.push('/design');
+    }
+  };
+
+  // Handle auth completion
+  const handleAuthComplete = () => {
+    setShowAuthOverlay(false);
+    // Navigate to design page after successful authentication
+    router.push('/design');
   };
 
   return (
@@ -296,29 +321,14 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
         {/* Selection Summary */}
         <SelectionSummary
           selectedPlaces={selectedPlaces}
-          onStartCampaign={() => {
-            const selectedBusinesses = filteredPlaces.filter(place => 
-              selectedPlaces.has(place.place_id)
-            );
-            
-            // Get unique business types from selected places
-            const businessTypes = new Set(
-              selectedBusinesses.map(place => place.businessType)
-            );
-            
-            // Update both leads and business types in store
-            setCollectedLeads(selectedBusinesses);
-            setSelectedBusinessTypes(businessTypes);
-            
-            router.push('/design');
-          }}
+          onStartCampaign={handleStartCampaign}
         />
       </div>
 
-      {/* Add AuthOverlay */}
+      {/* Auth Overlay - update to use the new onClose handler */}
       <AuthOverlay 
         isOpen={showAuthOverlay}
-        onClose={() => setShowAuthOverlay(false)}
+        onClose={handleAuthComplete}
       />
     </div>
   );

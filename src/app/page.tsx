@@ -12,8 +12,6 @@ import { useMarketingStore } from '@/store/marketingStore';
 import PlacesLeadsCollection from '@/components/PlacesLeadsCollection';
 import LocationSelector from '@/components/LocationSelector';
 import TechnoConfetti from '@/components/TechnoConfetti';
-import { useAuth } from '@/contexts/AuthContext';
-import AuthOverlay from '@/components/AuthOverlay';
 
 const LoadingSkeleton = () => (
   <div className="w-full rounded-lg border-2 border-electric-teal bg-charcoal/80 px-4 md:px-6 py-3 shadow-glow backdrop-blur-sm">
@@ -28,10 +26,7 @@ export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [showAuthOverlay, setShowAuthOverlay] = useState(false);
   
-  const { user } = useAuth();
-
   const { 
     // State
     locationData,
@@ -150,23 +145,9 @@ export default function Home() {
     }
   }, [isLoadingStrategy]);
 
-  // Add new useEffect to handle authentication state
-  useEffect(() => {
-    // If user is authenticated and auth overlay is shown, close it
-    if (user && showAuthOverlay) {
-      setShowAuthOverlay(false);
-    }
-  }, [user, showAuthOverlay]);
-
-  // Modify the existing click handler for "Looks good" button
+  // Simple handler for the "Looks good" button - no auth check
   const handleShowLeadsClick = () => {
-    // Always start processing the marketing strategy, regardless of auth state
     if (marketingStrategy && businessInfo.businessAnalysis) {
-      // If user is not authenticated, show auth overlay
-      if (!user) {
-        setShowAuthOverlay(true);
-      }
-      // Always proceed with showing results in the background
       setShowResults(true);
     }
   };
@@ -368,12 +349,6 @@ export default function Home() {
           onClose={() => setShowResults(false)}
         />
       )}
-
-      {/* Auth Overlay */}
-      <AuthOverlay 
-        isOpen={showAuthOverlay}
-        onClose={() => setShowAuthOverlay(false)}
-      />
     </main>
   );
 }
