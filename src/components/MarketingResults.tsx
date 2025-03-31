@@ -5,6 +5,7 @@ import { useMarketingStore } from '@/store/marketingStore';
 import { MarketingStrategy, BusinessTarget, DatabaseTarget } from '@/types/marketing';
 import { useAuth } from '@/contexts/AuthContext';
 import AuthOverlay from '@/components/AuthOverlay';
+import PlacesLeadsCollection from '@/components/PlacesLeadsCollection';
 
 interface MarketingResultsProps {
   strategy: MarketingStrategy;
@@ -50,33 +51,6 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
     }
   }, [strategy, setMarketingStrategy]);
 
-  // Handle auth completion
-  const handleAuthComplete = () => {
-    setShowAuthOverlay(false);
-    // Continue with the search since authentication is now complete
-    if (showLeadsCollection) {
-      // If we've already started showing the leads collection, no need to do anything
-      return;
-    }
-    // Show the leads collection view after a short delay to show animation
-    setTimeout(() => {
-      setShowLeadsCollection(true);
-      setIsLoading(false);
-    }, 800);
-  };
-
-  const handleCheckboxChange = (targetType: string) => {
-    setSelectedBusinessTypes(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(targetType)) {
-        newSet.delete(targetType);
-      } else {
-        newSet.add(targetType);
-      }
-      return newSet;
-    });
-  };
-
   const handleGetData = async () => {
     if (selectedBusinessTypes.size > 0) {
       // Always start loading state immediately
@@ -97,22 +71,47 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
         boundingBox
       });
       
+      // IMPORTANT: Always trigger the search in the background first
+      // so it continues during authentication
+      handleGoogleSearch();
+      
       // Check if user is authenticated
       if (!user) {
         setShowAuthOverlay(true);
-        // Don't proceed with showing leads collection yet
+        // Don't show leads collection yet, but search is already running
         return;
       }
       
-      // Trigger the search in the background
-      handleGoogleSearch();
-      
-      // Show the leads collection view after a short delay to show animation
+      // User is already authenticated, show the leads collection view
+      // after a short delay to show animation
       setTimeout(() => {
         setShowLeadsCollection(true);
         setIsLoading(false);
       }, 800); 
     }
+  };
+
+  // Handle auth completion
+  const handleAuthComplete = () => {
+    setShowAuthOverlay(false);
+    
+    // Show the leads collection view after a short delay
+    setTimeout(() => {
+      setShowLeadsCollection(true);
+      setIsLoading(false);
+    }, 300);
+  };
+
+  const handleCheckboxChange = (targetType: string) => {
+    setSelectedBusinessTypes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(targetType)) {
+        newSet.delete(targetType);
+      } else {
+        newSet.add(targetType);
+      }
+      return newSet;
+    });
   };
 
   // Handle database interest submission
@@ -311,7 +310,9 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
             )}
           </div>
         </div>
-      ) : null}
+      ) : (
+        <PlacesLeadsCollection onClose={onClose} />
+      )}
 
       <AuthOverlay 
         isOpen={showAuthOverlay}

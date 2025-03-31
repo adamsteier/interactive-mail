@@ -7,8 +7,6 @@ import { useMarketingStore } from '@/store/marketingStore';
 import LoadingBar from './LoadingBar';
 import type { GooglePlace } from '@/types/places';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
-import AuthOverlay from '@/components/AuthOverlay';
 
 interface PlacesLeadsCollectionProps {
   onClose: () => void;
@@ -25,9 +23,7 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
   const [selectedPlaces, setSelectedPlaces] = useState<Set<string>>(new Set());
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
-  const [showAuthOverlay, setShowAuthOverlay] = useState(false);
 
-  const { user } = useAuth();
   const router = useRouter();
 
   // Get unique business types for filtering
@@ -70,9 +66,6 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
       filteredCount: filteredPlaces.length
     });
   }, [places, isLoading, progress, filteredPlaces, businessTypes, activeFilter]);
-
-  // Remove the automatic authentication check when places load
-  // and only show auth overlay when explicitly triggered
 
   const handleSelectPlace = (placeId: string, shiftKey: boolean) => {
     if (!shiftKey) {
@@ -131,7 +124,7 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
     });
   };
 
-  // New function to handle starting the campaign
+  // Handle starting the campaign
   const handleStartCampaign = () => {
     // Prepare the data for the store regardless of authentication
     const selectedBusinesses = filteredPlaces.filter(place => 
@@ -147,20 +140,7 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
     setCollectedLeads(selectedBusinesses);
     setSelectedBusinessTypes(businessTypes);
     
-    // Check authentication before navigation
-    if (!user) {
-      // Show auth overlay if user is not authenticated
-      setShowAuthOverlay(true);
-    } else {
-      // Navigate to design page if user is authenticated
-      router.push('/design');
-    }
-  };
-
-  // Handle auth completion
-  const handleAuthComplete = () => {
-    setShowAuthOverlay(false);
-    // Navigate to design page after successful authentication
+    // Navigate to design page since user should already be authenticated at this point
     router.push('/design');
   };
 
@@ -324,12 +304,6 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
           onStartCampaign={handleStartCampaign}
         />
       </div>
-
-      {/* Auth Overlay - update to use the new onClose handler */}
-      <AuthOverlay 
-        isOpen={showAuthOverlay}
-        onClose={handleAuthComplete}
-      />
     </div>
   );
 };
