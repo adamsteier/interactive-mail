@@ -151,11 +151,16 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
               <h3 className="mb-2 text-lg font-medium text-electric-teal/80">Estimated Reach</h3>
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
                 <div className="rounded-lg border border-electric-teal/30 bg-charcoal-dark p-4">
-                  <div className="text-3xl font-bold text-electric-teal">{totalEstimatedReach}</div>
+                  <div className="text-3xl font-bold text-electric-teal">{totalEstimatedReach.toLocaleString()}</div>
                   <div className="text-sm text-electric-teal/60">Potential customers</div>
+                  {strategy.totalEstimatedReach > 0 && (
+                    <div className="mt-2 inline-block px-3 py-1 rounded-full bg-electric-teal/10 text-electric-teal text-xs">
+                      AI Estimated Reach
+                    </div>
+                  )}
                 </div>
                 <div className="rounded-lg border border-electric-teal/30 bg-charcoal-dark p-4">
-                  <div className="text-3xl font-bold text-electric-teal">{businessCount}</div>
+                  <div className="text-3xl font-bold text-electric-teal">{businessCount.toLocaleString()}</div>
                   <div className="text-sm text-electric-teal/60">Local businesses</div>
                 </div>
                 <div className="rounded-lg border border-electric-teal/30 bg-charcoal-dark p-4">
@@ -203,21 +208,41 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
                 </h3>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {strategy.method1Analysis.businessTargets.map((target: BusinessTarget) => (
-                    <div key={target.type} className="flex items-start space-x-3">
-                      <input
-                        type="checkbox"
-                        id={`target-${target.type}`}
-                        checked={selectedBusinessTypes.has(target.type)}
-                        onChange={() => handleCheckboxChange(target.type)}
-                        className="mt-1.5 h-4 w-4 rounded border-electric-teal/50 
-                          bg-charcoal text-electric-teal focus:ring-1 focus:ring-electric-teal"
-                      />
-                      <div>
-                        <label htmlFor={`target-${target.type}`} className="font-medium text-electric-teal">
-                          {target.type}
-                        </label>
-                        <p className="text-sm text-electric-teal/60">{target.reasoning}</p>
+                    <div 
+                      key={target.type} 
+                      className={`flex flex-col rounded-lg border p-4 transition-colors cursor-pointer
+                        ${selectedBusinessTypes.has(target.type) 
+                          ? 'border-electric-teal bg-electric-teal/10' 
+                          : 'border-electric-teal/30 hover:bg-electric-teal/5'}`}
+                      onClick={() => handleCheckboxChange(target.type)}
+                    >
+                      <div className="flex items-start space-x-3 mb-2">
+                        <input
+                          type="checkbox"
+                          id={`target-${target.type}`}
+                          checked={selectedBusinessTypes.has(target.type)}
+                          onChange={() => handleCheckboxChange(target.type)}
+                          className="mt-1.5 h-4 w-4 rounded border-electric-teal/50 
+                            bg-charcoal text-electric-teal focus:ring-1 focus:ring-electric-teal"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <div className="flex-1">
+                          <label htmlFor={`target-${target.type}`} className="block font-medium text-electric-teal">
+                            {target.type}
+                          </label>
+                          <p className="text-sm text-electric-teal/60 mt-1">{target.reasoning}</p>
+                        </div>
                       </div>
+                      
+                      {/* Estimated Reach Tag */}
+                      {target.estimatedReach > 0 && (
+                        <div className="flex items-center mt-2 justify-between">
+                          <span className="text-sm text-electric-teal/60">Estimated Reach:</span>
+                          <span className="px-3 py-1 rounded-full bg-electric-teal/10 text-electric-teal text-sm font-medium">
+                            {target.estimatedReach.toLocaleString()}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
