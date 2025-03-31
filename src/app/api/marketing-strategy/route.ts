@@ -35,7 +35,12 @@ Please identify specific databases and platforms that would be valuable. For eac
 - Explain why it's particularly suitable
 - Estimate the potential reach
 - Consider both broad platforms and niche/local databases
-- One example of a database is a real estate database where we can send mail to new listings
+- When relevant, specifically consider recurring data sources such as:
+  * New real estate listings in the area
+  * Recently sold homes
+  * Building permits and construction projects
+  * Other industry-relevant recurring databases
+These recurring data sources are particularly valuable for businesses that can benefit from timely outreach to new opportunities.
 
 Method 3: Mass Flyer Drop
 Only recommend if other methods aren't suitable.

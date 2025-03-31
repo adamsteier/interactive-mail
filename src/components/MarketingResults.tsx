@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useMarketingStore } from '@/store/marketingStore';
-import { MarketingStrategy, BusinessTarget } from '@/types/marketing';
+import { MarketingStrategy, BusinessTarget, DatabaseTarget } from '@/types/marketing';
 import { useAuth } from '@/contexts/AuthContext';
 import AuthOverlay from '@/components/AuthOverlay';
 
@@ -20,6 +20,8 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
   const [showLeadsCollection, setShowLeadsCollection] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showAuthOverlay, setShowAuthOverlay] = useState(false);
+  const [activeTab, setActiveTab] = useState<'business' | 'database'>('business');
+  const [interestedInDatabase, setInterestedInDatabase] = useState(false);
   
   const { user } = useAuth();
   
@@ -34,6 +36,9 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
   const totalEstimatedReach = strategy.totalEstimatedReach || 500;
   const businessCount = strategy.method1Analysis?.businessTargets?.length * 50 || 100;
   const conversionRate = 2.5;
+
+  // Check if method2 (database targeting) is recommended in the strategy
+  const hasMethod2 = strategy.recommendedMethods?.includes('method2') || false;
 
   useEffect(() => {
     if (strategy) {
@@ -110,6 +115,12 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
     }
   };
 
+  // Handle database interest submission
+  const handleDatabaseInterest = () => {
+    setInterestedInDatabase(true);
+    // Additional logic to store this information would go here
+  };
+
   return (
     <>
       {!showLeadsCollection ? (
@@ -150,56 +161,154 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
                 </div>
               </div>
             </div>
-            
-            {/* Business Targets */}
-            <div className="mb-8">
-              <h3 className="mb-4 text-lg font-medium text-electric-teal/80">
-                Which business types would you like to target?
-              </h3>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {strategy.method1Analysis.businessTargets.map((target: BusinessTarget) => (
-                  <div key={target.type} className="flex items-start space-x-3">
-                    <input
-                      type="checkbox"
-                      id={`target-${target.type}`}
-                      checked={selectedBusinessTypes.has(target.type)}
-                      onChange={() => handleCheckboxChange(target.type)}
-                      className="mt-1.5 h-4 w-4 rounded border-electric-teal/50 
-                        bg-charcoal text-electric-teal focus:ring-1 focus:ring-electric-teal"
-                    />
-                    <div>
-                      <label htmlFor={`target-${target.type}`} className="font-medium text-electric-teal">
-                        {target.type}
-                      </label>
-                      <p className="text-sm text-electric-teal/60">{target.reasoning}</p>
-                    </div>
-                  </div>
-                ))}
+
+            {/* Method Tabs - Only show if method2 is available */}
+            {hasMethod2 && (
+              <div className="mb-6">
+                <div className="flex w-full rounded-lg border border-electric-teal/30 p-1">
+                  <button 
+                    type="button"
+                    onClick={() => setActiveTab('business')}
+                    className={`flex-1 rounded-md py-2 text-center transition-all ${
+                      activeTab === 'business' 
+                        ? 'bg-electric-teal text-charcoal font-medium' 
+                        : 'text-electric-teal/70 hover:text-electric-teal'
+                    }`}
+                  >
+                    Business Targeting
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('database')}
+                    className={`flex-1 rounded-md py-2 text-center transition-all ${
+                      activeTab === 'database' 
+                        ? 'bg-electric-teal text-charcoal font-medium' 
+                        : 'text-electric-teal/70 hover:text-electric-teal'
+                    }`}
+                  >
+                    Database Targeting
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
             
-            {/* Action Button */}
-            <div className="flex justify-end">
-              <button
-                onClick={handleGetData}
-                disabled={selectedBusinessTypes.size === 0 || isLoading}
-                className="relative overflow-hidden rounded-lg bg-electric-teal 
-                  px-6 py-3 text-charcoal font-medium transition-colors duration-200
-                  hover:bg-electric-teal/90 disabled:bg-electric-teal/50 flex items-center"
-              >
-                {isLoading ? (
-                  <>
-                    <svg className="mr-2 h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Loading...
-                  </>
+            {/* Business Targets - Show when active tab is business or method2 is not available */}
+            {(activeTab === 'business' || !hasMethod2) && (
+              <div className="mb-8">
+                <h3 className="mb-4 text-lg font-medium text-electric-teal/80">
+                  Which business types would you like to target?
+                </h3>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {strategy.method1Analysis.businessTargets.map((target: BusinessTarget) => (
+                    <div key={target.type} className="flex items-start space-x-3">
+                      <input
+                        type="checkbox"
+                        id={`target-${target.type}`}
+                        checked={selectedBusinessTypes.has(target.type)}
+                        onChange={() => handleCheckboxChange(target.type)}
+                        className="mt-1.5 h-4 w-4 rounded border-electric-teal/50 
+                          bg-charcoal text-electric-teal focus:ring-1 focus:ring-electric-teal"
+                      />
+                      <div>
+                        <label htmlFor={`target-${target.type}`} className="font-medium text-electric-teal">
+                          {target.type}
+                        </label>
+                        <p className="text-sm text-electric-teal/60">{target.reasoning}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Database Targets - Only show when method2 is available and active tab is database */}
+            {hasMethod2 && activeTab === 'database' && (
+              <div className="mb-8">
+                <div className="mb-4 rounded-lg border border-electric-teal/30 bg-charcoal-dark p-4">
+                  <h3 className="mb-2 text-lg font-medium text-electric-teal">Recurring Database Targeting</h3>
+                  <p className="text-sm text-electric-teal/80 mb-3">
+                    These data sources require custom setup for recurring access. Our team can help you set up
+                    regular mailings to these valuable, time-sensitive leads such as new real estate listings, 
+                    recently sold homes, and building permits.
+                  </p>
+                  {strategy.method2Analysis?.overallReasoning && (
+                    <p className="text-electric-teal/80 mb-4">{strategy.method2Analysis.overallReasoning}</p>
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  {/* Only show database targets that are explicitly provided by the AI */}
+                  {strategy.method2Analysis?.databaseTargets?.map((database: DatabaseTarget) => (
+                    <div
+                      key={database.name}
+                      className="rounded-lg border border-electric-teal/30 p-4 hover:bg-electric-teal/5 transition-colors"
+                    >
+                      <h4 className="text-lg font-medium text-electric-teal mb-1">{database.name}</h4>
+                      <p className="text-sm text-electric-teal/60 mb-2">{database.type}</p>
+                      <p className="text-electric-teal/80 mb-2">{database.reasoning}</p>
+                      {database.estimatedReach && (
+                        <p className="text-electric-teal/60">
+                          Estimated reach: {database.estimatedReach.toLocaleString()} contacts
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                  
+                  {/* Show message if no database targets are provided */}
+                  {(!strategy.method2Analysis?.databaseTargets || strategy.method2Analysis.databaseTargets.length === 0) && (
+                    <div className="p-4 rounded-lg bg-electric-teal/10 border border-electric-teal/30">
+                      <p className="text-electric-teal text-center">
+                        No specific database targets were identified for your industry.
+                        Please contact our team for a custom database targeting consultation.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {!interestedInDatabase ? (
+                  <div className="mt-6 flex justify-end">
+                    <button
+                      onClick={handleDatabaseInterest}
+                      className="rounded-lg bg-electric-teal px-6 py-3 text-charcoal font-medium 
+                        hover:bg-electric-teal/90 transition-colors"
+                    >
+                      I&apos;m Interested in Database Targeting
+                    </button>
+                  </div>
                 ) : (
-                  'Get Data for Selected Business Types'
+                  <div className="mt-6 p-4 rounded-lg bg-electric-teal/10 border border-electric-teal/30">
+                    <p className="text-electric-teal">
+                      Thanks for your interest! Our team will contact you about setting up recurring database targeting.
+                    </p>
+                  </div>
                 )}
-              </button>
-            </div>
+              </div>
+            )}
+            
+            {/* Action Button - Only show for business targeting */}
+            {(activeTab === 'business' || !hasMethod2) && (
+              <div className="flex justify-end">
+                <button
+                  onClick={handleGetData}
+                  disabled={selectedBusinessTypes.size === 0 || isLoading}
+                  className="relative overflow-hidden rounded-lg bg-electric-teal 
+                    px-6 py-3 text-charcoal font-medium transition-colors duration-200
+                    hover:bg-electric-teal/90 disabled:bg-electric-teal/50 flex items-center"
+                >
+                  {isLoading ? (
+                    <>
+                      <svg className="mr-2 h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Loading...
+                    </>
+                  ) : (
+                    'Get Data for Selected Business Types'
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       ) : null}
