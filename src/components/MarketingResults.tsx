@@ -30,7 +30,8 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
     setMarketingStrategy, 
     setBusinessAnalysis,
     updateSearchResults,
-    handleGoogleSearch
+    handleGoogleSearch,
+    setSelectedBusinessTypes: setStoreSelectedBusinessTypes
   } = useMarketingStore();
 
   // Mock values for the UI for the estimated reach if not present in the strategy object
@@ -70,6 +71,9 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
         customerTypes: strategy.method1Analysis.businessTargets.map(t => t.type),
         boundingBox
       });
+      
+      // CRITICAL FIX: Update the global store's selectedBusinessTypes
+      setStoreSelectedBusinessTypes(selectedBusinessTypes);
       
       // IMPORTANT: Always trigger the search in the background first
       // so it continues during authentication
