@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useMarketingStore } from '@/store/marketingStore';
 import CampaignManager from '@/components/CampaignManager';
 import Link from 'next/link';

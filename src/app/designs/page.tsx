@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useMarketingStore } from '@/store/marketingStore';
 import { getBusinessPostcardDesigns, PostcardDesign } from '@/lib/postcardStore';
+import Image from 'next/image';
 
 export default function PostcardDesignsPage() {
   const { user, loading } = useAuth();
@@ -117,10 +118,12 @@ export default function PostcardDesignsPage() {
           {designs.map(design => (
             <div key={design.id} className="border rounded overflow-hidden shadow-md">
               <div className="relative h-64">
-                <img 
+                <Image 
                   src={design.imageUrl} 
                   alt={design.name} 
                   className="w-full h-full object-cover"
+                  width={256}
+                  height={256}
                 />
               </div>
               <div className="p-4">

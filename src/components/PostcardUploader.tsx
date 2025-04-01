@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   uploadPostcardImage, 
   createPostcardDesign,
@@ -7,6 +7,7 @@ import {
   deletePostcardDesign,
   PostcardDesign
 } from '@/lib/postcardStore';
+import Image from 'next/image';
 
 interface PostcardUploaderProps {
   campaignId: string;
@@ -166,9 +167,11 @@ const PostcardUploader = ({ campaignId, businessId }: PostcardUploaderProps) => 
           {previewUrl && (
             <div className="mt-2">
               <p className="text-sm font-medium text-gray-700 mb-1">Preview:</p>
-              <img 
+              <Image 
                 src={previewUrl} 
                 alt="Preview" 
+                width={192}
+                height={192}
                 className="max-h-48 max-w-full object-contain border rounded"
               />
             </div>
@@ -197,9 +200,11 @@ const PostcardUploader = ({ campaignId, businessId }: PostcardUploaderProps) => 
             {designs.map(design => (
               <div key={design.id} className="border rounded overflow-hidden">
                 <div className="relative h-48">
-                  <img 
+                  <Image 
                     src={design.imageUrl} 
                     alt={design.name} 
+                    width={192}
+                    height={192}
                     className="w-full h-full object-cover"
                   />
                 </div>
