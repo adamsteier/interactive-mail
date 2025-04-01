@@ -8,8 +8,28 @@ import {
   updateSessionBusinessData,
   updateSessionMarketingStrategy,
   updateSessionBusinessTypes,
-  BusinessData
+  updateSessionStatus,
+  BusinessData,
+  getSessionId
 } from '@/lib/sessionService';
+import {
+  createBusiness,
+  updateBusiness,
+  getUserBusinesses,
+  Business,
+  createMarketingStrategy,
+  getBusinessById
+} from '@/lib/businessService';
+import {
+  useOnlineStatus,
+  storeBusinessData,
+  getBusinessDataOffline,
+  storeMarketingStrategy,
+  getMarketingStrategyOffline,
+  storePendingOperation,
+  useSyncOnReconnect
+} from '@/lib/offlineService';
+import { serverTimestamp } from 'firebase/firestore';
 
 interface MarketingState {
   // Step tracking
@@ -63,6 +83,13 @@ interface MarketingState {
     };
   }>;
 
+  // Database state
+  userBusinesses: Business[];
+  activeBusiness: Business | null;
+  isSaving: boolean;
+  isLoadingBusinesses: boolean;
+  offlineMode: boolean;
+
   // Actions
   setLocationData: (data: MarketingState['locationData']) => void;
   setStep: (step: number) => void;
@@ -88,6 +115,12 @@ interface MarketingState {
   }) => void;
   fetchMarketingStrategy: () => Promise<void>;
   handleGoogleSearch: () => Promise<void>;
+
+  // Database actions
+  saveBusinessToDatabase: (userId: string) => Promise<string>;
+  loadUserBusinesses: (userId: string) => Promise<void>;
+  setActiveBusiness: (business: Business | null) => void;
+  loadBusinessById: (businessId: string) => Promise<void>;
 
   // Add these new properties to the interface
   geocodeResults: GeocodeResult[];
@@ -208,6 +241,13 @@ const createMarketingStore = () => {
     showResults: false,
     displayInfos: [],
 
+    // Database state
+    userBusinesses: [],
+    activeBusiness: null,
+    isSaving: false,
+    isLoadingBusinesses: false,
+    offlineMode: false,
+
     // Add new state
     geocodeResults: [],
     selectedLocation: null,
@@ -239,8 +279,52 @@ const createMarketingStore = () => {
           businessAnalysis: get().businessInfo.businessAnalysis as unknown as Record<string, unknown>
         };
         await updateSessionBusinessData(sessionBusinessData);
+
+        // If we have an active business and are authenticated, update it too
+        const activeBusiness = get().activeBusiness;
+        if (activeBusiness?.id) {
+          // Determine if we're online or offline
+          const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+          if (isOnline) {
+            // Online - update Firestore directly
+            await updateBusiness(activeBusiness.id, {
+              targetArea: get().businessInfo.targetArea,
+              businessName: get().businessInfo.businessName,
+              industry: get().businessInfo.businessAnalysis?.industry,
+              description: get().businessInfo.businessAnalysis?.description,
+              boundingBox: get().businessInfo.businessAnalysis?.boundingBox,
+              businessAnalysis: get().businessInfo.businessAnalysis || undefined
+            });
+          } else {
+            // Offline - store in IndexedDB and queue the update
+            await storeBusinessData(activeBusiness.id, {
+              ...activeBusiness,
+              targetArea: get().businessInfo.targetArea,
+              businessName: get().businessInfo.businessName,
+              industry: get().businessInfo.businessAnalysis?.industry || '',
+              description: get().businessInfo.businessAnalysis?.description,
+            });
+            
+            // Queue for sync when online
+            await storePendingOperation({
+              type: 'update',
+              collection: 'businesses',
+              id: activeBusiness.id,
+              data: {
+                targetArea: get().businessInfo.targetArea,
+                businessName: get().businessInfo.businessName,
+                industry: get().businessInfo.businessAnalysis?.industry,
+                description: get().businessInfo.businessAnalysis?.description,
+                boundingBox: get().businessInfo.businessAnalysis?.boundingBox,
+                businessAnalysis: get().businessInfo.businessAnalysis
+              }
+            });
+          }
+        }
       } catch (error) {
-        console.error('Failed to update session business data:', error);
+        console.error('Failed to update business data:', error);
+        // Still proceed - don't block the UI
       }
     },
 
@@ -253,6 +337,43 @@ const createMarketingStore = () => {
       try {
         // Convert to the format expected by the session service
         await updateSessionMarketingStrategy(strategy as unknown as Record<string, unknown>);
+
+        // If we have an active business, save the strategy to it
+        const activeBusiness = get().activeBusiness;
+        if (activeBusiness?.id) {
+          // Determine if we're online or offline
+          const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+          if (isOnline) {
+            // Online - create strategy in Firestore
+            await createMarketingStrategy(activeBusiness.id, strategy);
+          } else {
+            // Offline - store in IndexedDB and queue the create
+            const strategyId = `pending_${Date.now()}`;
+            await storeMarketingStrategy(strategyId, {
+              id: strategyId,
+              businessId: activeBusiness.id,
+              createdAt: serverTimestamp(),
+              recommendedMethods: strategy.recommendedMethods,
+              primaryRecommendation: strategy.primaryRecommendation,
+              totalEstimatedReach: strategy.totalEstimatedReach,
+              method1Analysis: strategy.method1Analysis,
+              method2Analysis: strategy.method2Analysis,
+              method3Analysis: strategy.method3Analysis,
+              campaigns: []
+            });
+            
+            // Queue for sync when online
+            await storePendingOperation({
+              type: 'create',
+              collection: 'marketingStrategies',
+              data: {
+                businessId: activeBusiness.id,
+                ...strategy
+              }
+            });
+          }
+        }
       } catch (error) {
         console.error('Failed to update session marketing strategy:', error);
       }
@@ -303,19 +424,11 @@ const createMarketingStore = () => {
     },
 
     updateSearchResults: (update) => set((state) => {
-      // Create completely new objects to ensure state updates are detected
       const newSearchResults = {
         ...state.searchResults,
         ...update,
-        // Ensure places array is a new array reference
         places: update.places ? [...update.places] : state.searchResults.places
       };
-
-      console.log('Store update:', {
-        currentPlaces: state.searchResults.places.length,
-        newPlaces: update.places?.length || 0,
-        stateAfterUpdate: newSearchResults.places.length
-      });
 
       return {
         searchResults: newSearchResults
@@ -329,6 +442,116 @@ const createMarketingStore = () => {
     setIsLoadingStrategy: (isLoading) => set({ isLoadingStrategy: isLoading }),
     setShowResults: (show) => set({ showResults: show }),
     setDisplayInfos: (infos) => set({ displayInfos: infos }),
+
+    // Database actions
+    saveBusinessToDatabase: async (userId) => {
+      const state = get();
+      set({ isSaving: true });
+      
+      try {
+        // Create a new business in the database
+        const business = await createBusiness(userId, {
+          targetArea: state.businessInfo.targetArea,
+          businessName: state.businessInfo.businessName,
+          industry: state.businessInfo.businessAnalysis?.industry,
+          description: state.businessInfo.businessAnalysis?.description,
+          boundingBox: state.businessInfo.businessAnalysis?.boundingBox,
+          businessAnalysis: state.businessInfo.businessAnalysis || undefined
+        });
+        
+        // If we have a marketing strategy, create it as well
+        if (state.marketingStrategy) {
+          await createMarketingStrategy(business.id!, state.marketingStrategy);
+        }
+        
+        // Update the session status to converted
+        await updateSessionStatus('converted', userId);
+        
+        // Set as active business
+        set({
+          activeBusiness: business,
+          isSaving: false
+        });
+        
+        return business.id!;
+      } catch (error) {
+        console.error('Failed to save business to database:', error);
+        set({ isSaving: false });
+        throw error;
+      }
+    },
+    
+    loadUserBusinesses: async (userId) => {
+      set({ isLoadingBusinesses: true });
+      
+      try {
+        // Determine if we're online or offline
+        const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+        let businesses: Business[] = [];
+        
+        if (isOnline) {
+          // Online - get from Firestore
+          businesses = await getUserBusinesses(userId);
+        } else {
+          // Offline - set a flag indicating we're in offline mode
+          set({ offlineMode: true });
+          // We would need more complex logic here to get offline businesses
+          console.log('Offline mode - unable to load businesses from server');
+        }
+        
+        set({
+          userBusinesses: businesses,
+          isLoadingBusinesses: false
+        });
+      } catch (error) {
+        console.error('Failed to load user businesses:', error);
+        set({ isLoadingBusinesses: false });
+      }
+    },
+    
+    setActiveBusiness: (business) => set({ activeBusiness: business }),
+    
+    loadBusinessById: async (businessId) => {
+      set({ isLoadingBusinesses: true });
+      
+      try {
+        // Determine if we're online or offline
+        const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+        let business: Business | null = null;
+        
+        if (isOnline) {
+          // Online - get from Firestore
+          business = await getBusinessById(businessId);
+        } else {
+          // Offline - try to get from IndexedDB
+          business = await getBusinessDataOffline(businessId);
+          
+          if (!business) {
+            throw new Error('Business not available offline');
+          }
+          
+          set({ offlineMode: true });
+        }
+        
+        if (business) {
+          // Update the current business info
+          set({
+            activeBusiness: business,
+            businessInfo: {
+              targetArea: business.targetArea,
+              businessName: business.businessName,
+              businessAnalysis: business.businessAnalysis || null
+            },
+            isLoadingBusinesses: false
+          });
+        } else {
+          throw new Error('Business not found');
+        }
+      } catch (error) {
+        console.error('Failed to load business:', error);
+        set({ isLoadingBusinesses: false });
+      }
+    },
 
     handleSubmit: async (input) => {
       const state = get();
@@ -586,6 +809,9 @@ if (typeof window !== 'undefined') {
   // We do this immediately to ensure we have a session ASAP
   initializeSession().then(sessionData => {
     console.log('Session initialized:', sessionData);
+    
+    // Sync data when we come back online
+    useSyncOnReconnect();
     
     // If session has business data, load it into the store
     if (sessionData.businessData) {
