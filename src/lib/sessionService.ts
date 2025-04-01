@@ -131,10 +131,21 @@ export const updateSessionBusinessData = async (businessData: BusinessData): Pro
     throw new Error('No session ID available');
   }
   
+  // Clean the data to ensure no undefined values
+  const cleanedData: BusinessData = {};
+  
+  // Replace undefined values with null
+  if (businessData.targetArea !== undefined) cleanedData.targetArea = businessData.targetArea;
+  if (businessData.businessName !== undefined) cleanedData.businessName = businessData.businessName;
+  if (businessData.industry !== undefined) cleanedData.industry = businessData.industry;
+  if (businessData.description !== undefined) cleanedData.description = businessData.description;
+  if (businessData.boundingBox !== undefined) cleanedData.boundingBox = businessData.boundingBox;
+  if (businessData.businessAnalysis !== undefined) cleanedData.businessAnalysis = businessData.businessAnalysis;
+  
   try {
     const sessionRef = doc(db, 'sessions', sessionId);
     await updateDoc(sessionRef, {
-      'businessData': businessData,
+      'businessData': cleanedData,
       'lastActive': serverTimestamp()
     });
   } catch (error) {
@@ -154,10 +165,20 @@ export const updateSessionMarketingStrategy = async (marketingStrategy: Record<s
     throw new Error('No session ID available');
   }
   
+  // Clean the data to ensure no undefined values
+  const cleanedStrategy: Record<string, unknown> = {};
+  
+  // Replace undefined values with null
+  for (const key in marketingStrategy) {
+    if (marketingStrategy[key] !== undefined) {
+      cleanedStrategy[key] = marketingStrategy[key];
+    }
+  }
+  
   try {
     const sessionRef = doc(db, 'sessions', sessionId);
     await updateDoc(sessionRef, {
-      'marketingStrategy': marketingStrategy,
+      'marketingStrategy': cleanedStrategy,
       'lastActive': serverTimestamp()
     });
   } catch (error) {

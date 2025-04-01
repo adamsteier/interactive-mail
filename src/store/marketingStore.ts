@@ -310,41 +310,55 @@ const createMarketingStore = () => {
 
       // Then, save to session
       try {
+        // Get current state after update
+        const currentState = get();
+        
         // Convert to the format expected by the session service
+        // Ensure no undefined values, replace with null or empty strings
         const sessionBusinessData: BusinessData = {
-          targetArea: get().businessInfo.targetArea,
-          businessName: get().businessInfo.businessName,
-          industry: get().businessInfo.businessAnalysis?.industry,
-          description: get().businessInfo.businessAnalysis?.description,
-          boundingBox: get().businessInfo.businessAnalysis?.boundingBox,
-          businessAnalysis: get().businessInfo.businessAnalysis as unknown as Record<string, unknown>
+          targetArea: currentState.businessInfo.targetArea || '',
+          businessName: currentState.businessInfo.businessName || '',
+          // Only include these fields if businessAnalysis exists
+          ...(currentState.businessInfo.businessAnalysis && {
+            industry: currentState.businessInfo.businessAnalysis.industry || '',
+            description: currentState.businessInfo.businessAnalysis.description || '',
+            boundingBox: currentState.businessInfo.businessAnalysis.boundingBox || null,
+            businessAnalysis: currentState.businessInfo.businessAnalysis as unknown as Record<string, unknown>
+          })
         };
+        
         await updateSessionBusinessData(sessionBusinessData);
 
         // If we have an active business and are authenticated, update it too
-        const activeBusiness = get().activeBusiness;
+        const activeBusiness = currentState.activeBusiness;
         if (activeBusiness?.id) {
           // Determine if we're online or offline
           const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
           if (isOnline) {
             // Online - update Firestore directly
-            await updateBusiness(activeBusiness.id, {
-              targetArea: get().businessInfo.targetArea,
-              businessName: get().businessInfo.businessName,
-              industry: get().businessInfo.businessAnalysis?.industry,
-              description: get().businessInfo.businessAnalysis?.description,
-              boundingBox: get().businessInfo.businessAnalysis?.boundingBox,
-              businessAnalysis: get().businessInfo.businessAnalysis || undefined
-            });
+            // Ensure no undefined values in the update
+            const businessUpdate = {
+              targetArea: currentState.businessInfo.targetArea || '',
+              businessName: currentState.businessInfo.businessName || '',
+              ...(currentState.businessInfo.businessAnalysis && {
+                industry: currentState.businessInfo.businessAnalysis.industry || '',
+                description: currentState.businessInfo.businessAnalysis.description || '',
+                boundingBox: currentState.businessInfo.businessAnalysis.boundingBox || null,
+                businessAnalysis: currentState.businessInfo.businessAnalysis
+              })
+            };
+            
+            await updateBusiness(activeBusiness.id, businessUpdate);
           } else {
             // Offline - store in IndexedDB and queue the update
+            // Same safety against undefined values
             await storeBusinessData(activeBusiness.id, {
               ...activeBusiness,
-              targetArea: get().businessInfo.targetArea,
-              businessName: get().businessInfo.businessName,
-              industry: get().businessInfo.businessAnalysis?.industry || '',
-              description: get().businessInfo.businessAnalysis?.description,
+              targetArea: currentState.businessInfo.targetArea || '',
+              businessName: currentState.businessInfo.businessName || '',
+              industry: currentState.businessInfo.businessAnalysis?.industry || '',
+              description: currentState.businessInfo.businessAnalysis?.description || '',
             });
             
             // Queue for sync when online
@@ -353,12 +367,14 @@ const createMarketingStore = () => {
               collection: 'businesses',
               id: activeBusiness.id,
               data: {
-                targetArea: get().businessInfo.targetArea,
-                businessName: get().businessInfo.businessName,
-                industry: get().businessInfo.businessAnalysis?.industry,
-                description: get().businessInfo.businessAnalysis?.description,
-                boundingBox: get().businessInfo.businessAnalysis?.boundingBox,
-                businessAnalysis: get().businessInfo.businessAnalysis
+                targetArea: currentState.businessInfo.targetArea || '',
+                businessName: currentState.businessInfo.businessName || '',
+                ...(currentState.businessInfo.businessAnalysis && {
+                  industry: currentState.businessInfo.businessAnalysis.industry || '',
+                  description: currentState.businessInfo.businessAnalysis.description || '',
+                  boundingBox: currentState.businessInfo.businessAnalysis.boundingBox || null,
+                  businessAnalysis: currentState.businessInfo.businessAnalysis
+                })
               }
             });
           }
@@ -451,12 +467,15 @@ const createMarketingStore = () => {
       try {
         // Convert to the format expected by the session service
         const sessionBusinessData: BusinessData = {
-          targetArea: get().businessInfo.targetArea,
-          businessName: get().businessInfo.businessName,
-          industry: analysis?.industry,
-          description: analysis?.description,
-          boundingBox: analysis?.boundingBox,
-          businessAnalysis: analysis as unknown as Record<string, unknown>
+          targetArea: get().businessInfo.targetArea || '',
+          businessName: get().businessInfo.businessName || '',
+          // Only include these fields if analysis exists
+          ...(analysis && {
+            industry: analysis.industry || '',
+            description: analysis.description || '',
+            boundingBox: analysis.boundingBox || null,
+            businessAnalysis: analysis as unknown as Record<string, unknown>
+          })
         };
         await updateSessionBusinessData(sessionBusinessData);
       } catch (error) {
@@ -492,12 +511,14 @@ const createMarketingStore = () => {
       try {
         // Create a new business in the database
         const business = await createBusiness(userId, {
-          targetArea: state.businessInfo.targetArea,
-          businessName: state.businessInfo.businessName,
-          industry: state.businessInfo.businessAnalysis?.industry,
-          description: state.businessInfo.businessAnalysis?.description,
-          boundingBox: state.businessInfo.businessAnalysis?.boundingBox,
-          businessAnalysis: state.businessInfo.businessAnalysis || undefined
+          targetArea: state.businessInfo.targetArea || '',
+          businessName: state.businessInfo.businessName || '',
+          ...(state.businessInfo.businessAnalysis && {
+            industry: state.businessInfo.businessAnalysis.industry || '',
+            description: state.businessInfo.businessAnalysis.description || '',
+            boundingBox: state.businessInfo.businessAnalysis.boundingBox || null,
+            businessAnalysis: state.businessInfo.businessAnalysis
+          })
         });
         
         // If we have a marketing strategy, create it as well
