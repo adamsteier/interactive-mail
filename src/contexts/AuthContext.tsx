@@ -8,16 +8,18 @@ import {
   createUserWithEmailAndPassword,
   signOut,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  UserCredential
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { getSessionId, updateSessionStatus } from '@/lib/sessionService';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
+  signIn: (email: string, password: string) => Promise<UserCredential>;
+  signUp: (email: string, password: string) => Promise<UserCredential>;
+  signInWithGoogle: () => Promise<UserCredential>;
   logout: () => Promise<void>;
 }
 
@@ -38,17 +40,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return unsubscribe;
   }, []);
 
+  // Helper function to convert anonymous session after authentication
+  const convertAnonymousSession = async (user: User) => {
+    try {
+      const sessionId = getSessionId();
+      if (sessionId) {
+        await updateSessionStatus('converted', user.uid);
+        console.log('Session converted for user:', user.uid);
+      }
+    } catch (error) {
+      console.error('Failed to convert session:', error);
+      // Don't throw - this shouldn't interrupt the login flow
+    }
+  };
+
   const signIn = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
+    const credential = await signInWithEmailAndPassword(auth, email, password);
+    // Convert any anonymous session to this user
+    await convertAnonymousSession(credential.user);
+    return credential;
   };
 
   const signUp = async (email: string, password: string) => {
-    await createUserWithEmailAndPassword(auth, email, password);
+    const credential = await createUserWithEmailAndPassword(auth, email, password);
+    // Convert any anonymous session to this new user
+    await convertAnonymousSession(credential.user);
+    return credential;
   };
 
   const signInWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+    const credential = await signInWithPopup(auth, provider);
+    // Convert any anonymous session to this user
+    await convertAnonymousSession(credential.user);
+    return credential;
   };
 
   const logout = async () => {

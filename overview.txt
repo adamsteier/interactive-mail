@@ -286,3 +286,164 @@ The store also contains key actions like:
 15. All saved designs are accessible in the postcard preview page for future reference
 
 This application combines market analysis, lead generation, and customized marketing material creation in one integrated workflow to help businesses reach their target audience effectively.
+
+## Database Implementation Plan
+
+This section outlines the step-by-step process for implementing database storage in the application, including handling anonymous sessions and transitioning to authenticated user data.
+
+### Database Structure
+
+#### 1. Sessions Collection
+```
+sessions/
+  ├─ session_id/
+  │  ├─ createdAt: timestamp
+  │  ├─ lastActive: timestamp
+  │  ├─ status: "anonymous" | "converted" | "abandoned"
+  │  ├─ convertedToUserId: string (null if anonymous)
+  │  ├─ businessData: {
+  │  │  ├─ targetArea: string
+  │  │  ├─ businessName: string
+  │  │  ├─ industry: string
+  │  │  ├─ description: string
+  │  │  ├─ boundingBox: object
+  │  │  └─ businessAnalysis: object
+  │  ├─ marketingStrategy: {
+  │  │  ├─ recommendedMethods: array
+  │  │  ├─ primaryRecommendation: string
+  │  │  ├─ totalEstimatedReach: number
+  │  │  ├─ method1Analysis: object
+  │  │  └─ method2Analysis: object
+  │  └─ selectedBusinessTypes: array
+```
+
+#### 2. Users Collection
+```
+users/
+  ├─ user_id/
+  │  ├─ email: string
+  │  ├─ createdAt: timestamp
+  │  ├─ lastLogin: timestamp
+  │  ├─ businesses: [businessId1, businessId2]
+  │  └─ activeCampaigns: [campaignId1, campaignId2]
+```
+
+#### 3. Businesses Collection
+```
+businesses/
+  ├─ business_id/
+  │  ├─ userId: string (owner)
+  │  ├─ createdAt: timestamp
+  │  ├─ lastModified: timestamp
+  │  ├─ targetArea: string
+  │  ├─ businessName: string
+  │  ├─ industry: string
+  │  ├─ description: string
+  │  ├─ boundingBox: object
+  │  ├─ businessAnalysis: object
+  │  └─ marketingStrategies: [strategyId1, strategyId2]
+```
+
+#### 4. Marketing Strategies Collection
+```
+marketingStrategies/
+  ├─ strategy_id/
+  │  ├─ businessId: string (reference)
+  │  ├─ createdAt: timestamp
+  │  ├─ recommendedMethods: array
+  │  ├─ primaryRecommendation: string
+  │  ├─ totalEstimatedReach: number
+  │  ├─ method1Analysis: object
+  │  ├─ method2Analysis: object
+  │  └─ campaigns: [campaignId1, campaignId2]
+```
+
+#### 5. Campaigns Collection
+```
+campaigns/
+  ├─ campaign_id/
+  │  ├─ businessId: string (reference)
+  │  ├─ strategyId: string (reference)
+  │  ├─ createdAt: timestamp
+  │  ├─ status: "draft" | "active" | "completed" | "canceled"
+  │  ├─ selectedBusinessTypes: array
+  │  ├─ leads: {
+  │  │  ├─ lead_id: {
+  │  │  │  ├─ place_id: string
+  │  │  │  ├─ name: string
+  │  │  │  ├─ vicinity: string
+  │  │  │  ├─ businessType: string
+  │  │  │  └─ selected: boolean
+  │  │  ├─ ...
+  │  └─ postcardDesigns: [designId1, designId2]
+```
+
+#### 6. Postcard Designs Collection
+```
+postcardDesigns/
+  ├─ design_id/
+  │  ├─ campaignId: string (reference)
+  │  ├─ createdAt: timestamp
+  │  ├─ designType: "ai" | "upload" | "designer"
+  │  ├─ designData: object
+  │  ├─ previewUrl: string
+  │  └─ status: "draft" | "final"
+```
+
+### Implementation Steps
+
+#### Phase 1: Anonymous Session Tracking
+- [x] 1. Create a Firebase service module to access Firestore
+- [x] 2. Implement session generation and storage in localStorage
+- [x] 3. Create a session document in Firestore when a user first visits
+- [x] 4. Update the session with business data as the user progresses through steps
+- [x] 5. Implement real-time synchronization for session updates
+- [x] 6. Add status tracking for anonymous sessions
+
+#### Phase 2: Business Data Storage
+- [ ] 7. Enhance marketingStore to synchronize with Firestore
+- [ ] 8. Store business information and analysis in the session document
+- [ ] 9. Save marketing strategy data when generated
+- [ ] 10. Implement error handling and offline capabilities
+- [ ] 11. Add functions to retrieve session data when returning
+
+#### Phase 3: Authentication Integration
+- [ ] 12. Enhance AuthContext to handle session conversion
+- [ ] 13. Create function to transfer anonymous session data to authenticated user
+- [ ] 14. Create a proper business document when a session is converted
+- [ ] 15. Link the new business to the user's document
+- [ ] 16. Implement proper error handling for the conversion process
+- [ ] 17. Add session cleanup for converted sessions
+
+#### Phase 4: Campaign and Leads Management
+- [ ] 18. Create a campaign document when business types are selected
+- [ ] 19. Store selected business types in the campaign
+- [ ] 20. Implement leads storage within campaigns as they are found
+- [ ] 21. Add functionality to update lead selection status
+- [ ] 22. Implement batch operations for efficiency with multiple leads
+- [ ] 23. Add functionality to retrieve and display campaign leads
+
+#### Phase 5: Postcard Design Storage
+- [ ] 24. Create postcard design documents linked to campaigns
+- [ ] 25. Implement storage for design wizard inputs at each step
+- [ ] 26. Add functionality to save generated designs
+- [ ] 27. Implement preview image generation and storage
+- [ ] 28. Add retrieval functions for the postcard preview page
+- [ ] 29. Implement deletion and archive capabilities
+
+#### Phase 6: UI Integration and Cleanup
+- [ ] 30. Add loading states and error handling in UI components
+- [ ] 31. Implement data fetching for returning users
+- [ ] 32. Add dashboard showing user's businesses and campaigns
+- [ ] 33. Implement session timeout and auto-save functionality
+- [ ] 34. Add analytics tracking for conversion rates
+- [ ] 35. Set up automatic cleanup of abandoned anonymous sessions
+
+#### Phase 7: Performance Optimization
+- [ ] 36. Implement data pagination for large collections
+- [ ] 37. Add caching strategies for frequently accessed data
+- [ ] 38. Optimize queries with proper indexing
+- [ ] 39. Implement rate limiting for write operations
+- [ ] 40. Add monitoring for database usage and costs
+
+This implementation plan will be executed incrementally, with each phase building upon the previous one. The approach prioritizes early capture of user data (even when anonymous) and smooth transition to authenticated sessions, ensuring no data is lost during the process.

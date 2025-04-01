@@ -12,6 +12,8 @@ import { useMarketingStore } from '@/store/marketingStore';
 import PlacesLeadsCollection from '@/components/PlacesLeadsCollection';
 import LocationSelector from '@/components/LocationSelector';
 import TechnoConfetti from '@/components/TechnoConfetti';
+import { initializeSession } from '@/lib/sessionService';
+import { useAuth } from '@/contexts/AuthContext';
 
 const LoadingSkeleton = () => (
   <div className="w-full rounded-lg border-2 border-electric-teal bg-charcoal/80 px-4 md:px-6 py-3 shadow-glow backdrop-blur-sm">
@@ -26,6 +28,8 @@ export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [showConfetti, setShowConfetti] = useState(false);
+  
+  const { user } = useAuth();
   
   const { 
     // State
@@ -68,6 +72,27 @@ export default function Home() {
       placeholder: "Enter your business name"
     }
   ];
+
+  // Initialize session when component mounts
+  useEffect(() => {
+    const initSession = async () => {
+      try {
+        const session = await initializeSession();
+        console.log('Session initialized in page component:', session.status);
+        
+        // If user is authenticated and session is anonymous, mark as converted
+        if (user && session.status === 'anonymous') {
+          const { updateSessionStatus } = await import('@/lib/sessionService');
+          await updateSessionStatus('converted', user.uid);
+          console.log('Anonymous session converted to user session');
+        }
+      } catch (error) {
+        console.error('Failed to initialize session in page component:', error);
+      }
+    };
+    
+    initSession();
+  }, [user]);
 
   useEffect(() => {
     const fetchLocation = async () => {
