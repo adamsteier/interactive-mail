@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useMarketingStore } from '@/store/marketingStore';
 import { Campaign } from '@/lib/campaignService';
+import PostcardUploader from './PostcardUploader';
 
 const CampaignManager = () => {
   const [campaignName, setCampaignName] = useState('');
@@ -195,69 +196,81 @@ const CampaignManager = () => {
       
       {/* Campaign Leads */}
       {currentCampaign && (
-        <div className="bg-white p-4 rounded shadow">
-          <div className="flex justify-between items-center mb-3">
-            <h3 className="text-lg font-semibold">
-              {currentCampaign.name} - Leads
-            </h3>
-            <div className="space-x-2">
-              <button
-                onClick={() => handleSelectAll(true)}
-                className="px-3 py-1 bg-blue-600 text-white text-sm rounded"
-              >
-                Select All
-              </button>
-              <button
-                onClick={() => handleSelectAll(false)}
-                className="px-3 py-1 bg-gray-600 text-white text-sm rounded"
-              >
-                Deselect All
-              </button>
-            </div>
-          </div>
-          
-          {isLoadingLeads ? (
-            <p>Loading leads...</p>
-          ) : campaignLeads.length === 0 ? (
-            <p>No leads yet in this campaign.</p>
-          ) : (
-            <div className="space-y-2">
-              {campaignLeads.map(lead => (
-                <div 
-                  key={lead.id}
-                  className={`p-3 border rounded flex items-start ${
-                    lead.selected ? 'border-green-500 bg-green-50' : ''
-                  }`}
+        <>
+          <div className="bg-white p-4 rounded shadow">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-lg font-semibold">
+                {currentCampaign.name} - Leads
+              </h3>
+              <div className="space-x-2">
+                <button
+                  onClick={() => handleSelectAll(true)}
+                  className="px-3 py-1 bg-blue-600 text-white text-sm rounded"
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedLeads[lead.id!] ?? lead.selected}
-                    onChange={e => handleLeadSelection(lead.id!, e.target.checked)}
-                    className="mt-1 mr-3"
-                  />
-                  <div>
-                    <div className="font-medium">{lead.businessName}</div>
-                    <div className="text-sm">{lead.address}</div>
-                    {lead.phoneNumber && (
-                      <div className="text-sm">{lead.phoneNumber}</div>
-                    )}
-                    {lead.website && (
-                      <a 
-                        href={lead.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-blue-600 hover:underline"
-                      >
-                        {lead.website}
-                      </a>
-                    )}
-                    <div className="text-xs text-gray-500 mt-1">{lead.businessType}</div>
-                  </div>
-                </div>
-              ))}
+                  Select All
+                </button>
+                <button
+                  onClick={() => handleSelectAll(false)}
+                  className="px-3 py-1 bg-gray-600 text-white text-sm rounded"
+                >
+                  Deselect All
+                </button>
+              </div>
             </div>
-          )}
-        </div>
+            
+            {isLoadingLeads ? (
+              <p>Loading leads...</p>
+            ) : campaignLeads.length === 0 ? (
+              <p>No leads yet in this campaign.</p>
+            ) : (
+              <div className="space-y-2">
+                {campaignLeads.map(lead => (
+                  <div 
+                    key={lead.id}
+                    className={`p-3 border rounded flex items-start ${
+                      lead.selected ? 'border-green-500 bg-green-50' : ''
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedLeads[lead.id!] ?? lead.selected}
+                      onChange={e => handleLeadSelection(lead.id!, e.target.checked)}
+                      className="mt-1 mr-3"
+                    />
+                    <div>
+                      <div className="font-medium">{lead.businessName}</div>
+                      <div className="text-sm">{lead.address}</div>
+                      {lead.phoneNumber && (
+                        <div className="text-sm">{lead.phoneNumber}</div>
+                      )}
+                      {lead.website && (
+                        <a 
+                          href={lead.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 hover:underline"
+                        >
+                          {lead.website}
+                        </a>
+                      )}
+                      <div className="text-xs text-gray-500 mt-1">{lead.businessType}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Postcard Designs Section */}
+          <div className="mt-6">
+            {currentCampaign.id && activeBusiness?.id && (
+              <PostcardUploader 
+                campaignId={currentCampaign.id} 
+                businessId={activeBusiness.id} 
+              />
+            )}
+          </div>
+        </>
       )}
     </div>
   );

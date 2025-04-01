@@ -27,6 +27,7 @@ export interface Campaign {
   status: 'draft' | 'active' | 'completed';
   leadCount: number;
   selectedLeadCount: number;
+  postcardDesigns?: string[]; // Array of design IDs
 }
 
 export interface CampaignLead {
@@ -63,7 +64,8 @@ export const createCampaign = async (
     updatedAt: serverTimestamp() as Timestamp,
     status: 'draft',
     leadCount: 0,
-    selectedLeadCount: 0
+    selectedLeadCount: 0,
+    postcardDesigns: []
   };
 
   await setDoc(campaignRef, campaign);
