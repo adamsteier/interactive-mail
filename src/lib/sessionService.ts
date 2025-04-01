@@ -277,4 +277,72 @@ export const initializeSession = async (): Promise<SessionData> => {
     // Fallback to creating a new session in case of errors
     return await createSession();
   }
+};
+
+/**
+ * Cleanup a session by marking it as converted or abandoned
+ * @param sessionId The session ID to cleanup
+ * @param userId Optional user ID for converted sessions
+ * @param action The cleanup action ('convert' or 'abandon')
+ */
+export const cleanupSession = async (
+  sessionId: string,
+  action: 'convert' | 'abandon',
+  userId?: string
+): Promise<void> => {
+  try {
+    if (!sessionId) {
+      throw new Error('No session ID provided');
+    }
+    
+    const sessionRef = doc(db, 'sessions', sessionId);
+    const sessionSnap = await getDoc(sessionRef);
+    
+    if (!sessionSnap.exists()) {
+      throw new Error('Session not found');
+    }
+    
+    // If the session is already converted or abandoned, do nothing
+    const sessionData = sessionSnap.data();
+    if (sessionData.status === 'converted' || sessionData.status === 'abandoned') {
+      return;
+    }
+    
+    if (action === 'convert') {
+      if (!userId) {
+        throw new Error('User ID is required for session conversion');
+      }
+      
+      // Mark the session as converted
+      await updateDoc(sessionRef, {
+        status: 'converted',
+        convertedToUserId: userId,
+        lastActive: serverTimestamp()
+      });
+      
+      console.log('Session converted successfully:', sessionId);
+    } else {
+      // Mark the session as abandoned
+      await updateDoc(sessionRef, {
+        status: 'abandoned',
+        lastActive: serverTimestamp()
+      });
+      
+      console.log('Session abandoned successfully:', sessionId);
+    }
+  } catch (error) {
+    console.error('Error cleaning up session:', error);
+    throw error;
+  }
+};
+
+/**
+ * Cleanup old or abandoned sessions (useful for scheduled cleanup)
+ * @param olderThan Timestamp for sessions older than this to be cleaned up
+ */
+export const cleanupOldSessions = async (olderThan: Date): Promise<void> => {
+  // This function would be implemented with Firestore queries
+  // to find and clean up old sessions. It's a placeholder for now
+  // as it would typically be run by a server-side process.
+  console.log('Cleaning up sessions older than:', olderThan);
 }; 

@@ -13,7 +13,7 @@ import {
   arrayUnion
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { updateSessionStatus } from './sessionService';
+import { cleanupSession } from './sessionService';
 import { BusinessAnalysis } from '@/types/businessAnalysis';
 import { MarketingStrategy } from '@/types/marketing';
 
@@ -287,8 +287,8 @@ export const convertSessionToBusiness = async (
       );
     }
     
-    // Update the session status to converted
-    await updateSessionStatus('converted', userId);
+    // Clean up the session by marking it as converted
+    await cleanupSession(sessionId, 'convert', userId);
     
     return business;
   } catch (error) {

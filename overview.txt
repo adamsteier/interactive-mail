@@ -408,12 +408,12 @@ postcardDesigns/
 - [x] 11. Add functions to retrieve session data when returning
 
 #### Phase 3: Authentication Integration
-- [ ] 12. Enhance AuthContext to handle session conversion
-- [ ] 13. Create function to transfer anonymous session data to authenticated user
-- [ ] 14. Create a proper business document when a session is converted
-- [ ] 15. Link the new business to the user's document
-- [ ] 16. Implement proper error handling for the conversion process
-- [ ] 17. Add session cleanup for converted sessions
+- [x] 12. Enhance AuthContext to handle session conversion
+- [x] 13. Create function to transfer anonymous session data to authenticated user
+- [x] 14. Create a proper business document when a session is converted
+- [x] 15. Link the new business to the user's document
+- [x] 16. Implement proper error handling for the conversion process
+- [x] 17. Add session cleanup for converted sessions
 
 #### Phase 4: Campaign and Leads Management
 - [ ] 18. Create a campaign document when business types are selected
