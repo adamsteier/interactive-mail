@@ -9,8 +9,7 @@ import {
   updateSessionMarketingStrategy,
   updateSessionBusinessTypes,
   updateSessionStatus,
-  BusinessData,
-  getSessionId
+  BusinessData
 } from '@/lib/sessionService';
 import {
   createBusiness,
@@ -21,13 +20,29 @@ import {
   getBusinessById
 } from '@/lib/businessService';
 import {
-  useOnlineStatus,
+  Campaign,
+  CampaignLead,
+  createCampaign,
+  addLeadsToCampaign,
+  getCampaignById,
+  getBusinessCampaigns,
+  getCampaignLeads,
+  updateLead,
+  batchUpdateLeads,
+  convertPlaceToLead
+} from '@/lib/campaignService';
+import {
   storeBusinessData,
   getBusinessDataOffline,
   storeMarketingStrategy,
-  getMarketingStrategyOffline,
   storePendingOperation,
-  useSyncOnReconnect
+  useSyncOnReconnect,
+  storeCampaign,
+  storeCampaignLead,
+  storeCampaignLeads,
+  getCampaignOffline,
+  getBusinessCampaignsOffline,
+  getCampaignLeadsOffline
 } from '@/lib/offlineService';
 import { serverTimestamp } from 'firebase/firestore';
 
@@ -64,6 +79,14 @@ interface MarketingState {
     totalGridPoints: number;
     currentGridPoint: number;
   };
+
+  // Campaign Management
+  currentCampaign: Campaign | null;
+  businessCampaigns: Campaign[];
+  campaignLeads: CampaignLead[];
+  isLoadingCampaigns: boolean;
+  isLoadingLeads: boolean;
+  isSavingCampaign: boolean;
 
   // UI State
   userInput: string;
@@ -121,6 +144,16 @@ interface MarketingState {
   loadUserBusinesses: (userId: string) => Promise<void>;
   setActiveBusiness: (business: Business | null) => void;
   loadBusinessById: (businessId: string) => Promise<void>;
+
+  // Campaign actions
+  createNewCampaign: (name: string) => Promise<string>;
+  loadBusinessCampaigns: (businessId: string) => Promise<void>;
+  setCurrentCampaign: (campaign: Campaign | null) => void;
+  loadCampaignById: (campaignId: string) => Promise<void>;
+  loadCampaignLeads: (campaignId: string) => Promise<void>;
+  updateCampaignLead: (leadId: string, updates: Partial<Omit<CampaignLead, 'id' | 'campaignId' | 'createdAt'>>) => Promise<void>;
+  batchUpdateCampaignLeads: (leads: Array<{ id: string; updates: Partial<Omit<CampaignLead, 'id' | 'campaignId' | 'createdAt'>> }>) => Promise<void>;
+  savePlacesToCampaign: () => Promise<void>;
 
   // Add these new properties to the interface
   geocodeResults: GeocodeResult[];
@@ -231,6 +264,14 @@ const createMarketingStore = () => {
       totalGridPoints: 0,
       currentGridPoint: 0
     },
+
+    // Campaign state
+    currentCampaign: null,
+    businessCampaigns: [],
+    campaignLeads: [],
+    isLoadingCampaigns: false,
+    isLoadingLeads: false,
+    isSavingCampaign: false,
 
     // UI State
     userInput: '',
@@ -798,6 +839,365 @@ const createMarketingStore = () => {
 
     setGeocodeResults: (results) => set({ geocodeResults: results }),
     setSelectedLocation: (location) => set({ selectedLocation: location }),
+
+    // Campaign actions
+    createNewCampaign: async (name) => {
+      const state = get();
+      set({ isSavingCampaign: true });
+      
+      try {
+        if (!state.activeBusiness?.id) {
+          throw new Error('No active business');
+        }
+        
+        // Determine if we're online or offline
+        const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+        
+        if (isOnline) {
+          // Online - create in Firestore
+          const campaign = await createCampaign(
+            state.activeBusiness.id,
+            name,
+            Array.from(state.selectedBusinessTypes)
+          );
+          
+          // Add to local state
+          set(state => ({
+            currentCampaign: campaign,
+            businessCampaigns: [...state.businessCampaigns, campaign],
+            isSavingCampaign: false
+          }));
+          
+          return campaign.id!;
+        } else {
+          // Offline - create a temporary ID
+          const tempId = `temp_campaign_${Date.now()}`;
+          
+          // Create a local campaign object
+          const campaign: Campaign = {
+            id: tempId,
+            businessId: state.activeBusiness.id,
+            name,
+            businessTypes: Array.from(state.selectedBusinessTypes),
+            createdAt: null,
+            updatedAt: null,
+            status: 'draft',
+            leadCount: 0,
+            selectedLeadCount: 0
+          };
+          
+          // Store in IndexedDB
+          await storeCampaign(tempId, campaign);
+          
+          // Queue for sync when online
+          await storePendingOperation({
+            type: 'create',
+            collection: 'campaigns',
+            data: {
+              businessId: state.activeBusiness.id,
+              name,
+              businessTypes: Array.from(state.selectedBusinessTypes),
+              status: 'draft'
+            }
+          });
+          
+          // Update state
+          set(state => ({
+            currentCampaign: campaign,
+            businessCampaigns: [...state.businessCampaigns, campaign],
+            isSavingCampaign: false,
+            offlineMode: true
+          }));
+          
+          return tempId;
+        }
+      } catch (error) {
+        console.error('Failed to create campaign:', error);
+        set({ isSavingCampaign: false });
+        throw error;
+      }
+    },
+    
+    loadBusinessCampaigns: async (businessId) => {
+      set({ isLoadingCampaigns: true });
+      
+      try {
+        // Determine if we're online or offline
+        const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+        let campaigns: Campaign[] = [];
+        
+        if (isOnline) {
+          // Online - get from Firestore
+          campaigns = await getBusinessCampaigns(businessId);
+        } else {
+          // Offline - get from IndexedDB
+          campaigns = await getBusinessCampaignsOffline(businessId);
+          set({ offlineMode: true });
+        }
+        
+        set({
+          businessCampaigns: campaigns,
+          isLoadingCampaigns: false
+        });
+      } catch (error) {
+        console.error('Failed to load business campaigns:', error);
+        set({ isLoadingCampaigns: false });
+      }
+    },
+    
+    setCurrentCampaign: (campaign) => set({ currentCampaign: campaign }),
+    
+    loadCampaignById: async (campaignId) => {
+      set({ isLoadingCampaigns: true });
+      
+      try {
+        // Determine if we're online or offline
+        const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+        let campaign: Campaign | null = null;
+        
+        if (isOnline) {
+          // Online - get from Firestore
+          campaign = await getCampaignById(campaignId);
+        } else {
+          // Offline - get from IndexedDB
+          campaign = await getCampaignOffline(campaignId);
+          set({ offlineMode: true });
+        }
+        
+        if (campaign) {
+          set({
+            currentCampaign: campaign,
+            isLoadingCampaigns: false
+          });
+        } else {
+          throw new Error('Campaign not found');
+        }
+      } catch (error) {
+        console.error('Failed to load campaign:', error);
+        set({ isLoadingCampaigns: false });
+      }
+    },
+    
+    loadCampaignLeads: async (campaignId) => {
+      set({ isLoadingLeads: true });
+      
+      try {
+        // Determine if we're online or offline
+        const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+        let leads: CampaignLead[] = [];
+        
+        if (isOnline) {
+          // Online - get from Firestore
+          leads = await getCampaignLeads(campaignId);
+        } else {
+          // Offline - get from IndexedDB
+          leads = await getCampaignLeadsOffline(campaignId);
+          set({ offlineMode: true });
+        }
+        
+        set({
+          campaignLeads: leads,
+          isLoadingLeads: false
+        });
+      } catch (error) {
+        console.error('Failed to load campaign leads:', error);
+        set({ isLoadingLeads: false });
+      }
+    },
+    
+    updateCampaignLead: async (leadId, updates) => {
+      try {
+        // Determine if we're online or offline
+        const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+        
+        if (isOnline) {
+          // Online - update in Firestore
+          await updateLead(leadId, updates);
+        } else {
+          // Offline - update in IndexedDB
+          const state = get();
+          const lead = state.campaignLeads.find(l => l.id === leadId);
+          
+          if (lead) {
+            const updatedLead = { ...lead, ...updates };
+            await storeCampaignLead(leadId, updatedLead as CampaignLead);
+            
+            // Queue for sync when online
+            await storePendingOperation({
+              type: 'update',
+              collection: 'campaignLeads',
+              id: leadId,
+              data: updates
+            });
+            
+            set({ offlineMode: true });
+          } else {
+            throw new Error('Lead not found');
+          }
+        }
+        
+        // Update local state
+        set(state => ({
+          campaignLeads: state.campaignLeads.map(lead => 
+            lead.id === leadId ? { ...lead, ...updates } : lead
+          )
+        }));
+      } catch (error) {
+        console.error('Failed to update lead:', error);
+      }
+    },
+    
+    batchUpdateCampaignLeads: async (leads) => {
+      try {
+        // Determine if we're online or offline
+        const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+        
+        if (isOnline) {
+          // Online - batch update in Firestore
+          await batchUpdateLeads(leads);
+        } else {
+          // Offline - update in IndexedDB
+          const state = get();
+          const leadsToUpdate: Array<CampaignLead & { id: string }> = [];
+          
+          // Prepare leads for update
+          leads.forEach(({ id, updates }) => {
+            const lead = state.campaignLeads.find(l => l.id === id);
+            
+            if (lead && lead.id) {
+              const updatedLead = { ...lead, ...updates, id: lead.id };
+              leadsToUpdate.push(updatedLead as CampaignLead & { id: string });
+              
+              // Queue for sync when online
+              storePendingOperation({
+                type: 'update',
+                collection: 'campaignLeads',
+                id: lead.id,
+                data: updates
+              }).catch(error => console.error('Failed to queue operation:', error));
+            }
+          });
+          
+          // Store all updates
+          if (leadsToUpdate.length > 0) {
+            await storeCampaignLeads(leadsToUpdate);
+            set({ offlineMode: true });
+          }
+        }
+        
+        // Update local state
+        set(state => {
+          const updatedLeads = [...state.campaignLeads];
+          
+          leads.forEach(({ id, updates }) => {
+            const index = updatedLeads.findIndex(lead => lead.id === id);
+            if (index !== -1) {
+              updatedLeads[index] = { ...updatedLeads[index], ...updates };
+            }
+          });
+          
+          return { campaignLeads: updatedLeads };
+        });
+      } catch (error) {
+        console.error('Failed to batch update leads:', error);
+      }
+    },
+    
+    savePlacesToCampaign: async () => {
+      const state = get();
+      set({ isSavingCampaign: true });
+      
+      try {
+        if (!state.currentCampaign?.id) {
+          throw new Error('No active campaign');
+        }
+        
+        // Determine if we're online or offline
+        const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+        
+        if (isOnline) {
+          // Online - add leads to campaign in Firestore
+          await addLeadsToCampaign(state.currentCampaign.id, state.collectedLeads);
+          
+          // Reload the campaign leads
+          await get().loadCampaignLeads(state.currentCampaign.id);
+        } else {
+          // Offline - create leads in IndexedDB
+          const campaignId = state.currentCampaign.id;
+          const leadsToStore: Array<CampaignLead & { id: string }> = [];
+          
+          // Convert collected places to leads
+          state.collectedLeads.forEach((place, index) => {
+            const tempId = `temp_lead_${Date.now()}_${index}`;
+            const lead = {
+              ...convertPlaceToLead(place, campaignId),
+              id: tempId
+            };
+            
+            leadsToStore.push(lead);
+            
+            // Queue for sync when online
+            storePendingOperation({
+              type: 'create',
+              collection: 'campaignLeads',
+              data: {
+                campaignId,
+                placeId: place.place_id,
+                businessName: place.name,
+                address: place.vicinity || place.formatted_address || '',
+                phoneNumber: place.formatted_phone_number,
+                website: place.website,
+                businessType: place.businessType || '',
+                selected: false,
+                location: {
+                  lat: place.geometry.location.lat,
+                  lng: place.geometry.location.lng
+                },
+                contacted: false
+              }
+            }).catch(error => console.error('Failed to queue operation:', error));
+          });
+          
+          // Store leads in IndexedDB
+          if (leadsToStore.length > 0) {
+            await storeCampaignLeads(leadsToStore);
+            
+            // Update campaign in IndexedDB
+            const campaign = await getCampaignOffline(campaignId);
+            if (campaign) {
+              campaign.leadCount = (campaign.leadCount || 0) + leadsToStore.length;
+              await storeCampaign(campaignId, campaign);
+              
+              // Queue campaign update for sync
+              await storePendingOperation({
+                type: 'update',
+                collection: 'campaigns',
+                id: campaignId,
+                data: {
+                  leadCount: campaign.leadCount
+                }
+              });
+            }
+            
+            // Set offline mode
+            set({ offlineMode: true });
+            
+            // Load leads from IndexedDB
+            const allLeads = await getCampaignLeadsOffline(campaignId);
+            set({ campaignLeads: allLeads });
+          }
+        }
+        
+        // Clear collected leads since they're now saved
+        set({
+          collectedLeads: [],
+          isSavingCampaign: false
+        });
+      } catch (error) {
+        console.error('Failed to save places to campaign:', error);
+        set({ isSavingCampaign: false });
+      }
+    },
   }));
 };
 
