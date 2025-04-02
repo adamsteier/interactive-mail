@@ -20,6 +20,8 @@ interface AuthContextType {
   user: User | null;
   userData: UserData | null;
   loading: boolean;
+  showAuthOverlay: boolean;
+  setShowAuthOverlay: (show: boolean) => void;
   signIn: (email: string, password: string) => Promise<UserCredential>;
   signUp: (email: string, password: string) => Promise<UserCredential>;
   signInWithGoogle: () => Promise<UserCredential>;
@@ -35,6 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showAuthOverlay, setShowAuthOverlay] = useState(false);
   
   // Get store actions for business operations
   const { 
@@ -151,6 +154,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     userData,
     loading,
+    showAuthOverlay,
+    setShowAuthOverlay,
     signIn,
     signUp,
     signInWithGoogle,

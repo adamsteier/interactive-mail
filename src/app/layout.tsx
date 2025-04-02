@@ -5,6 +5,8 @@ import "./globals.css";
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
+import { Metadata } from 'next';
+import GlobalAuthOverlay from '@/components/GlobalAuthOverlay';
 
 const montserrat = Montserrat({ 
   subsets: ["latin"],
@@ -108,6 +110,11 @@ function Navigation() {
   );
 }
 
+export const metadata: Metadata = {
+  title: 'Interactive Mail',
+  description: 'Interactive Direct Mail Marketing Platform',
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -121,6 +128,7 @@ export default function RootLayout({
             <Navigation />
           </header>
           {children}
+          <GlobalAuthOverlay />
         </AuthProvider>
       </body>
     </html>

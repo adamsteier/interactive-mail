@@ -6,6 +6,7 @@ import { MarketingStrategy, BusinessTarget, DatabaseTarget } from '@/types/marke
 import { useAuth } from '@/contexts/AuthContext';
 import AuthOverlay from '@/components/AuthOverlay';
 import PlacesLeadsCollection from '@/components/PlacesLeadsCollection';
+import { showAuthOverlay as triggerGlobalAuth } from '@/lib/auth';
 
 interface MarketingResultsProps {
   strategy: MarketingStrategy;
@@ -68,6 +69,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
   const handleGetData = async () => {
     if (selectedBusinessTypes.size > 0) {
+      // Always start loading state immediately
       setIsLoading(true);
       updateSearchResults({
         places: [],
@@ -77,6 +79,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
         currentGridPoint: 0
       });
       
+      // Update the store with the bounding box
       setBusinessAnalysis({
         industry: strategy.method1Analysis.businessTargets[0]?.type || '',
         description: strategy.primaryRecommendation,
@@ -84,18 +87,20 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
         boundingBox
       });
       
+      // Update the global store's selectedBusinessTypes
       setStoreSelectedBusinessTypes(selectedBusinessTypes);
       
-      // Start the search regardless of auth status
+      // ALWAYS trigger the search in the background
       handleGoogleSearch();
       
-      // Show auth overlay if not authenticated
+      // Check if user is authenticated
       if (!user) {
-        setShowAuthOverlay(true);
-        return;
+        // Show the auth overlay without interrupting the process
+        triggerGlobalAuth();
       }
       
-      // Only show leads collection if authenticated
+      // ALWAYS show leads collection after a short delay
+      // This will continue in the background even if auth overlay is shown
       setTimeout(() => {
         setShowLeadsCollection(true);
         setIsLoading(false);
