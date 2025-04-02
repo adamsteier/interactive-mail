@@ -14,7 +14,6 @@ import LocationSelector from '@/components/LocationSelector';
 import TechnoConfetti from '@/components/TechnoConfetti';
 import { initializeSession } from '@/lib/sessionService';
 import { useAuth } from '@/contexts/AuthContext';
-import { showAuthOverlay } from '@/lib/auth';
 
 const LoadingSkeleton = () => (
   <div className="w-full rounded-lg border-2 border-electric-teal bg-charcoal/80 px-4 md:px-6 py-3 shadow-glow backdrop-blur-sm">
@@ -167,11 +166,6 @@ export default function Home() {
   const handleShowLeadsClick = () => {
     if (marketingStrategy && businessInfo.businessAnalysis) {
       setShowResults(true);
-      
-      // If user is not authenticated, show auth overlay
-      if (!user) {
-        showAuthOverlay();
-      }
     }
   };
 
