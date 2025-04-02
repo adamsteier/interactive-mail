@@ -245,25 +245,25 @@ const generateHexagonalGrid = (businessType: string, boundingBox: BusinessAnalys
 // We use a function to initialize the store with session data
 const createMarketingStore = () => {
   return create<MarketingState>((set, get) => ({
-    // Initial State
-    currentStep: 0,
-    stepsCompleted: 0,
-    locationData: null,
-    businessInfo: {
-      targetArea: '',
-      businessName: '',
-      businessAnalysis: null,
-    },
-    marketingStrategy: null,
-    selectedBusinessTypes: new Set<string>(),
-    collectedLeads: [],
-    searchResults: {
-      places: [],
-      isLoading: false,
-      progress: 0,
-      totalGridPoints: 0,
-      currentGridPoint: 0
-    },
+  // Initial State
+  currentStep: 0,
+  stepsCompleted: 0,
+  locationData: null,
+  businessInfo: {
+    targetArea: '',
+    businessName: '',
+    businessAnalysis: null,
+  },
+  marketingStrategy: null,
+  selectedBusinessTypes: new Set<string>(),
+  collectedLeads: [],
+  searchResults: {
+    places: [],
+    isLoading: false,
+    progress: 0,
+    totalGridPoints: 0,
+    currentGridPoint: 0
+  },
 
     // Campaign state
     currentCampaign: null,
@@ -273,14 +273,14 @@ const createMarketingStore = () => {
     isLoadingLeads: false,
     isSavingCampaign: false,
 
-    // UI State
-    userInput: '',
-    isProcessing: false,
-    inputPosition: undefined,
-    isEditModalOpen: false,
-    isLoadingStrategy: false,
-    showResults: false,
-    displayInfos: [],
+  // UI State
+  userInput: '',
+  isProcessing: false,
+  inputPosition: undefined,
+  isEditModalOpen: false,
+  isLoadingStrategy: false,
+  showResults: false,
+  displayInfos: [],
 
     // Database state
     userBusinesses: [],
@@ -289,23 +289,23 @@ const createMarketingStore = () => {
     isLoadingBusinesses: false,
     offlineMode: false,
 
-    // Add new state
-    geocodeResults: [],
-    selectedLocation: null,
+  // Add new state
+  geocodeResults: [],
+  selectedLocation: null,
 
-    // Actions
-    setLocationData: (data) => set({ locationData: data }),
-    
-    setStep: (step) => set((state) => ({ 
-      currentStep: step,
-      stepsCompleted: Math.max(state.stepsCompleted, step)
-    })),
+  // Actions
+  setLocationData: (data) => set({ locationData: data }),
+  
+  setStep: (step) => set((state) => ({ 
+    currentStep: step,
+    stepsCompleted: Math.max(state.stepsCompleted, step)
+  })),
 
     // Update business info and save to session
     updateBusinessInfo: async (info) => {
       // First, update the local state
       set((state) => ({
-        businessInfo: { ...state.businessInfo, ...info }
+    businessInfo: { ...state.businessInfo, ...info }
       }));
 
       // Then, save to session
@@ -441,7 +441,7 @@ const createMarketingStore = () => {
       // Update local state
       set((state) => {
         const newTypes = typeof types === 'function' 
-          ? types(state.selectedBusinessTypes)
+      ? types(state.selectedBusinessTypes)
           : types;
         
         // Save to session (async but we don't wait for it)
@@ -452,15 +452,15 @@ const createMarketingStore = () => {
       });
     },
 
-    setCollectedLeads: (leads) => set({ collectedLeads: leads }),
+  setCollectedLeads: (leads) => set({ collectedLeads: leads }),
 
     setBusinessAnalysis: async (analysis) => {
       // Update local state
       set((state) => ({
-        businessInfo: {
-          ...state.businessInfo,
-          businessAnalysis: analysis
-        }
+    businessInfo: {
+      ...state.businessInfo,
+      businessAnalysis: analysis
+    }
       }));
 
       // Save to session
@@ -483,25 +483,25 @@ const createMarketingStore = () => {
       }
     },
 
-    updateSearchResults: (update) => set((state) => {
-      const newSearchResults = {
-        ...state.searchResults,
-        ...update,
-        places: update.places ? [...update.places] : state.searchResults.places
-      };
+  updateSearchResults: (update) => set((state) => {
+    const newSearchResults = {
+      ...state.searchResults,
+      ...update,
+      places: update.places ? [...update.places] : state.searchResults.places
+    };
 
-      return {
-        searchResults: newSearchResults
-      };
-    }),
+    return {
+      searchResults: newSearchResults
+    };
+  }),
 
-    setUserInput: (input) => set({ userInput: input }),
-    setIsProcessing: (isProcessing) => set({ isProcessing }),
-    setInputPosition: (position) => set({ inputPosition: position }),
-    setIsEditModalOpen: (isOpen) => set({ isEditModalOpen: isOpen }),
-    setIsLoadingStrategy: (isLoading) => set({ isLoadingStrategy: isLoading }),
-    setShowResults: (show) => set({ showResults: show }),
-    setDisplayInfos: (infos) => set({ displayInfos: infos }),
+  setUserInput: (input) => set({ userInput: input }),
+  setIsProcessing: (isProcessing) => set({ isProcessing }),
+  setInputPosition: (position) => set({ inputPosition: position }),
+  setIsEditModalOpen: (isOpen) => set({ isEditModalOpen: isOpen }),
+  setIsLoadingStrategy: (isLoading) => set({ isLoadingStrategy: isLoading }),
+  setShowResults: (show) => set({ showResults: show }),
+  setDisplayInfos: (infos) => set({ displayInfos: infos }),
 
     // Database actions
     saveBusinessToDatabase: async (userId) => {
@@ -615,251 +615,251 @@ const createMarketingStore = () => {
       }
     },
 
-    handleSubmit: async (input) => {
-      const state = get();
-      state.setIsProcessing(true);
-      
-      try {
-        if (state.currentStep === 0) {
-          // First step - handle geocoding and target area
-          const geocodeResponse = await fetch('/api/geocode', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ targetArea: input }),
-          });
+  handleSubmit: async (input) => {
+    const state = get();
+    state.setIsProcessing(true);
+    
+    try {
+      if (state.currentStep === 0) {
+        // First step - handle geocoding and target area
+        const geocodeResponse = await fetch('/api/geocode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetArea: input }),
+        });
 
-          if (!geocodeResponse.ok) {
-            throw new Error('Failed to geocode location');
-          }
+        if (!geocodeResponse.ok) {
+          throw new Error('Failed to geocode location');
+        }
 
-          const geocodeData = await geocodeResponse.json();
-          
-          if (geocodeData.results.length === 0) {
-            throw new Error('No locations found');
-          }
-          
-          if (geocodeData.results.length === 1) {
-            state.setSelectedLocation(geocodeData.results[0]);
-            state.updateBusinessInfo({ targetArea: geocodeData.results[0].formatted_address });
-            state.setStep(1);
-          } else {
-            state.setGeocodeResults(geocodeData.results);
-            // Don't advance step or update business info here - let LocationSelector handle it
-          }
-        } else if (state.currentStep === 1) {
-          // Second step - now we have both target area and business name
-          state.updateBusinessInfo({ businessName: input });
-          
-          // Now make the OpenAI call with both pieces of info
-          const openAIResponse = await fetch('/api/openai', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              targetArea: state.businessInfo.targetArea,
-              businessName: input,
-              userLocation: state.locationData?.city || 'Toronto',
-              geocodeResult: state.selectedLocation
-            }),
-          });
-
-          if (!openAIResponse.ok) {
-            throw new Error('Failed to get AI response');
-          }
-
-          const data = await openAIResponse.json();
-          if (data.analysis) {
-            state.setBusinessAnalysis(data.analysis);
-            state.updateBusinessInfo({ webSearched: data.webSearched });
-          }
-          state.setStep(2);
+        const geocodeData = await geocodeResponse.json();
+        
+        if (geocodeData.results.length === 0) {
+          throw new Error('No locations found');
         }
         
-        state.setUserInput('');
-      } catch (error) {
-        console.error('Error:', error);
-      } finally {
-        state.setIsProcessing(false);
+        if (geocodeData.results.length === 1) {
+          state.setSelectedLocation(geocodeData.results[0]);
+          state.updateBusinessInfo({ targetArea: geocodeData.results[0].formatted_address });
+          state.setStep(1);
+        } else {
+          state.setGeocodeResults(geocodeData.results);
+          // Don't advance step or update business info here - let LocationSelector handle it
+        }
+      } else if (state.currentStep === 1) {
+        // Second step - now we have both target area and business name
+        state.updateBusinessInfo({ businessName: input });
+        
+        // Now make the OpenAI call with both pieces of info
+        const openAIResponse = await fetch('/api/openai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            targetArea: state.businessInfo.targetArea,
+            businessName: input,
+            userLocation: state.locationData?.city || 'Toronto',
+            geocodeResult: state.selectedLocation
+          }),
+        });
+
+        if (!openAIResponse.ok) {
+          throw new Error('Failed to get AI response');
+        }
+
+        const data = await openAIResponse.json();
+        if (data.analysis) {
+          state.setBusinessAnalysis(data.analysis);
+          state.updateBusinessInfo({ webSearched: data.webSearched });
+        }
+        state.setStep(2);
       }
-    },
+      
+      state.setUserInput('');
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      state.setIsProcessing(false);
+    }
+  },
 
     handleSaveEdits: async (editedInfo) => {
-      const state = get();
+    const state = get();
       
       // Update business info with edited values
-      state.updateBusinessInfo({
-        targetArea: editedInfo.targetArea,
-        businessName: editedInfo.businessName,
-      });
+    state.updateBusinessInfo({
+      targetArea: editedInfo.targetArea,
+      businessName: editedInfo.businessName,
+    });
       
       // If business analysis exists, update it with edited values
       if (state.businessInfo.businessAnalysis) {
-        state.setBusinessAnalysis({
+    state.setBusinessAnalysis({
           ...state.businessInfo.businessAnalysis,
-          industry: editedInfo.industry,
+      industry: editedInfo.industry,
           description: editedInfo.description
-        });
+    });
       }
       
       // Close the edit modal
       state.setIsEditModalOpen(false);
-    },
+  },
 
-    fetchMarketingStrategy: async () => {
-      const state = get();
-      state.setIsLoadingStrategy(true);
-      try {
-        const response = await fetch('/api/marketing-strategy', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            targetArea: state.businessInfo.targetArea,
-            businessName: state.businessInfo.businessName,
-            industry: state.businessInfo.businessAnalysis?.industry,
-            description: state.businessInfo.businessAnalysis?.description,
-          }),
-        });
+  fetchMarketingStrategy: async () => {
+    const state = get();
+    state.setIsLoadingStrategy(true);
+    try {
+      const response = await fetch('/api/marketing-strategy', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          targetArea: state.businessInfo.targetArea,
+          businessName: state.businessInfo.businessName,
+          industry: state.businessInfo.businessAnalysis?.industry,
+          description: state.businessInfo.businessAnalysis?.description,
+        }),
+      });
 
-        if (!response.ok) {
-          throw new Error('Failed to get marketing strategy');
-        }
-
-        const data = await response.json();
-        state.setMarketingStrategy(data.analysis);
-      } catch (error) {
-        console.error('Error:', error);
-      } finally {
-        state.setIsLoadingStrategy(false);
+      if (!response.ok) {
+        throw new Error('Failed to get marketing strategy');
       }
-    },
 
-    handleGoogleSearch: async () => {
-      const state = get();
-      try {
-        if (!state.businessInfo.businessAnalysis?.boundingBox) {
-          throw new Error('No bounding box available');
-        }
+      const data = await response.json();
+      state.setMarketingStrategy(data.analysis);
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      state.setIsLoadingStrategy(false);
+    }
+  },
 
-        const boundingBox = state.businessInfo.businessAnalysis.boundingBox;
+  handleGoogleSearch: async () => {
+    const state = get();
+    try {
+      if (!state.businessInfo.businessAnalysis?.boundingBox) {
+        throw new Error('No bounding box available');
+      }
 
-        console.log('Starting search with:', {
-          boundingBox,
-          selectedTypes: Array.from(state.selectedBusinessTypes)
+      const boundingBox = state.businessInfo.businessAnalysis.boundingBox;
+
+      console.log('Starting search with:', {
+        boundingBox,
+        selectedTypes: Array.from(state.selectedBusinessTypes)
+      });
+
+      state.updateSearchResults({
+        places: [],
+        isLoading: true,
+        progress: 0,
+        totalGridPoints: 0,
+        currentGridPoint: 0
+      });
+      state.setShowResults(true);
+
+      const allPlacesAcrossTypes: GooglePlace[] = [];
+
+      for (const businessType of state.selectedBusinessTypes) {
+        const gridConfig = generateHexagonalGrid(
+          businessType,
+          boundingBox
+        );
+
+        console.log('Grid search config:', {
+          businessType,
+          pointCount: gridConfig.searchPoints.length,
+          points: gridConfig.searchPoints
         });
 
         state.updateSearchResults({
-          places: [],
-          isLoading: true,
-          progress: 0,
-          totalGridPoints: 0,
-          currentGridPoint: 0
+          totalGridPoints: gridConfig.searchPoints.length
         });
-        state.setShowResults(true);
 
-        const allPlacesAcrossTypes: GooglePlace[] = [];
+        for (let i = 0; i < gridConfig.searchPoints.length; i++) {
+          const point = gridConfig.searchPoints[i];
 
-        for (const businessType of state.selectedBusinessTypes) {
-          const gridConfig = generateHexagonalGrid(
+          console.log('Searching point:', {
             businessType,
-            boundingBox
-          );
-
-          console.log('Grid search config:', {
-            businessType,
-            pointCount: gridConfig.searchPoints.length,
-            points: gridConfig.searchPoints
+            lat: point.lat,
+            lng: point.lng,
+            radius: point.radius
           });
 
           state.updateSearchResults({
-            totalGridPoints: gridConfig.searchPoints.length
+            currentGridPoint: i + 1,
+            progress: 5 + ((i + 1) / gridConfig.searchPoints.length * 95)
           });
 
-          for (let i = 0; i < gridConfig.searchPoints.length; i++) {
-            const point = gridConfig.searchPoints[i];
-
-            console.log('Searching point:', {
-              businessType,
-              lat: point.lat,
-              lng: point.lng,
-              radius: point.radius
+          try {
+            const response = await fetch('/api/google-places', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                lat: point.lat,
+                lng: point.lng,
+                radius: point.radius,
+                keyword: businessType,
+                boundingBox
+              }),
             });
 
-            state.updateSearchResults({
-              currentGridPoint: i + 1,
-              progress: 5 + ((i + 1) / gridConfig.searchPoints.length * 95)
+            const data = await response.json();
+            console.log('API Response data:', {
+              hasPlaces: !!data.places,
+              placesLength: data.places?.length,
+              firstPlace: data.places?.[0]
             });
 
-            try {
-              const response = await fetch('/api/google-places', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  lat: point.lat,
-                  lng: point.lng,
-                  radius: point.radius,
-                  keyword: businessType,
-                  boundingBox
-                }),
+            if (data.places?.length) {
+              const newPlaces = data.places
+                .map((place: GooglePlace) => ({
+                  ...place,
+                  businessType
+                }))
+                .filter((place: GooglePlace) => handleDuplicates(place, allPlacesAcrossTypes));
+
+              console.log('After processing:', {
+                newPlacesLength: newPlaces.length,
+                totalPlacesBeforePush: allPlacesAcrossTypes.length
               });
 
-              const data = await response.json();
-              console.log('API Response data:', {
-                hasPlaces: !!data.places,
-                placesLength: data.places?.length,
-                firstPlace: data.places?.[0]
+              allPlacesAcrossTypes.push(...newPlaces);
+              
+              // Update the store with new places
+              state.updateSearchResults({
+                places: allPlacesAcrossTypes,
+                currentGridPoint: i + 1,
+                progress: 5 + ((i + 1) / gridConfig.searchPoints.length * 95)
               });
 
-              if (data.places?.length) {
-                const newPlaces = data.places
-                  .map((place: GooglePlace) => ({
-                    ...place,
-                    businessType
-                  }))
-                  .filter((place: GooglePlace) => handleDuplicates(place, allPlacesAcrossTypes));
-
-                console.log('After processing:', {
-                  newPlacesLength: newPlaces.length,
-                  totalPlacesBeforePush: allPlacesAcrossTypes.length
-                });
-
-                allPlacesAcrossTypes.push(...newPlaces);
-                
-                // Update the store with new places
-                state.updateSearchResults({
-                  places: allPlacesAcrossTypes,
-                  currentGridPoint: i + 1,
-                  progress: 5 + ((i + 1) / gridConfig.searchPoints.length * 95)
-                });
-
-                console.log('Store updated:', {
-                  totalPlaces: allPlacesAcrossTypes.length,
-                  storeLength: state.searchResults.places.length
-                });
-              }
-            } catch (error) {
-              console.error('Search point error:', error);
+              console.log('Store updated:', {
+                totalPlaces: allPlacesAcrossTypes.length,
+                storeLength: state.searchResults.places.length
+              });
             }
+          } catch (error) {
+            console.error('Search point error:', error);
           }
         }
-
-        // Final update
-        state.updateSearchResults({
-          places: allPlacesAcrossTypes,
-          isLoading: false,
-          progress: 100
-        });
-
-      } catch (error) {
-        console.error('Search failed:', error);
-        state.updateSearchResults({
-          isLoading: false
-        });
       }
-    },
 
-    setGeocodeResults: (results) => set({ geocodeResults: results }),
-    setSelectedLocation: (location) => set({ selectedLocation: location }),
+      // Final update
+      state.updateSearchResults({
+        places: allPlacesAcrossTypes,
+        isLoading: false,
+        progress: 100
+      });
+
+    } catch (error) {
+      console.error('Search failed:', error);
+      state.updateSearchResults({
+        isLoading: false
+      });
+    }
+  },
+
+  setGeocodeResults: (results) => set({ geocodeResults: results }),
+  setSelectedLocation: (location) => set({ selectedLocation: location }),
 
     // Campaign actions
     createNewCampaign: async (name) => {

@@ -31,7 +31,8 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
     setBusinessAnalysis,
     updateSearchResults,
     handleGoogleSearch,
-    setSelectedBusinessTypes: setStoreSelectedBusinessTypes
+    setSelectedBusinessTypes: setStoreSelectedBusinessTypes,
+    searchResults
   } = useMarketingStore();
 
   // Mock values for the UI for the estimated reach if not present in the strategy object
@@ -41,6 +42,13 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
   // Check if method2 (database targeting) is recommended in the strategy
   const hasMethod2 = strategy.recommendedMethods?.includes('method2') || false;
+
+  // Prevent showing leads collection if not authenticated
+  useEffect(() => {
+    if (!user && searchResults.places.length > 0) {
+      setShowAuthOverlay(true);
+    }
+  }, [searchResults.places.length, user]);
 
   useEffect(() => {
     if (strategy) {
@@ -54,7 +62,6 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
   const handleGetData = async () => {
     if (selectedBusinessTypes.size > 0) {
-      // Always start loading state immediately
       setIsLoading(true);
       updateSearchResults({
         places: [],
@@ -64,7 +71,6 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
         currentGridPoint: 0
       });
       
-      // Update the store with the bounding box
       setBusinessAnalysis({
         industry: strategy.method1Analysis.businessTargets[0]?.type || '',
         description: strategy.primaryRecommendation,
@@ -72,38 +78,34 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
         boundingBox
       });
       
-      // CRITICAL FIX: Update the global store's selectedBusinessTypes
       setStoreSelectedBusinessTypes(selectedBusinessTypes);
       
-      // IMPORTANT: Always trigger the search in the background first
-      // so it continues during authentication
+      // Start the search regardless of auth status
       handleGoogleSearch();
       
-      // Check if user is authenticated
+      // Show auth overlay if not authenticated
       if (!user) {
         setShowAuthOverlay(true);
-        // Don't show leads collection yet, but search is already running
         return;
       }
       
-      // User is already authenticated, show the leads collection view
-      // after a short delay to show animation
+      // Only show leads collection if authenticated
       setTimeout(() => {
         setShowLeadsCollection(true);
         setIsLoading(false);
-      }, 800); 
+      }, 800);
     }
   };
 
   // Handle auth completion
   const handleAuthComplete = () => {
-    setShowAuthOverlay(false);
-    
-    // Show the leads collection view after a short delay
-    setTimeout(() => {
-      setShowLeadsCollection(true);
-      setIsLoading(false);
-    }, 300);
+    if (user) {
+      setShowAuthOverlay(false);
+      setTimeout(() => {
+        setShowLeadsCollection(true);
+        setIsLoading(false);
+      }, 300);
+    }
   };
 
   const handleCheckboxChange = (targetType: string) => {
@@ -126,7 +128,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
   return (
     <>
-      {!showLeadsCollection ? (
+      {(!user || !showLeadsCollection) ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center">
           <div className="relative max-h-[90vh] w-[90vw] max-w-4xl overflow-y-auto rounded-lg 
             border-2 border-electric-teal bg-charcoal p-6 shadow-glow"
@@ -343,10 +345,22 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
         <PlacesLeadsCollection onClose={onClose} />
       )}
 
+      {/* Auth overlay with higher z-index */}
       <AuthOverlay 
         isOpen={showAuthOverlay}
         onClose={handleAuthComplete}
+        className="z-50"
       />
+
+      {/* Background loading indicator */}
+      {showAuthOverlay && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-charcoal/80 backdrop-blur-sm">
+          <div className="text-center text-electric-teal">
+            <p className="text-xl mb-4">Loading your leads...</p>
+            <p className="text-sm opacity-80">Progress: {searchResults.progress.toFixed(0)}%</p>
+          </div>
+        </div>
+      )}
     </>
   );
 };
