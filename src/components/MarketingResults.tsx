@@ -34,7 +34,6 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
     updateSearchResults,
     handleGoogleSearch,
     setSelectedBusinessTypes: setStoreSelectedBusinessTypes,
-    searchResults
   } = useMarketingStore();
 
   // Mock values for the UI for the estimated reach if not present in the strategy object
@@ -143,7 +142,15 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
 
   return (
     <>
-      {(!user || !showLeadsCollection) ? (
+      {/* Always show the leads collection when it's requested, even if user is not authenticated */}
+      {showLeadsCollection && (
+        <div className="fixed inset-0 z-30">
+          <PlacesLeadsCollection onClose={() => setShowLeadsCollection(false)} />
+        </div>
+      )}
+
+      {/* Show the marketing strategy UI when not showing leads collection or when auth is needed */}
+      {(!showLeadsCollection || (!user && showLeadsCollection)) && (
         <div className="fixed inset-0 z-40 flex items-center justify-center">
           <div className="relative max-h-[90vh] w-[90vw] max-w-4xl overflow-y-auto rounded-lg 
             border-2 border-electric-teal bg-charcoal p-6 shadow-glow"
@@ -330,63 +337,47 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
               </div>
             )}
             
-            {/* Action Button - Only show for business targeting */}
-            {(activeTab === 'business' || !hasMethod2) && (
-              <div className="flex justify-end">
+            {/* Action Buttons - only shown when not already showing leads */}
+            {!showLeadsCollection && (
+              <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:justify-between">
+                {/* Get Data button */}
                 <button
                   onClick={handleGetData}
                   disabled={selectedBusinessTypes.size === 0 || isLoading}
-                  className="relative overflow-hidden rounded-lg bg-electric-teal 
-                    px-6 py-3 text-charcoal font-medium transition-colors duration-200
-                    hover:bg-electric-teal/90 disabled:bg-electric-teal/50 flex items-center"
+                  className={`rounded-lg border-2 px-6 py-3 font-medium
+                    ${isLoading 
+                      ? 'animate-pulse border-electric-teal/50 text-electric-teal/50' 
+                      : selectedBusinessTypes.size === 0
+                        ? 'border-electric-teal/30 bg-electric-teal/5 text-electric-teal/50'
+                        : 'border-electric-teal bg-electric-teal text-charcoal shadow-glow hover:bg-electric-teal/90 active:scale-[0.98]'
+                    }
+                    transition-all duration-300`}
                 >
-                  {isLoading ? (
-                    <>
-                      <svg className="mr-2 h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Loading...
-                    </>
-                  ) : (
-                    'Get Data for Selected Business Types'
-                  )}
+                  {isLoading ? 'Loading...' : 'Get Data for Selected Business Types'}
+                </button>
+                
+                <button
+                  onClick={onClose}
+                  className="rounded-lg border-2 border-electric-teal/50 bg-transparent px-6 py-3 
+                    font-medium text-electric-teal hover:bg-electric-teal/10 
+                    transition-all duration-300 active:scale-[0.98]"
+                >
+                  Back
                 </button>
               </div>
             )}
           </div>
         </div>
-      ) : (
-        <PlacesLeadsCollection onClose={onClose} />
       )}
-
-      {/* Always render auth overlay with higher z-index when showAuthOverlay is true */}
-      {showAuthOverlay && (
-        <AuthOverlay 
-          isOpen={true}
-          onClose={handleAuthComplete}
-          className="z-50"
-        />
-      )}
-
-      {/* Show background loading indicator when auth overlay is visible */}
-      {showAuthOverlay && (
-        <div className="fixed inset-0 z-30 flex items-center justify-center">
-          <div className="text-center">
-            <div className="text-electric-teal text-3xl font-bold animate-pulse">
-              <p className="mb-4">Loading your leads...</p>
-              <p className="text-xl opacity-90">Progress: {searchResults.progress.toFixed(0)}%</p>
-            </div>
-            
-            {/* Show some visual indication of what's loading */}
-            {searchResults.places.length > 0 && (
-              <div className="mt-10 max-w-3xl mx-auto grid grid-cols-3 gap-4">
-                {searchResults.places.slice(0, 9).map((_, index) => (
-                  <div key={index} className="h-24 rounded-lg bg-electric-teal/20 animate-pulse"></div>
-                ))}
-              </div>
-            )}
-          </div>
+      
+      {/* Show auth overlay when needed and user isn't authenticated yet */}
+      {!user && showLeadsCollection && (
+        <div className="fixed inset-0 z-50">
+          <AuthOverlay 
+            isOpen={true}
+            onClose={handleAuthComplete}
+            className="z-50"
+          />
         </div>
       )}
     </>
