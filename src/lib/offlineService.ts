@@ -257,19 +257,24 @@ export const syncPendingOperations = async (): Promise<void> => {
   }
 };
 
-/**
- * Hook to auto-sync when online status changes
- */
-export const useSyncOnReconnect = (): void => {
-  const isOnline = useOnlineStatus();
-  
-  useEffect(() => {
-    if (isOnline) {
+// Non-hook version for initialization
+export const setupSyncOnReconnect = (): void => {
+  const handleOnline = () => {
+    if (typeof window !== 'undefined' && navigator.onLine) {
       syncPendingOperations()
         .then(() => console.log('Successfully synced pending operations'))
         .catch((error) => console.error('Failed to sync pending operations:', error));
     }
-  }, [isOnline]);
+  };
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('online', handleOnline);
+    
+    // Initial sync if we're already online
+    if (navigator.onLine) {
+      handleOnline();
+    }
+  }
 };
 
 // Open a new instance of IndexedDB

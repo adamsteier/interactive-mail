@@ -36,7 +36,7 @@ import {
   getBusinessDataOffline,
   storeMarketingStrategy,
   storePendingOperation,
-  useSyncOnReconnect,
+  setupSyncOnReconnect,
   storeCampaign,
   storeCampaignLead,
   storeCampaignLeads,
@@ -1225,14 +1225,14 @@ const createMarketingStore = () => {
 // Initialize the store
 export const useMarketingStore = createMarketingStore();
 
-// Initialize the session when the app loads
-if (typeof window !== 'undefined') {
-  // We do this immediately to ensure we have a session ASAP
-  initializeSession().then(sessionData => {
+// Export a function to initialize the session that can be called from a React component
+export const initializeMarketingSession = async () => {
+  try {
+    const sessionData = await initializeSession();
     console.log('Session initialized:', sessionData);
     
-    // Sync data when we come back online
-    useSyncOnReconnect();
+    // Set up sync when we come back online
+    setupSyncOnReconnect();
     
     // If session has business data, load it into the store
     if (sessionData.businessData) {
@@ -1264,7 +1264,10 @@ if (typeof window !== 'undefined') {
         new Set(sessionData.selectedBusinessTypes)
       );
     }
-  }).catch(error => {
+
+    return sessionData;
+  } catch (error) {
     console.error('Failed to initialize session:', error);
-  });
-} 
+    throw error;
+  }
+}; 
