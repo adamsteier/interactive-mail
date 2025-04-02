@@ -61,6 +61,7 @@ const AuthOverlay = ({ isOpen, onClose, className = '' }: AuthOverlayProps) => {
     
     try {
       await signInWithGoogle();
+      // Only close after successful sign-in
       onClose();
     } catch (err: unknown) {
       console.error('Google sign-in error:', err);
@@ -150,9 +151,9 @@ const AuthOverlay = ({ isOpen, onClose, className = '' }: AuthOverlayProps) => {
 
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center ${className}`}>
-      <div className="absolute inset-0 bg-charcoal/90 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-charcoal/70 backdrop-blur-md" />
       <div className="relative w-full max-w-md rounded-lg border-2 border-electric-teal 
-        bg-charcoal p-8 shadow-glow"
+        bg-charcoal/90 p-8 shadow-glow"
       >
         {isCheckingAuth ? (
           <div className="py-10 text-center">

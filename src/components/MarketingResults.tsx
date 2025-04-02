@@ -23,6 +23,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
   const [showAuthOverlay, setShowAuthOverlay] = useState(false);
   const [activeTab, setActiveTab] = useState<'business' | 'database'>('business');
   const [interestedInDatabase, setInterestedInDatabase] = useState(false);
+  const [authCompleted, setAuthCompleted] = useState(false);
   
   const { user } = useAuth();
   
@@ -43,12 +44,17 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
   // Check if method2 (database targeting) is recommended in the strategy
   const hasMethod2 = strategy.recommendedMethods?.includes('method2') || false;
 
-  // Prevent showing leads collection if not authenticated
+  // Force auth overlay to stay visible until explicit auth completion
   useEffect(() => {
-    if (!user && searchResults.places.length > 0) {
-      setShowAuthOverlay(true);
+    if (showAuthOverlay && !authCompleted) {
+      const timer = setInterval(() => {
+        // Force the auth overlay to stay visible
+        setShowAuthOverlay(true);
+      }, 500);
+      
+      return () => clearInterval(timer);
     }
-  }, [searchResults.places.length, user]);
+  }, [showAuthOverlay, authCompleted]);
 
   useEffect(() => {
     if (strategy) {
@@ -97,10 +103,14 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
     }
   };
 
-  // Handle auth completion
+  // Handle auth completion - modified to track explicit completion
   const handleAuthComplete = () => {
     if (user) {
+      // Mark auth as explicitly completed
+      setAuthCompleted(true);
+      // Now it's safe to hide the overlay
       setShowAuthOverlay(false);
+      
       setTimeout(() => {
         setShowLeadsCollection(true);
         setIsLoading(false);
@@ -345,19 +355,32 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
         <PlacesLeadsCollection onClose={onClose} />
       )}
 
-      {/* Auth overlay with higher z-index */}
-      <AuthOverlay 
-        isOpen={showAuthOverlay}
-        onClose={handleAuthComplete}
-        className="z-50"
-      />
-
-      {/* Background loading indicator */}
+      {/* Always render auth overlay with higher z-index when showAuthOverlay is true */}
       {showAuthOverlay && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-charcoal/80 backdrop-blur-sm">
-          <div className="text-center text-electric-teal">
-            <p className="text-xl mb-4">Loading your leads...</p>
-            <p className="text-sm opacity-80">Progress: {searchResults.progress.toFixed(0)}%</p>
+        <AuthOverlay 
+          isOpen={true}
+          onClose={handleAuthComplete}
+          className="z-50"
+        />
+      )}
+
+      {/* Show background loading indicator when auth overlay is visible */}
+      {showAuthOverlay && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-electric-teal text-3xl font-bold animate-pulse">
+              <p className="mb-4">Loading your leads...</p>
+              <p className="text-xl opacity-90">Progress: {searchResults.progress.toFixed(0)}%</p>
+            </div>
+            
+            {/* Show some visual indication of what's loading */}
+            {searchResults.places.length > 0 && (
+              <div className="mt-10 max-w-3xl mx-auto grid grid-cols-3 gap-4">
+                {searchResults.places.slice(0, 9).map((_, index) => (
+                  <div key={index} className="h-24 rounded-lg bg-electric-teal/20 animate-pulse"></div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
