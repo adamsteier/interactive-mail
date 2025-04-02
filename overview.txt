@@ -112,10 +112,27 @@ A modal overlay component that appears when users try to access premium features
 - Email/password authentication
 - Google sign-in option
 - Form validation with error handling
-- Semi-transparent background that allows users to see activity happening behind it
-- Smooth animations for a polished user experience
+- Semi-transparent background that allows users to see data loading activity happening behind it
+- Strategically placed z-indexing to ensure the overlay remains visible until explicit authentication
+- Translucent backdrop (70% opacity) with moderate blur effect that lets users see data being gathered
+- Enhanced security that prevents premature dismissal before authentication completes
 
-The overlay is designed to maintain the application flow by allowing data processing to continue in the background while users authenticate. This creates a seamless experience without interrupting the workflow.
+The overlay is designed to maintain the application flow by allowing data processing to continue in the background while users authenticate. This creates a seamless experience without interrupting the workflow, while also providing visual incentives as leads are loaded in the background.
+
+#### `MarketingResults.tsx`
+Displays the generated marketing strategy, business targets, and allows users to select which business types to target. Provides actionable insights and initiates the search for potential leads. Key features include:
+
+- Presentation of marketing strategy recommendations
+- Business target selection through interactive checkboxes
+- Authentication enforcement while maintaining background processing
+- Explicit authentication tracking using the authCompleted state
+- Continuous authentication verification to prevent premature overlay dismissal
+- Visual progress indicators that remain visible during authentication
+- Background loading indicators showing real-time search progress
+- Animated placeholder content that hints at the data being gathered
+- Layered z-index management (z-30 for background progress, z-50 for auth overlay)
+
+This component intelligently manages the user experience by starting the search process immediately upon user request, while requiring authentication before revealing the complete results. This approach optimizes the perceived performance by parallelizing data fetching and authentication.
 
 ### Home Page & Wizard Components
 

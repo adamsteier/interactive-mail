@@ -18,6 +18,32 @@ interface AuthMethods {
   google: boolean;
 }
 
+// Helper function to get user-friendly error messages from Firebase errors
+const getFirebaseErrorMessage = (error: FirebaseError): string => {
+  switch (error.code) {
+    case 'auth/user-not-found':
+      return 'No account found with this email address';
+    case 'auth/wrong-password':
+      return 'Incorrect password';
+    case 'auth/invalid-credential':
+      return 'Invalid email or password';
+    case 'auth/email-already-in-use':
+      return 'This email address is already in use';
+    case 'auth/weak-password':
+      return 'Password should be at least 6 characters';
+    case 'auth/invalid-email':
+      return 'Invalid email address';
+    case 'auth/network-request-failed':
+      return 'Network error - check your internet connection';
+    case 'auth/too-many-requests':
+      return 'Too many failed attempts. Try again later';
+    case 'auth/internal-error':
+      return 'Internal error. Please try again';
+    default:
+      return error.message || 'An error occurred';
+  }
+};
+
 const AuthOverlay = ({ isOpen, onClose, className = '' }: AuthOverlayProps) => {
   const [mode, setMode] = useState<AuthMode>('signup');
   const [email, setEmail] = useState('');
@@ -71,13 +97,71 @@ const AuthOverlay = ({ isOpen, onClose, className = '' }: AuthOverlayProps) => {
           // Update auth methods status
           setEnabledAuthMethods(prev => ({...prev, google: false}));
         } else {
-          setError(err.message);
+          setError(getFirebaseErrorMessage(err));
         }
       } else {
         setError('Failed to sign in with Google');
       }
     } finally {
       setIsGoogleLoading(false);
+    }
+  };
+
+  const handleEmailSignIn = async () => {
+    if (isLoading) return;
+    
+    setError('');
+    setIsLoading(true);
+    
+    try {
+      if (!email || !password) {
+        throw new Error('Email and password are required');
+      }
+      
+      await signIn(email, password);
+      // Only close after successful sign-in
+      onClose();
+    } catch (err: unknown) {
+      console.error('Sign-in error:', err);
+      if (err instanceof FirebaseError) {
+        setError(getFirebaseErrorMessage(err));
+      } else {
+        setError('Failed to sign in');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEmailSignUp = async () => {
+    if (isLoading) return;
+    
+    setError('');
+    setIsLoading(true);
+    
+    try {
+      if (!email || !password) {
+        throw new Error('Email and password are required');
+      }
+      
+      if (password !== confirmPassword) {
+        throw new Error('Passwords do not match');
+      }
+      
+      await signUp(email, password);
+      // Only close after successful sign-up
+      onClose();
+    } catch (err: unknown) {
+      console.error('Sign-up error:', err);
+      if (err instanceof FirebaseError) {
+        setError(getFirebaseErrorMessage(err));
+      } else if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Failed to sign up');
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -117,11 +201,9 @@ const AuthOverlay = ({ isOpen, onClose, className = '' }: AuthOverlayProps) => {
     
     try {
       if (mode === 'signin') {
-        await signIn(email, password);
-        onClose();
+        await handleEmailSignIn();
       } else {
-        await signUp(email, password);
-        onClose();
+        await handleEmailSignUp();
       }
     } catch (err: unknown) {
       console.error('Authentication error:', err);
