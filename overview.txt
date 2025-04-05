@@ -60,10 +60,11 @@ The component smartly manages lead data by:
 After analyzing the target market, users can create custom postcards for their marketing campaigns.
 
 #### Key Components:
-- `PostcardDesigner`: Main component that handles the postcard design process, offering three design methods:
+- `PostcardDesigner`: Main component that handles the postcard design process, offering four design methods:
   - Upload existing designs
   - AI-generated designs
   - Work with a human designer
+  - AI Design + Expert Review
 
 The AI design flow is managed by `AIDesignWizard` which guides users through several steps:
 
@@ -177,7 +178,9 @@ Displays a summary of selected leads, including count by business type and total
 ### Postcard Design Components
 
 #### `PostcardDesigner.tsx`
-The entry point for postcard design, offering multiple design methods: upload, AI-generated, or work with a designer. Contains the main navigation for the design process.
+The entry point for postcard design, offering multiple design methods: upload, AI-generated, or work with a designer.
+- **(New)** Includes a fourth option: "AI Design + Expert Review", which uses the `HumanAssistedWizard`.
+Contains the main navigation for the design process.
 
 #### `AIDesignWizard.tsx`
 A multi-step wizard that guides users through creating AI-generated postcard designs. Manages the state and flow between different design steps.
@@ -193,6 +196,9 @@ Allows users to define marketing objectives and call-to-action for their postcar
 
 #### `TargetAudience.tsx`
 Collects information about the target audience demographics, interests, and preferences to tailor the postcard design to appeal to specific customer groups.
+
+#### `HumanAssistedWizard.tsx` (New Component)
+A multi-step wizard similar to `AIDesignWizard`, but specifically for the "AI Design + Expert Review" flow. It collects brand, marketing, audience, business, and visual data, and crucially includes a step for uploading the user's logo. Upon completion, it saves the request data to Firestore, triggering backend processes for AI prompt generation and admin notification.
 
 #### `BusinessDetails.tsx`
 Gathers business contact information, taglines, and other details to be included on the postcard. Ensures the postcard contains all necessary business information.

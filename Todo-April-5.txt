@@ -70,34 +70,56 @@ This file outlines the development tasks for the interactive postcard generator 
    - [ ] Securely handle Stannp API keys.
 
 ### 9. AI Design + Expert Review Flow (Detailed Steps)
-   - [ ] **Frontend (`PostcardDesigner.tsx`):**
-     - [ ] Add a fourth design option: "AI Design + Expert Review".
-     - [ ] Update `handleContinue` to trigger the new `HumanAssistedWizard` for this option.
-   - [ ] **Frontend (New Component: `HumanAssistedWizard.tsx`):**
-     - [ ] Create a new wizard component, potentially reusing elements from `AIDesignWizard`.
-     - [ ] Include all necessary data collection steps (Brand, Marketing, Audience, etc.).
-     - [ ] **Crucially:** Add a step for required logo file upload (using Firebase Storage).
-     - [ ] On submit, gather all user data and the uploaded logo URL(s).
-   - [ ] **Backend (New Cloud Function: `processHumanAssistedRequest`):**
-     - [ ] Trigger this function when `HumanAssistedWizard` is submitted.
-     - [ ] Input: User data object and logo URL(s).
-     - [ ] Logic: Call a generative AI (e.g., Gemini) to craft an image generation prompt *and* a summary for the human designer based on input data.
-     - [ ] Output: Create a new document in the `design_requests` Firestore collection.
-   - [ ] **Firestore (New Collection: `design_requests`):**
-     - [ ] Define schema: `userId`, `status` (e.g., `pending_review`, `completed`, `failed`), `userInputData`, `logoUrls`, `aiGeneratedPrompt`, `aiSummary`, `finalImageUrls` (array), `createdAt`, `completedAt`.
-     - [ ] Secure this collection with appropriate Firestore Rules (user reads own, admin reads all/updates status/images).
-   - [ ] **Admin Dashboard (Task #1 Integration):**
+   - **Frontend (`PostcardDesigner.tsx`):**
+     - [x] Add a fourth design option: "AI Design + Expert Review".
+     - [x] Update `handleContinue` to trigger the new `HumanAssistedWizard` for this option.
+   - **Frontend (New Component: `HumanAssistedWizard.tsx`):**
+     - [x] Create a new wizard component, potentially reusing elements from `AIDesignWizard`.
+     - [x] Include all necessary data collection steps (Brand, Marketing, Audience, etc.).
+     - [x] **Crucially:** Add a step for required logo file upload (using Firebase Storage).
+     - [x] On submit, gather all user data and the uploaded logo URL(s).
+     - [ ] **(Refinement)** Implement actual Firebase Storage logo upload in `handleUploadLogo`.
+     - [ ] **(Refinement)** Implement the final `handleSubmitRequest` to:
+       - [ ] Write initial data (`userInputData`, `logoUrl`, `status: 'pending_prompt'`) to Firestore `design_requests` collection.
+       - [ ] Call the `/api/generate-design-prompt` API route, passing necessary data or the document ID.
+       - [ ] Handle response from the API route (show success/error).
+   - **Backend (API Route - `/api/generate-design-prompt/route.ts`):**
+     - [ ] **(New Task)** Create the API route file.
+     - [ ] Define expected `POST` request body (e.g., `{ documentId: string }` or full data).
+     - [ ] Implement `POST` handler:
+       - [ ] Parse request body.
+       - [ ] (If needed) Fetch full request data from Firestore using the ID.
+       - [ ] Call OpenAI API (`gpt-4o-latest`) using user data/logo URL to get prompt & summary.
+       - [ ] Update Firestore `design_requests` document with `aiGeneratedPrompt`, `aiSummary`, and `status: 'pending_review'`.
+       - [ ] **(Integrate Task #10)** Call SendGrid API to notify admin (see details in Task #10).
+       - [ ] **(Integrate Task #10)** Update Firestore document with `notifiedAdmin: true`.
+       - [ ] Return success/failure `NextResponse`.
+   - **Firestore (New Collection: `design_requests`):**
+     - [ ] Define schema: `userId` (or other identifier), `status` (e.g., `pending_prompt`, `pending_review`, `completed`, `failed`), `userInputData` (object containing brand, marketing, etc.), `logoUrl`, `aiGeneratedPrompt` (optional), `aiSummary` (optional), `finalImageUrls` (array, optional), `createdAt`, `completedAt` (optional), `notifiedAdmin` (boolean, optional).
+     - [ ] Secure this collection with appropriate Firestore Rules (user reads own, admin reads all/updates status/images, API route backend needs write access).
+   - **Admin Dashboard (Task #1 Integration):**
      - [ ] Create a view/section to list `design_requests` where `status == 'pending_review'`.
-     - [ ] Display `aiGeneratedPrompt`, `aiSummary`, and provide links/previews for `logoUrls`.
+     - [ ] Display `aiGeneratedPrompt`, `aiSummary`, and provide links/previews for `logoUrl`.
      - [ ] Implement UI for admin to manually trigger external image generation (this is an external step for the admin).
      - [ ] Implement UI for admin to upload the resulting generated images (to Firebase Storage).
      - [ ] Add button/action for admin to mark the request as `completed` and save the `finalImageUrls` to the Firestore document.
-   - [ ] **Frontend (User Results Display):**
-     - [ ] Implement a mechanism (e.g., Firestore listener) for the user app to monitor their specific `design_requests` document.
-     - [ ] Create a UI view to inform the user their request is processing ("human review in progress...").
+   - **Frontend (User Results Display):**
+     - [ ] Implement a mechanism (e.g., Firestore listener or polling after API call success) for the user app to monitor their specific `design_requests` document.
+     - [ ] Create a UI view to inform the user their request is processing ("Generating prompt...", "Waiting for review...").
      - [ ] When `status == 'completed'`, fetch `finalImageUrls`.
-     - [ ] Display the admin-uploaded images to the user (similar to `PostcardGeneration` image selection, but perhaps without regeneration option initially).
+     - [ ] Display the admin-uploaded images to the user.
      - [ ] Update user flow to proceed from here (e.g., to payment/sending).
+
+### 10. SendGrid Integration for Admin Notification (Now part of API Route)
+   - [ ] Install SendGrid Node.js library (`@sendgrid/mail`).
+   - [ ] **(Integrated into API Route)** Function Logic:
+     - [ ] Read necessary data (`aiGeneratedPrompt`, `aiSummary`, `logoUrl`, user info if needed) within the API route.
+     - [ ] Construct an email notification for the admin (e.g., to `adam@posttimely.com`).
+     - [ ] Include key details and a link to the admin dashboard/specific request.
+     - [ ] Use the SendGrid API key (from environment config) and `@sendgrid/mail` to send the email *after* successful AI call and Firestore update.
+     - [ ] Update the `design_requests` document to set `notifiedAdmin` to `true` after sending.
+   - [ ] Configure SendGrid API key securely in environment variables (already done in `.env.local`).
+   - [ ] Ensure Firebase Admin SDK is set up for server-side Firestore access in the API route.
 
 ---
 

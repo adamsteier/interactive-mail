@@ -13,9 +13,12 @@ import VisualElements from './VisualElements';
 // import ReviewSubmitRequest from './ReviewSubmitRequest'; 
 import { ImageStyle, ImageSource, LayoutStyle } from './VisualElements';
 import { useMarketingStore } from '@/store/marketingStore';
+// Firebase Imports
+import { collection, addDoc, serverTimestamp } from "firebase/firestore"; 
+import { db } from '@/lib/firebase'; // Assuming firebase config exists
 // TODO: Import Firebase storage functions
 // import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-// import { storage } from '@/lib/firebase'; // Assuming firebase config exists
+// import { storage } from '@/lib/firebase';
 
 // Define types locally (some might be adapted/removed)
 type BrandStylePreference = 'playful' | 'professional' | 'modern' | 'traditional';
@@ -136,6 +139,8 @@ interface WizardState {
   logoFile: File | null; // State for the selected logo file
   logoUploadProgress: number | null; // State for upload progress
   logoUploadError: string | null; // State for upload errors
+  isSubmitting: boolean; // Added for submission state
+  submitError: string | null; // Added for submission error state
 }
 
 interface HumanAssistedWizardProps {
@@ -275,6 +280,8 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
     logoFile: null, // Initialize logo file state
     logoUploadProgress: null,
     logoUploadError: null,
+    isSubmitting: false, // Initialize submitting state
+    submitError: null, // Initialize error state
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -442,10 +449,77 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
   };
 
   // Renamed from handleGenerate - This is the final submission
-  const handleSubmitRequest = () => {
+  const handleSubmitRequest = async () => {
+    setWizardState(prev => ({ ...prev, isSubmitting: true, submitError: null }));
     console.log('Submitting human-assisted design request with data:', wizardState);
-    // TODO: Add logic to call the backend Cloud Function (`processHumanAssistedRequest`)
-    // Send: wizardState.brandData, wizardState.marketingData, etc., ESPECIALLY wizardState.brandData.logoUrl
+
+    // Ensure logo is uploaded
+    if (!wizardState.brandData.logoUrl) {
+      setWizardState(prev => ({
+        ...prev,
+        isSubmitting: false,
+        submitError: 'Logo URL is missing. Please ensure the logo was uploaded successfully.'
+      }));
+      return;
+    }
+
+    try {
+      // 1. Prepare data for Firestore
+      const requestData = {
+        userId: 'anonymous', // TODO: Replace with actual user ID if available
+        status: 'pending_prompt',
+        userInputData: {
+          brandData: wizardState.brandData,
+          marketingData: wizardState.marketingData,
+          audienceData: wizardState.audienceData,
+          businessData: wizardState.businessData,
+          visualData: wizardState.visualData,
+        },
+        logoUrl: wizardState.brandData.logoUrl,
+        createdAt: serverTimestamp(),
+        notifiedAdmin: false, // Initialize notification status
+      };
+      
+      console.log("Writing initial data to Firestore...", requestData);
+
+      // 2. Write initial data to Firestore
+      const docRef = await addDoc(collection(db, "design_requests"), requestData);
+      console.log("Initial document written with ID: ", docRef.id);
+
+      // 3. Call the backend API route to trigger AI processing and notification
+      console.log(`Calling API route /api/generate-design-prompt for document ${docRef.id}`);
+      const response = await fetch('/api/generate-design-prompt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ documentId: docRef.id }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error("API route call failed:", result);
+        throw new Error(result.error || 'Failed to trigger prompt generation.');
+      }
+
+      console.log("API route call successful:", result);
+      // Optional: Show success message, navigate away, or update UI state further
+      // For now, just log success and stop submitting state
+      
+      // Maybe clear the form or navigate? For now, just stop loading.
+      setWizardState(prev => ({ ...prev, isSubmitting: false }));
+      
+      // Consider adding a success message state to display in the UI
+
+    } catch (error) {
+      console.error("Error submitting design request:", error);
+      setWizardState(prev => ({
+        ...prev,
+        isSubmitting: false,
+        submitError: error instanceof Error ? error.message : 'An unknown error occurred.'
+      }));
+    }
   };
 
   // Handler to go back (needs adjustment based on current step)
@@ -593,11 +667,16 @@ Please upload your company logo. Recommended formats: PNG, JPG, SVG. Max size: 5
         return (
            <div className="p-8 bg-charcoal rounded-lg shadow-lg max-w-3xl mx-auto text-white">
              <h2 className="text-2xl font-bold text-electric-teal mb-4">Review & Submit Request</h2>
-             <p className="mb-4">Placeholder for Review Component. Please review the details below.</p>
+             <p className="mb-4">Please review the details below. When ready, submit your request for our design team to review.</p>
              <pre className="bg-charcoal-light p-4 rounded overflow-x-auto text-sm mb-6">
-               {JSON.stringify(wizardState, (key, value) => key === 'logoFile' ? value?.name : value, 2)}
+               {JSON.stringify(wizardState, (key, value) => key === 'logoFile' || key === 'isSubmitting' || key === 'submitError' ? undefined : value, 2)}
              </pre>
-             <p className="text-sm text-amber-400 mb-6">Note: This request will be sent to our design team for review and image generation. This process may take up to [Specify Timeframe, e.g., 24 hours].</p>
+             <p className="text-sm text-amber-400 mb-6">Note: This request involves human review and image generation. This process may take up to [Specify Timeframe, e.g., 24 hours]. You will be notified when your designs are ready.</p>
+             
+             {wizardState.submitError && (
+               <p className="text-red-500 mb-4">Error: {wizardState.submitError}</p>
+             )}
+             
              <div className="flex justify-between">
                 <motion.button
                   whileHover={{ scale: 1.03 }}
@@ -611,9 +690,10 @@ Please upload your company logo. Recommended formats: PNG, JPG, SVG. Max size: 5
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleSubmitRequest} 
-                  className="px-6 py-2 bg-electric-teal text-charcoal rounded-lg hover:bg-electric-teal/90 transition-colors"
+                  disabled={wizardState.isSubmitting} // Disable button when submitting
+                  className={`px-6 py-2 rounded-lg ${wizardState.isSubmitting ? 'bg-gray-500 cursor-not-allowed' : 'bg-electric-teal text-charcoal hover:bg-electric-teal/90'} transition-colors`}
                 >
-                  Submit Request
+                  {wizardState.isSubmitting ? 'Submitting...' : 'Submit Request'} 
                 </motion.button>
              </div>
            </div>
