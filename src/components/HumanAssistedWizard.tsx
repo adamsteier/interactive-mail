@@ -139,7 +139,11 @@ interface CampaignState {
   audienceData: AudienceData;
   businessData: WizardBusinessData;
   visualData: VisualData;
-  finalDesigns?: string[]; // Add field for final design URLs specific to this campaign
+  finalDesigns?: string[];
+  // Add fields for per-campaign status and AI results
+  aiPrompt?: string; 
+  aiSummary?: string;
+  campaignStatus?: 'draft' | 'processing_ai' | 'review_ready' | 'completed'; // Status per campaign
 }
 // --- End CampaignState Type ---
 
@@ -367,11 +371,13 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
         ...prev,
         campaigns: prev.campaigns.map(campaign => {
           if (campaign.businessType === activeType) {
+            // Ensure campaign[dataKey] exists and is an object before spreading
+            const currentData = campaign[dataKey] || {};
             return {
               ...campaign,
               [dataKey]: {
-                ...campaign[dataKey],
-                ...dataUpdates,
+                ...currentData,
+                ...(typeof dataUpdates === 'object' && dataUpdates !== null ? dataUpdates : {}),
               },
             };
           }
@@ -567,97 +573,128 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
   };
 
   const handleVisualComplete = async (visualData: VisualData) => {
-    // 1. Update local visual data state synchronously first
     const currentActiveType = wizardState.activeDesignType;
+    if (!currentActiveType) {
+      console.error("Cannot complete visual step: No active design type.");
+      return; // Should not happen
+    }
+
+    // 1. Update local state synchronously first (visual data + completed set)
     updateActiveCampaignData('visualData', visualData);
+    setWizardState(prev => ({
+      ...prev,
+      completedCampaigns: new Set(prev.completedCampaigns).add(currentActiveType)
+    }));
+
+    // 2. Perform Async Ops: Save to Firestore & Trigger AI for THIS campaign
+    setWizardState(prev => ({ ...prev, isSubmitting: true, submitError: null, processingMessage: `Submitting ${currentActiveType}...` }));
     
-    // 2. Add to completed set (sync state update)
-    if (currentActiveType) {
-      setWizardState(prev => ({ ...prev, completedCampaigns: new Set(prev.completedCampaigns).add(currentActiveType) }));
-    }
+    try {
+      if (!user) throw new Error("User not authenticated.");
 
-    // 3. Perform Async Operations (Firestore/API) based on current state
-    // Get necessary state *after* sync updates have likely settled (or read directly)
-    const { designScope, submittedRequestId, campaigns, activeDesignType, globalBrandData, uploadedLogoUrl } = wizardState;
-    // Create a snapshot of campaigns *with the updated visual data* for Firestore write
-     const campaignsForWrite = campaigns.map(c => 
-          c.businessType === activeDesignType ? {...c, visualData} : c
-      );
+      const currentState = wizardState; // Get current state *after* sync updates
+      const { designScope, submittedRequestId, campaigns, globalBrandData, uploadedLogoUrl } = currentState;
+      let finalRequestId = submittedRequestId;
+      const campaignToUpdateIndex = campaigns.findIndex(c => c.businessType === currentActiveType);
 
-    // Check if this is the FIRST campaign completion in MULTIPLE scope
-    if (designScope === 'multiple' && !submittedRequestId) {
-        console.log("Completing Visual step for the FIRST campaign... Creating doc and notifying...");
-        setWizardState(prev => ({ ...prev, isSubmitting: true, submitError: null, processingMessage: 'Saving first campaign & notifying admin...'}));
+      if (campaignToUpdateIndex === -1) {
+        throw new Error(`Could not find campaign data for active type: ${currentActiveType}`);
+      }
 
-        let newRequestId: string | null = null;
-        try {
-            if (!user) throw new Error("User not authenticated.");
-            const initialRequestData = {
-                userId: user.uid,
-                status: 'draft_multiple',
-                designScope: 'multiple',
-                globalBrandData: globalBrandData,
-                campaigns: campaignsForWrite, // Use updated campaigns array
-                logoUrl: uploadedLogoUrl || '',
-                createdAt: serverTimestamp(),
-                notifiedAdmin: false, 
-            };
-            const docRef = await addDoc(collection(db, "design_requests"), initialRequestData);
-            newRequestId = docRef.id;
-            console.log("Initial multi-design doc created with ID:", newRequestId);
-
-            // Call API
-            await fetch('/api/generate-design-prompt', { 
-                 method: 'POST',
-                 headers: { 'Content-Type': 'application/json' },
-                 body: JSON.stringify({ documentId: newRequestId }),
-             });
-            // TODO: Check API response ok? For now, proceed.
-            console.log("Initial notification API call initiated.");
-
-            // Update state AFTER successful async operations
-            setWizardState(prev => ({
-                ...prev,
-                submittedRequestId: newRequestId, 
-                requestStatus: 'draft_multiple',
-                isSubmitting: false,
-                processingMessage: '',
-                currentStep: 'review' // Navigate on success
-            }));
-            return; // Exit function after successful state update
-
-        } catch (error) {
-            console.error("Error during first campaign save & notify:", error);
-            setWizardState(prev => ({
-                ...prev, 
-                isSubmitting: false, 
-                submitError: `Failed to save first campaign: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                processingMessage: '',
-                // Don't navigate if save failed
-            }));
-            return; // Exit function on error
+      // Prepare the campaign object with updated status and visual data
+      const campaignsForWrite = campaigns.map((campaign, index) => {
+        if (index === campaignToUpdateIndex) {
+          return {
+            ...campaign,
+            visualData: visualData, // Ensure latest visual data
+            campaignStatus: 'processing_ai' as const, // Set status for this campaign
+            aiPrompt: undefined, // Clear any previous error state
+            aiSummary: undefined,
+          };
         }
-    }
-    // If subsequent campaign completion in MULTIPLE scope, update existing doc
-    else if (designScope === 'multiple' && submittedRequestId) {
-         try {
-             const docRef = doc(db, "design_requests", submittedRequestId);
-             const campaignIndex = campaignsForWrite.findIndex(c => c.businessType === activeDesignType);
-             if (campaignIndex !== -1) {
-                 await updateDoc(docRef, { [`campaigns.${campaignIndex}.visualData`]: visualData });
-                 console.log("Firestore visual data updated successfully for subsequent campaign.");
-             } else {
-                 console.warn("Could not find active campaign index to update Firestore visual data.");
-             }
-         } catch (error) {
-             console.error("Failed to update visual data in Firestore for subsequent campaign:", error);
-             // Potentially set an error state here?
-         }
-    }
+        // Initialize status for other campaigns if not set
+        return { ...campaign, campaignStatus: campaign.campaignStatus || 'draft' }; 
+      });
 
-    // If single scope, or if multi-scope update finished (or failed gracefully),
-    // navigate to the next step. Do this outside the async try/catch for first save.
-    setWizardState(prev => ({ ...prev, currentStep: 'review' }));
+      // A. If it's the FIRST campaign submission in multi-scope
+      if (designScope === 'multiple' && !finalRequestId) {
+        console.log(`Visual Complete: First campaign (${currentActiveType}). Creating doc...`);
+        const initialRequestData = {
+          userId: user.uid,
+          status: 'processing_campaign', // Overall status
+          designScope: 'multiple',
+          globalBrandData: globalBrandData,
+          campaigns: campaignsForWrite,
+          logoUrl: uploadedLogoUrl || '',
+          createdAt: serverTimestamp(),
+          notifiedAdmin: false, // API will handle this
+        };
+        const docRef = await addDoc(collection(db, "design_requests"), initialRequestData);
+        finalRequestId = docRef.id;
+        console.log("Initial doc created with ID:", finalRequestId);
+        // Update local state with new ID immediately
+        setWizardState(prev => ({ ...prev, submittedRequestId: finalRequestId, requestStatus: 'processing_campaign' }));
+
+      // B. If it's a SUBSEQUENT campaign submission in multi-scope
+      } else if (designScope === 'multiple' && finalRequestId) {
+        console.log(`Visual Complete: Subsequent campaign (${currentActiveType}). Updating doc ${finalRequestId}...`);
+        const docRef = doc(db, "design_requests", finalRequestId);
+        // Update only the specific campaign's status and data + overall timestamp
+        await updateDoc(docRef, {
+          [`campaigns.${campaignToUpdateIndex}.visualData`]: visualData,
+          [`campaigns.${campaignToUpdateIndex}.campaignStatus`]: 'processing_ai',
+          [`campaigns.${campaignToUpdateIndex}.aiPrompt`]: null, // Clear previous errors if any
+          [`campaigns.${campaignToUpdateIndex}.aiSummary`]: null,
+           lastModified: serverTimestamp() // Optional: track overall modifications
+        });
+        console.log(`Doc ${finalRequestId} updated for campaign ${currentActiveType}.`);
+        // Update local campaign state status if needed (listener might handle this too)
+        setWizardState(prev => ({ ...prev, campaigns: campaignsForWrite }));
+        
+      // C. If it's a SINGLE scope submission (handle case where user revisits visual step?)
+      } else if (designScope === 'single') {
+         console.log("Visual Complete: Single scope. No Firestore update here, handled on final submit.");
+         // No Firestore action needed here for single scope - defer to handleSubmitRequest
+      } else {
+          throw new Error("Invalid state combination in handleVisualComplete.");
+      }
+
+      // D. Call API to process THIS campaign (only if Firestore write was intended)
+      if ((designScope === 'multiple' || designScope === 'single') && finalRequestId) {
+          console.log(`Calling API for campaign '${currentActiveType}' in doc ${finalRequestId}`);
+          // Note: We are now also calling API for single scope here
+          const apiResponse = await fetch('/api/generate-design-prompt', { 
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                  documentId: finalRequestId, 
+                  targetCampaignType: currentActiveType // Tell API which campaign to process
+              }),
+          });
+          if (!apiResponse.ok) {
+              const apiResult = await apiResponse.json().catch(() => ({}));
+              console.warn(`API call failed for campaign ${currentActiveType}:`, apiResult);
+              // Update specific campaign status to show error?
+              // setWizardState(prev => updateCampaignStatus(prev, currentActiveType, 'ai_failed'));
+              throw new Error(apiResult.error || `API call failed for ${currentActiveType}`);
+          } else {
+              console.log(`API call successful for campaign ${currentActiveType}.`);
+              // API updates campaignStatus to 'review_ready', listener should pick it up.
+          }
+      }
+      
+      // E. Navigate to Review step (for all scopes) & clear loading state
+      setWizardState(prev => ({ ...prev, currentStep: 'review', isSubmitting: false, processingMessage: '' }));
+
+    } catch (error) {
+      console.error(`Error in handleVisualComplete for ${currentActiveType}:`, error);
+      setWizardState(prev => ({
+          ...prev, 
+          isSubmitting: false, 
+          submitError: `Failed to process visual step: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          processingMessage: '',
+      }));
+    }
   };
   // --- End Update Step Completion Handlers ---
 
