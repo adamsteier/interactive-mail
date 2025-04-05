@@ -141,9 +141,9 @@ interface CampaignState {
   visualData: VisualData;
   finalDesigns?: string[];
   // Add fields for per-campaign status and AI results
-  aiPrompt?: string; 
-  aiSummary?: string;
-  campaignStatus?: 'draft' | 'processing_ai' | 'review_ready' | 'completed'; // Status per campaign
+  aiPrompt?: string | null; // Allow null
+  aiSummary?: string | null; // Allow null
+  campaignStatus?: 'draft' | 'processing_ai' | 'review_ready' | 'completed' | 'ai_failed'; // Add failed status
 }
 // --- End CampaignState Type ---
 
@@ -608,8 +608,8 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
             ...campaign,
             visualData: visualData, // Ensure latest visual data
             campaignStatus: 'processing_ai' as const, // Set status for this campaign
-            aiPrompt: undefined, // Clear any previous error state
-            aiSummary: undefined,
+            aiPrompt: null, // Use null instead of undefined
+            aiSummary: null, // Use null instead of undefined
           };
         }
         // Initialize status for other campaigns if not set
