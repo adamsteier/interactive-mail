@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import AIDesignWizard from './AIDesignWizard';
 import DesignGuideModal from './DesignGuideModal';
-// Assume HumanAssistedWizard will be created later
-// import HumanAssistedWizard from './HumanAssistedWizard';
+// Import the actual HumanAssistedWizard
+import HumanAssistedWizard from './HumanAssistedWizard';
 
 // Update DesignOption type
 type DesignOption = 'upload' | 'ai' | 'human' | 'ai_human' | null;
@@ -21,10 +21,9 @@ const PostcardDesigner = () => {
     return <AIDesignWizard onBack={() => setShowAIWizard(false)} />;
   }
 
-  // Placeholder for the new wizard component
-  // if (showHumanAssistedWizard) {
-  //   return <HumanAssistedWizard onBack={() => setShowHumanAssistedWizard(false)} />;
-  // }
+  if (showHumanAssistedWizard) {
+    return <HumanAssistedWizard onBack={() => setShowHumanAssistedWizard(false)} />;
+  }
 
   const designOptions = [
     {
@@ -97,60 +96,60 @@ const PostcardDesigner = () => {
   return (
     <div className="min-h-screen bg-charcoal p-4 sm:p-8">
       <div className="max-w-6xl mx-auto space-y-12">
-        <h1 className="text-3xl font-bold text-electric-teal">Choose Your Design Method</h1>
-        
-        {/* Adjust grid columns for responsiveness */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {designOptions.map((option) => (
-            <motion.div
-              key={option.id}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className={`rounded-lg border-2 ${
-                selectedOption === option.id 
-                  ? 'border-electric-teal shadow-glow' 
-                  : 'border-electric-teal/50'
-              } bg-charcoal p-6 cursor-pointer transition-colors duration-200
-                hover:border-electric-teal hover:shadow-glow`}
-              onClick={() => setSelectedOption(option.id as DesignOption)}
-            >
-              <div className="text-electric-teal mb-4">
-                {option.icon}
+        {/* Conditionally render the correct component or the selection UI */}
+        {showAIWizard ? (
+          <AIDesignWizard onBack={() => setShowAIWizard(false)} />
+        ) : showHumanAssistedWizard ? (
+          // Render HumanAssistedWizard directly here, not in a modal
+          <HumanAssistedWizard onBack={() => setShowHumanAssistedWizard(false)} />
+        ) : (
+          // Render the design method selection UI if no wizard is active
+          <>
+            <h1 className="text-3xl font-bold text-electric-teal">Choose Your Design Method</h1>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {designOptions.map((option) => (
+                <motion.div
+                  key={option.id}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`rounded-lg border-2 ${
+                    selectedOption === option.id 
+                      ? 'border-electric-teal shadow-glow' 
+                      : 'border-electric-teal/50'
+                  } bg-charcoal p-6 cursor-pointer transition-colors duration-200
+                    hover:border-electric-teal hover:shadow-glow`}
+                  onClick={() => setSelectedOption(option.id as DesignOption)}
+                >
+                  <div className="text-electric-teal mb-4">
+                    {option.icon}
+                  </div>
+                  <h3 className="text-xl font-medium text-electric-teal mb-2">
+                    {option.title}
+                  </h3>
+                  <p className="text-electric-teal/60">
+                    {option.description}
+                  </p>
+                </motion.div>
+              ))}
+            </div>
+
+            {selectedOption && (
+              <div className="flex justify-end">
+                <button
+                  onClick={handleContinue}
+                  className="rounded-lg bg-electric-teal px-6 py-3 text-charcoal 
+                    hover:bg-electric-teal/90 transition-colors duration-200"
+                >
+                  Continue with {
+                    selectedOption === 'upload' ? 'Upload' :
+                    selectedOption === 'ai' ? 'AI Design' :
+                    selectedOption === 'human' ? 'Designer' :
+                    'AI Design + Expert Review'
+                  }
+                </button>
               </div>
-              <h3 className="text-xl font-medium text-electric-teal mb-2">
-                {option.title}
-              </h3>
-              <p className="text-electric-teal/60">
-                {option.description}
-              </p>
-            </motion.div>
-          ))}
-        </div>
-
-        {selectedOption && (
-          <div className="flex justify-end">
-            <button
-              onClick={handleContinue}
-              className="rounded-lg bg-electric-teal px-6 py-3 text-charcoal 
-                hover:bg-electric-teal/90 transition-colors duration-200"
-            >
-              Continue with {
-                selectedOption === 'upload' ? 'Upload' :
-                selectedOption === 'ai' ? 'AI Design' :
-                selectedOption === 'human' ? 'Designer' :
-                'AI Design + Expert Review'
-              }
-            </button>
-          </div>
-        )}
-
-        {/* Display HumanAssistedWizard if state is true */}
-        {showHumanAssistedWizard && (
-           <div className="fixed inset-0 bg-charcoal bg-opacity-95 z-50 flex items-center justify-center">
-             <p className="text-white text-2xl">Human Assisted Wizard Placeholder - Press Back</p>
-             <button onClick={() => setShowHumanAssistedWizard(false)} className="absolute top-4 right-4 text-white text-3xl">&times;</button>
-             {/* <HumanAssistedWizard onBack={() => setShowHumanAssistedWizard(false)} /> */}
-           </div>
+            )}
+          </>
         )}
       </div>
 
