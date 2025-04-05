@@ -139,6 +139,7 @@ interface CampaignState {
   audienceData: AudienceData;
   businessData: WizardBusinessData;
   visualData: VisualData;
+  finalDesigns?: string[]; // Add field for final design URLs specific to this campaign
 }
 // --- End CampaignState Type ---
 
@@ -249,7 +250,6 @@ const toWizardBusinessData = (componentBusinessData: ComponentBusinessData, curr
 // Rename component
 const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
   const businessName = useMarketingStore((state) => state.businessInfo.businessName);
-  const marketingStrategy = useMarketingStore((state) => state.marketingStrategy);
   const { user } = useAuth(); // Get user from AuthContext
   const selectedBusinessTypes = useMarketingStore(state => state.selectedBusinessTypes); // Read selected types
   
@@ -485,16 +485,6 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
     };
   }, [wizardState.logoPreviewUrl]);
   // --- End preview URL cleanup useEffect ---
-
-  // Keep getTargetDescription for now, might be useful
-  const getTargetDescription = () => {
-    if (!marketingStrategy) return '';
-    if (marketingStrategy.method1Analysis.businessTargets.length > 0) {
-      const target = marketingStrategy.method1Analysis.businessTargets[0];
-      return target.reasoning || '';
-    }
-    return marketingStrategy.method1Analysis.overallReasoning || '';
-  };
 
   const stepTitles: Record<WizardStep, string> = {
     design_choice: 'Design Scope', // Title for the new step
@@ -1081,8 +1071,9 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
         
       case 'brand':
         return <BrandIdentity 
-            onComplete={handleBrandComplete}
+          onComplete={handleBrandComplete} 
           initialData={toComponentBrandData(wizardState.globalBrandData)}
+          hideLogoInput={true}
         />;
         
       case 'logo_upload':
@@ -1171,7 +1162,7 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
                        : 'bg-electric-teal text-charcoal hover:bg-electric-teal/90'} 
                     disabled:opacity-50 disabled:cursor-not-allowed`}
                >
-                  {wizardState.uploadedLogoUrl ? 'Logo Saved, Continue' : 'Skip / Continue &rarr;'}
+                  {wizardState.uploadedLogoUrl ? 'Continue' : 'Skip / Continue'}
                </button>
             </div>
           </motion.div>
@@ -1186,16 +1177,11 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
         );
         
       case 'audience':
-        const targetDescription = getTargetDescription();
-        const audienceInitialData = {
-          ...safeActiveCampaign.audienceData,
-          targetDescription: targetDescription || safeActiveCampaign.audienceData.targetDescription
-        };
         return (
           <TargetAudience
             onComplete={handleAudienceComplete}
-            initialData={audienceInitialData}
-            segment={wizardState.designScope === 'multiple' ? (wizardState.activeDesignType ?? undefined) : undefined} // Fix type error
+            initialData={safeActiveCampaign.audienceData} 
+            segment={wizardState.designScope === 'multiple' ? (wizardState.activeDesignType ?? undefined) : undefined} 
           />
         );
         

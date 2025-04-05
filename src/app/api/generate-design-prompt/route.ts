@@ -103,11 +103,10 @@ export async function POST(req: Request) {
       // --- Handle Early Notification Only --- 
       console.log(`Status is 'draft_multiple'. Sending initial notification for doc ${documentId}.`);
       
-      // Simplified notification message
-      const msg = {
+      const draftMsg = {
         to: 'adam@posttimely.com', 
         from: 'team@magicmailing.com',
-        subject: `[Draft Started] Multi-Design Request: ${designRequestData.campaigns?.[0]?.userInputData?.brandData?.brandName || documentId}`, // Access first campaign brand name
+        subject: `[Draft Started] Multi-Design Request: ${designRequestData.campaigns?.[0]?.userInputData?.brandData?.brandName || documentId}`, 
         text: `A new multi-design request has been started by a user (Doc ID: ${documentId}).\n\n` +
               `Brand: ${designRequestData.campaigns?.[0]?.userInputData?.brandData?.brandName || 'N/A'}\n\n` +
               `Business Types: ${designRequestData.campaigns?.map((c: unknown) => (c as FirestoreCampaign).businessType).join(', ') || 'N/A'}\n\n` + // Use type assertion
@@ -119,20 +118,19 @@ export async function POST(req: Request) {
       };
 
       try {
-        await sgMail.send(msg);
+        await sgMail.send(draftMsg); // Use draftMsg
         console.log(`Initial SendGrid email sent successfully for doc ${documentId}.`);
-        // Update Firestore: mark as notified
-        await docRef.update({ notifiedAdmin: true /*, status: 'draft_notified' ? */ });
+        await docRef.update({ notifiedAdmin: true });
         console.log(`Firestore document ${documentId} marked as notified.`);
-        return NextResponse.json({ success: true, message: 'Initial admin notification sent.' });
+        // *** Explicitly return success after notification ***
+        return NextResponse.json({ success: true, message: 'Initial admin notification sent.' }); 
       } catch (emailError) {
         console.error(`Error sending initial SendGrid email for doc ${documentId}:`, emailError);
-        // Don't block the user, but return specific error
         return NextResponse.json({
           success: false, 
           message: 'Failed to send initial admin notification email.',
           error: emailError instanceof Error ? emailError.message : 'Unknown email error' 
-        }, { status: 500 }); // Indicate server error for notification failure
+        }, { status: 500 });
       }
       // --- End Early Notification --- 
 
@@ -140,19 +138,18 @@ export async function POST(req: Request) {
       // --- Handle Full AI Generation and Final Notification --- 
       console.log(`Status is 'pending_prompt'. Processing AI generation for doc ${documentId}.`);
 
-      // Check for required data - Use type assertion for first campaign
+      // *** ALL AI generation and final notification logic stays within this block ***
+      
+      // Check data validity specific for prompt generation
       const firstCampaign = designRequestData.campaigns?.[0] as FirestoreCampaign | undefined; 
       const logoForPrompt = designRequestData.logoUrl;
-      
-      if (!firstCampaign?.userInputData) { // Check nested structure
-         console.error(`Incomplete campaign user input data found for document ${documentId}.`);
-         return NextResponse.json({ error: 'Incomplete design request data for prompt generation' }, { status: 400 });
+      if (!firstCampaign?.userInputData) { 
+          // ... handle incomplete data error ...
+          return NextResponse.json({ error: 'Incomplete design request data for prompt generation' }, { status: 400 });
       }
-      // Assign after check for type safety
       const firstCampaignData = firstCampaign.userInputData;
 
       console.log("Calling OpenAI API...");
-      // Construct the prompt using data from the first campaign
       const aiPrompt = `
         You are an expert marketing assistant helping generate postcard image prompts and summaries for a human designer.
         This request might involve multiple final designs (${designRequestData.designScope === 'multiple' ? designRequestData.campaigns?.length : 1} total campaigns: ${designRequestData.campaigns?.map((c: unknown) => (c as FirestoreCampaign).businessType).join(', ')}).
@@ -215,44 +212,45 @@ export async function POST(req: Request) {
 
       // Send detailed SendGrid Notification
       console.log("Attempting to send final notification email via SendGrid...");
-      const finalMsg = {
-        to: 'adam@posttimely.com', 
-        from: 'team@magicmailing.com',
-        subject: `[Ready for Review] Design Request: ${firstCampaignData.brandData?.brandName || documentId}`,
-        text: `Design request ready for review (Doc ID: ${documentId}).\n\n` +
-              `Brand: ${firstCampaignData.brandData?.brandName || 'N/A'}\n\n` +
-              `Scope: ${designRequestData.designScope} (${designRequestData.campaigns?.length} campaigns)\n`+
-              `Business Types: ${designRequestData.campaigns?.map((c: unknown) => (c as FirestoreCampaign).businessType).join(', ') || 'N/A'}\n\n` + // Use type assertion
-              `AI Generated Prompt (based on first campaign):
+      const finalMsg = { 
+          to: 'adam@posttimely.com', 
+          from: 'team@magicmailing.com',
+          subject: `[Ready for Review] Design Request: ${firstCampaignData.brandData?.brandName || documentId}`,
+          text: `Design request ready for review (Doc ID: ${documentId}).\n\n` +
+                `Brand: ${firstCampaignData.brandData?.brandName || 'N/A'}\n\n` +
+                `Scope: ${designRequestData.designScope} (${designRequestData.campaigns?.length} campaigns)\n`+
+                `Business Types: ${designRequestData.campaigns?.map((c: unknown) => (c as FirestoreCampaign).businessType).join(', ') || 'N/A'}\n\n` + // Use type assertion
+                `AI Generated Prompt (based on first campaign):
 ${aiGeneratedPrompt}\n\n` +
-              `AI Summary for Admin:
+                `AI Summary for Admin:
 ${aiSummary}\n\n` +
-              `Logo URL: ${logoForPrompt}\n\n` +
-              `Manage Request: ${adminRequestUrl}`, 
-        html: `<p>Design request ready for review (Doc ID: <strong>${documentId}</strong>)</p>` +
-              `<p>Brand: ${firstCampaignData.brandData?.brandName || 'N/A'}</p>` +
-              `<p>Scope: ${designRequestData.designScope} (${designRequestData.campaigns?.length} campaigns)</p>` +
-              `<p>Business Types: ${designRequestData.campaigns?.map((c: unknown) => (c as FirestoreCampaign).businessType).join(', ') || 'N/A'}</p>` + // Use type assertion
-              `<p><strong>AI Generated Prompt (based on first campaign):</strong><br/>${aiGeneratedPrompt.replace(/\n/g, '<br/>')}</p>` +
-              `<p><strong>AI Summary for Admin:</strong><br/>${aiSummary.replace(/\n/g, '<br/>')}</p>` +
-              `<p>Logo URL: <a href="${logoForPrompt}">${logoForPrompt}</a></p>` +
-              `<p><strong><a href="${adminRequestUrl}">Click here to manage the request</a></strong></p>`, 
-      };
+                `Logo URL: ${logoForPrompt}\n\n` +
+                `Manage Request: ${adminRequestUrl}`, 
+          html: `<p>Design request ready for review (Doc ID: <strong>${documentId}</strong>)</p>` +
+                `<p>Brand: ${firstCampaignData.brandData?.brandName || 'N/A'}</p>` +
+                `<p>Scope: ${designRequestData.designScope} (${designRequestData.campaigns?.length} campaigns)</p>` +
+                `<p>Business Types: ${designRequestData.campaigns?.map((c: unknown) => (c as FirestoreCampaign).businessType).join(', ') || 'N/A'}</p>` + // Use type assertion
+                `<p><strong>AI Generated Prompt (based on first campaign):</strong><br/>${aiGeneratedPrompt.replace(/\n/g, '<br/>')}</p>` +
+                `<p><strong>AI Summary for Admin:</strong><br/>${aiSummary.replace(/\n/g, '<br/>')}</p>` +
+                `<p>Logo URL: <a href="${logoForPrompt}">${logoForPrompt}</a></p>` +
+                `<p><strong><a href="${adminRequestUrl}">Click here to manage the request</a></strong></p>`, 
+       }; 
 
       try {
         await sgMail.send(finalMsg);
         console.log(`Final SendGrid email sent successfully for doc ${documentId}.`);
         await docRef.update({ notifiedAdmin: true });
         console.log(`Firestore document ${documentId} marked as notified (final).`);
-        return NextResponse.json({ success: true, message: 'Prompt generated and admin notified.' });
+        // *** Return success for the full flow ***
+        return NextResponse.json({ success: true, message: 'Prompt generated and admin notified.' }); 
       } catch (emailError) {
+        // Log the error and include details in the response
         console.error(`Error sending final SendGrid email for doc ${documentId}:`, emailError);
-        // Return error, but indicate main task succeeded
         return NextResponse.json({
           success: true, // AI part still worked
           message: 'Prompt generated, but failed to send final admin notification email.',
-          error: emailError instanceof Error ? emailError.message : 'Unknown email error' 
-        }); // Status 2xx or 5xx?
+          error: emailError instanceof Error ? emailError.message : 'Unknown email error' // Include error message
+        });
       }
       // --- End Full AI Generation --- 
 

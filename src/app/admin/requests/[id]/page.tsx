@@ -57,47 +57,62 @@ interface UserInputData {
 }
 // --- End User Input Data Types ---
 
-// Define a type for the request data (adjust based on actual structure)
+// --- Define type for a single Campaign within the request --- 
+interface RequestCampaign {
+  businessType: string;
+  userInputData: UserInputData; // Keep original user input per campaign if needed for display
+  marketingData: MarketingData; // Or flatten userInputData if preferred
+  audienceData: AudienceData;
+  businessData: BusinessData;
+  visualData: VisualData;
+  finalDesigns?: string[]; // Array of final design URLs for this campaign
+}
+
+// --- Define type for the overall Request Data --- 
 interface DesignRequestData {
   userId: string;
   status: string;
-  userInputData: UserInputData; // Use the specific type instead of any
-  logoUrl: string;
+  designScope: 'single' | 'multiple'; // Add designScope
+  globalBrandData?: BrandData; // Add global brand data
+  campaigns: RequestCampaign[]; // Array of campaigns
+  logoUrl: string; // Still global logo
   aiGeneratedPrompt?: string;
   aiSummary?: string;
   notifiedAdmin?: boolean;
-  finalImageUrls?: string[]; // Add field for final images
-  completedAt?: Timestamp; // Use Timestamp type instead of any
+  // finalImageUrls removed - now per-campaign
+  completedAt?: Timestamp;
   // Add other fields as needed
 }
 
 export default function AdminRequestPage() {
   const params = useParams();
-  const requestId = params?.id as string; // Get ID from dynamic route
+  const requestId = params?.id as string; 
   const [requestData, setRequestData] = useState<DesignRequestData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // --- State for Admin Actions ---
-  const [finalFiles, setFinalFiles] = useState<FileList | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
-  const [uploadedUrls, setUploadedUrls] = useState<string[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
-  const [isCompleting, setIsCompleting] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
-  // --- End Admin Actions State ---
+  // --- State for Admin Actions --- 
+  // Store selected files per campaign (key: businessType or index)
+  const [filesToUpload, setFilesToUpload] = useState<Record<string, FileList | null>>({}); 
+  // Store upload progress per file within a campaign
+  const [uploadProgress, setUploadProgress] = useState<Record<string, Record<string, number>>>({}); // { campaignKey: { fileName: progress } }
+  // No longer need global uploadedUrls - fetched from requestData.campaigns[...].finalDesigns
+  // const [uploadedUrls, setUploadedUrls] = useState<string[]>([]); 
+  const [isUploading, setIsUploading] = useState<Record<string, boolean>>({}); // { campaignKey: boolean }
+  const [isCompleting, setIsCompleting] = useState(false); // Global completion state
+  const [actionError, setActionError] = useState<Record<string, string | null>>({}); // { campaignKey or 'global': error }
+  const [actionSuccess, setActionSuccess] = useState<Record<string, string | null>>({});// { campaignKey or 'global': success }
+  // --- End Admin Actions State --- 
 
   useEffect(() => {
     if (!requestId) return;
-    // Reset action states if requestId changes
-    setFinalFiles(null);
+    // Reset states
+    setFilesToUpload({});
     setUploadProgress({});
-    setUploadedUrls([]);
-    setIsUploading(false);
+    setIsUploading({});
     setIsCompleting(false);
-    setActionError(null);
-    setActionSuccess(null);
+    setActionError({});
+    setActionSuccess({});
     
     const fetchRequestData = async () => {
       setLoading(true);
@@ -109,11 +124,8 @@ export default function AdminRequestPage() {
 
         if (docSnap.exists()) {
           console.log("Request data found:", docSnap.data());
-          const data = docSnap.data() as DesignRequestData;
-          setRequestData(data);
-          if (data.finalImageUrls) {
-            setUploadedUrls(data.finalImageUrls);
-          }
+          setRequestData(docSnap.data() as DesignRequestData);
+          // No need to setUploadedUrls here anymore
         } else {
           console.error('No such document!');
           setError('Design request not found.');
@@ -129,50 +141,52 @@ export default function AdminRequestPage() {
     fetchRequestData();
   }, [requestId]);
 
-  // --- Admin Action Handlers ---
-  const handleFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
-    setFinalFiles(event.target.files);
+  // --- Modified Admin Action Handlers --- 
+  const handleFileSelect = (event: ChangeEvent<HTMLInputElement>, campaignKey: string) => {
+    setFilesToUpload(prev => ({ ...prev, [campaignKey]: event.target.files }));
+    setActionError(prev => ({ ...prev, [campaignKey]: null })); // Clear error on new selection
+    setActionSuccess(prev => ({ ...prev, [campaignKey]: null }));
   };
 
-  const handleUploadFinalDesigns = async () => {
-    if (!finalFiles || finalFiles.length === 0 || !requestId) {
-      setActionError("Please select files to upload.");
+  const handleUploadFinalDesigns = async (campaignKey: string, campaignIndex: number) => {
+    const files = filesToUpload[campaignKey];
+    if (!files || files.length === 0 || !requestId) {
+      setActionError(prev => ({...prev, [campaignKey]: "Please select files to upload for this campaign."}));
       return;
     }
-    if (requestData?.status === 'completed') {
-      setActionError("This request is already completed.");
-      return;
-    }
+    // No global completion check here, just upload
 
-    setIsUploading(true);
-    setActionError(null);
-    setActionSuccess(null);
-    setUploadProgress({});
+    setIsUploading(prev => ({...prev, [campaignKey]: true}));
+    setActionError(prev => ({...prev, [campaignKey]: null}));
+    setActionSuccess(prev => ({...prev, [campaignKey]: null}));
+    setUploadProgress(prev => ({...prev, [campaignKey]: {} })); // Reset progress for this campaign
 
-    const uploadPromises = Array.from(finalFiles).map((file) => {
-      const storageRef = ref(storage, `final_designs/${requestId}/${Date.now()}_${file.name}`);
+    const uploadPromises = Array.from(files).map((file) => {
+      // Include campaignKey (businessType) in storage path for organization
+      const storageRef = ref(storage, `final_designs/${requestId}/${campaignKey}/${Date.now()}_${file.name}`);
       const uploadTask = uploadBytesResumable(storageRef, file);
 
       return new Promise<string>((resolve, reject) => {
         uploadTask.on('state_changed',
           (snapshot) => {
             const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            setUploadProgress(prev => ({ ...prev, [file.name]: progress }));
-            console.log(`Upload is ${progress}% done for ${file.name}`);
+            // Update progress for the specific file within the specific campaign
+            setUploadProgress(prev => ({
+               ...prev,
+               [campaignKey]: { ...prev[campaignKey], [file.name]: progress }
+            }));
           },
           (error) => {
-            console.error(`Upload failed for ${file.name}:`, error);
-            setActionError(`Upload failed for ${file.name}.`);
+            // Set error for the specific campaign
+            setActionError(prev => ({...prev, [campaignKey]: `Upload failed for ${file.name}.`}));
             reject(error);
           },
           async () => {
             try {
               const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-              console.log(`File ${file.name} available at`, downloadURL);
               resolve(downloadURL);
             } catch (getUrlError) {
-              console.error(`Failed to get download URL for ${file.name}:`, getUrlError);
-              setActionError(`Failed get URL for ${file.name}.`);
+              setActionError(prev => ({...prev, [campaignKey]: `Failed get URL for ${file.name}.`}));
               reject(getUrlError);
             }
           }
@@ -181,195 +195,236 @@ export default function AdminRequestPage() {
     });
 
     try {
-      const urls = await Promise.all(uploadPromises);
-      setUploadedUrls(prev => [...prev, ...urls]); // Append new URLs
-      setActionSuccess(`${urls.length} file(s) uploaded successfully!`);
-      setFinalFiles(null); // Clear selected files after upload
+      const newUrls = await Promise.all(uploadPromises);
+      
+      // Update Firestore document: add URLs to the specific campaign's finalDesigns array
+      const docRef = doc(db, 'design_requests', requestId);
+      // Get current finalDesigns array or default to empty array
+      const currentDesigns = requestData?.campaigns[campaignIndex]?.finalDesigns || []; 
+      const updatedDesigns = [...currentDesigns, ...newUrls];
+      
+      // Update using dot notation
+      await updateDoc(docRef, {
+          [`campaigns.${campaignIndex}.finalDesigns`]: updatedDesigns
+      });
+
+      // Update local state to reflect the change immediately
+      setRequestData(prev => {
+          if (!prev) return null;
+          const updatedCampaigns = [...prev.campaigns];
+          updatedCampaigns[campaignIndex] = { ...updatedCampaigns[campaignIndex], finalDesigns: updatedDesigns };
+          return { ...prev, campaigns: updatedCampaigns };
+      });
+
+      setActionSuccess(prev => ({...prev, [campaignKey]: `${newUrls.length} file(s) uploaded successfully!`}));
+      setFilesToUpload(prev => ({ ...prev, [campaignKey]: null })); // Clear selected files
     } catch (uploadError) {
-      console.error("Error uploading files:", uploadError);
-      setActionError("One or more file uploads failed. Please check console.");
+      console.error(`Error uploading files for campaign ${campaignKey}:`, uploadError);
+      setActionError(prev => ({...prev, [campaignKey]: "One or more file uploads failed."}));
     } finally {
-      setIsUploading(false);
-      setUploadProgress({});
+      setIsUploading(prev => ({...prev, [campaignKey]: false}));
+      // Don't clear progress immediately, let it show 100%
     }
   };
 
+  // Check if all campaigns (in multi-design mode) have designs
+  const canMarkComplete = requestData?.designScope === 'multiple' 
+     ? requestData.campaigns.every(c => c.finalDesigns && c.finalDesigns.length > 0)
+     : (requestData?.campaigns[0]?.finalDesigns && requestData.campaigns[0].finalDesigns.length > 0); // Check first campaign for single
+
   const handleMarkComplete = async () => {
-    if (!requestId || uploadedUrls.length === 0) {
-      setActionError("No final designs have been uploaded yet.");
+    if (!requestId || !canMarkComplete) {
+      setActionError(prev => ({...prev, global: "Designs must be uploaded for all campaigns before completing."}));
       return;
     }
      if (requestData?.status === 'completed') {
-      setActionError("This request is already completed.");
+      setActionError(prev => ({...prev, global: "This request is already completed."}));
       return;
     }
 
     setIsCompleting(true);
-    setActionError(null);
-    setActionSuccess(null);
+    setActionError(prev => ({...prev, global: null}));
+    setActionSuccess(prev => ({...prev, global: null}));
 
     try {
       const docRef = doc(db, 'design_requests', requestId);
       await updateDoc(docRef, {
         status: 'completed',
-        finalImageUrls: uploadedUrls,
-        completedAt: serverTimestamp(), // Use server timestamp
+        // No need to update finalImageUrls here, they are already in campaigns
+        completedAt: serverTimestamp(), 
       });
       
-      // Refresh local state to reflect completion
-      setRequestData(prev => prev ? ({ ...prev, status: 'completed', finalImageUrls: uploadedUrls }) : null);
-      setActionSuccess("Request marked as complete!");
+      setRequestData(prev => prev ? ({ ...prev, status: 'completed' }) : null);
+      setActionSuccess(prev => ({...prev, global: "Request marked as complete!"}));
       
     } catch (updateError) {
       console.error("Error marking request as complete:", updateError);
-      setActionError("Failed to update request status. Please try again.");
+      setActionError(prev => ({...prev, global: "Failed to update request status."}));
     } finally {
       setIsCompleting(false);
     }
   };
-  // --- End Admin Action Handlers ---
+  // --- End Admin Action Handlers --- 
 
   if (loading) {
-    return <div className="container mx-auto p-4">Loading request details...</div>;
+    return <div className="container mx-auto p-4 text-[#EAEAEA]">Loading request details...</div>;
   }
 
   if (error) {
-    return <div className="container mx-auto p-4 text-red-500">Error: {error}</div>;
+    return <div className="container mx-auto p-4 text-red-400">Error: {error}</div>;
   }
 
   if (!requestData) {
-    return <div className="container mx-auto p-4">Request not found.</div>;
+    return <div className="container mx-auto p-4 text-[#EAEAEA]">Request not found.</div>;
   }
 
   const isCompleted = requestData.status === 'completed';
 
   return (
-    <div className="container mx-auto p-4 space-y-6">
-      <h1 className="text-3xl font-bold">Review Design Request</h1>
-      {actionSuccess && <div className="p-3 bg-green-100 border border-green-300 text-green-700 rounded-md">{actionSuccess}</div>}
-      {actionError && <div className="p-3 bg-red-100 border border-red-300 text-red-700 rounded-md">{actionError}</div>}
-      <p><span className="font-semibold">Request ID:</span> {requestId}</p>
-      <p><span className="font-semibold">User ID:</span> {requestData.userId}</p>
-      <p><span className="font-semibold">Status:</span> {requestData.status}</p>
+    <div className="container mx-auto p-4 space-y-6 bg-[#1A1A1A] text-[#EAEAEA]">
+      <h1 className="text-3xl font-bold text-[#00F0FF]">Review Design Request</h1>
+      {actionSuccess.global && <div className="p-3 bg-green-800 border border-green-500 text-green-300 rounded-md">{actionSuccess.global}</div>}
+      {actionError.global && <div className="p-3 bg-red-900 border border-red-600 text-red-300 rounded-md">{actionError.global}</div>}
+      <p><span className="font-semibold text-[#EAEAEA]">Request ID:</span> {requestId}</p>
+      <p><span className="font-semibold text-[#EAEAEA]">User ID:</span> {requestData.userId}</p>
+      <p><span className="font-semibold text-[#EAEAEA]">Status:</span> <span className={`${isCompleted ? 'text-green-400' : 'text-yellow-400'}`}>{requestData.status}</span></p>
+      <p><span className="font-semibold">Scope:</span> {requestData.designScope}</p>
 
-      <div className="bg-gray-100 p-4 rounded-lg">
-        <h2 className="text-xl font-semibold mb-2">User Input Data</h2>
-        {/* TODO: Display user input data nicely - potentially reuse wizard components in read-only mode? */}
-        <pre className="text-sm whitespace-pre-wrap break-words">
-          {JSON.stringify(requestData.userInputData, null, 2)}
-        </pre>
+      {/* Display Global Brand Data */} 
+      {requestData.globalBrandData && (
+          <div className="bg-[#2F2F2F] p-4 rounded-lg border border-gray-700">
+              <h2 className="text-xl font-semibold mb-2">Global Brand Data</h2>
+              <pre className="text-sm whitespace-pre-wrap break-words bg-[#1A1A1A] p-3 rounded">
+                  {JSON.stringify(requestData.globalBrandData, null, 2)}
+              </pre>
+          </div>
+      )}
+
+      {/* Display Logo */} 
+      <div className="bg-[#2F2F2F] p-4 rounded-lg border border-gray-700">
+          <h2 className="text-xl font-semibold mb-2">Logo</h2>
+          {requestData.logoUrl ? (
+            <img src={requestData.logoUrl} alt="User Logo" className="max-w-xs max-h-32 object-contain border border-gray-600 bg-white p-1 rounded" />
+          ) : (
+            <p className="text-gray-400">No logo uploaded.</p>
+          )}
       </div>
 
-      <div className="bg-gray-100 p-4 rounded-lg">
-        <h2 className="text-xl font-semibold mb-2">Logo</h2>
-        {requestData.logoUrl ? (
-          <img src={requestData.logoUrl} alt="User Logo" className="max-w-xs max-h-32 object-contain border" />
-        ) : (
-          <p>No logo uploaded.</p>
-        )}
+      {/* Display AI Content */} 
+      <div className="bg-[#2F2F2F] p-4 rounded-lg border border-gray-700">
+          <h2 className="text-xl font-semibold mb-2">AI Generated Content</h2>
+          <div>
+            <h3 className="font-semibold text-[#EAEAEA]">Image Prompt:</h3>
+            <p className="text-sm whitespace-pre-wrap break-words text-gray-300">{requestData.aiGeneratedPrompt || 'Not generated yet.'}</p>
+          </div>
+          <div className="mt-2">
+            <h3 className="font-semibold text-[#EAEAEA]">Admin Summary:</h3>
+            <p className="text-sm whitespace-pre-wrap break-words text-gray-300">{requestData.aiSummary || 'Not generated yet.'}</p>
+          </div>
       </div>
 
-      <div className="bg-gray-100 p-4 rounded-lg">
-        <h2 className="text-xl font-semibold mb-2">AI Generated Content</h2>
-        <div>
-          <h3 className="font-semibold">Image Prompt:</h3>
-          <p className="text-sm whitespace-pre-wrap break-words">{requestData.aiGeneratedPrompt || 'Not generated yet.'}</p>
-        </div>
-        <div className="mt-2">
-          <h3 className="font-semibold">Admin Summary:</h3>
-          <p className="text-sm whitespace-pre-wrap break-words">{requestData.aiSummary || 'Not generated yet.'}</p>
-        </div>
-      </div>
-
-      {/* --- Admin Actions Section --- */}
-      <div className={`p-4 rounded-lg ${isCompleted ? 'bg-green-50' : 'bg-blue-50'} border ${isCompleted ? 'border-green-200' : 'border-blue-200'}`}>
-        <h2 className="text-xl font-semibold mb-3">Admin Actions</h2>
-        
-        {isCompleted ? (
-          <p className="text-green-700 font-medium">This request has been completed.</p>
-        ) : (
-          <div className="space-y-4">
-            {/* File Upload */}
-            <div>
-              <label htmlFor="finalDesignUpload" className="block text-sm font-medium text-gray-700 mb-1">
-                Upload Final Postcard Design(s)
-              </label>
-              <input
-                type="file"
-                id="finalDesignUpload"
-                multiple
-                onChange={handleFileSelect}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50"
-                disabled={isUploading || isCompleting}
-              />
-              {finalFiles && finalFiles.length > 0 && (
-                <p className="text-xs text-gray-500 mt-1">{finalFiles.length} file(s) selected.</p>
-              )}
-              <button
-                onClick={handleUploadFinalDesigns}
-                disabled={!finalFiles || finalFiles.length === 0 || isUploading || isCompleting}
-                className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-md shadow-sm hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center min-w-[100px]"
-              >
-                {isUploading ? (
-                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                ) : (
-                  'Upload Files'
-                )}
-              </button>
-              {isUploading && Object.keys(uploadProgress).length > 0 && (
-                <div className="mt-2 space-y-1">
-                  {Object.entries(uploadProgress).map(([fileName, progress]) => (
-                    <div key={fileName} className="text-xs">
-                      <span>{fileName}:</span>
-                      <div className="w-full bg-gray-200 rounded-full h-1.5">
-                        <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${progress}%` }}></div>
+      {/* --- Campaign Sections --- */} 
+      <div className="space-y-6">
+          <h2 className="text-2xl font-semibold border-b border-gray-600 pb-2">Campaign Details & Final Designs</h2>
+          {requestData.campaigns.map((campaign, index) => {
+              const campaignKey = campaign.businessType; // Use businessType as key
+              const campaignFiles = filesToUpload[campaignKey];
+              const campaignIsUploading = isUploading[campaignKey];
+              const campaignActionError = actionError[campaignKey];
+              const campaignActionSuccess = actionSuccess[campaignKey];
+              const campaignUploadProgress = uploadProgress[campaignKey] || {};
+              
+              return (
+                  <div key={campaignKey} className="bg-[#2F2F2F] p-4 rounded-lg border border-gray-700 space-y-4">
+                      <h3 className="text-xl font-bold text-[#00F0FF]">Campaign: {campaign.businessType === '__all__' ? 'General Design' : campaign.businessType}</h3>
+                      
+                      {/* Optional: Display campaign-specific user input summary */} 
+                      {/* <details><summary>User Input Summary</summary>...</details> */} 
+                      
+                      {/* Display existing uploaded designs for this campaign */} 
+                      <div>
+                          <h4 className="text-lg font-semibold mb-2">Uploaded Final Designs</h4>
+                          {campaign.finalDesigns && campaign.finalDesigns.length > 0 ? (
+                              <ul className="list-disc list-inside text-sm space-y-1">
+                                  {campaign.finalDesigns.map((url, i) => (
+                                      <li key={i}>
+                                          <a href={url} target="_blank" rel="noopener noreferrer" className="text-[#00F0FF] hover:underline hover:text-[#FF00B8]">
+                                              Final Design {i + 1}
+                                          </a>
+                                      </li>
+                                  ))}
+                              </ul>
+                          ) : (
+                              <p className="text-gray-400 text-sm">No designs uploaded for this campaign yet.</p>
+                          )}
                       </div>
-                      <span>{progress.toFixed(0)}%</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                      
+                      {/* Per-Campaign Admin Actions (Upload) */} 
+                      {!isCompleted && (
+                          <div className="border-t border-gray-600 pt-4 space-y-3">
+                              <h4 className="text-lg font-semibold">Upload Final Designs for {campaign.businessType}</h4>
+                              {campaignActionSuccess && <div className="p-2 text-sm bg-green-800 border border-green-500 text-green-300 rounded-md">{campaignActionSuccess}</div>}
+                              {campaignActionError && <div className="p-2 text-sm bg-red-900 border border-red-600 text-red-300 rounded-md">{campaignActionError}</div>}
+                              <div>
+                                  <label htmlFor={`finalDesignUpload-${campaignKey}`} className="sr-only">Upload files</label>
+                                  <input
+                                      type="file"
+                                      id={`finalDesignUpload-${campaignKey}`}
+                                      multiple
+                                      onChange={(e) => handleFileSelect(e, campaignKey)}
+                                      className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[#00F0FF] file:text-[#1A1A1A] hover:file:bg-[#FF00B8] hover:file:text-white disabled:opacity-50"
+                                      disabled={campaignIsUploading || isCompleting}
+                                  />
+                                  {campaignFiles && campaignFiles.length > 0 && (
+                                      <p className="text-xs text-gray-400 mt-1">{campaignFiles.length} file(s) selected.</p>
+                                  )}
+                                  <button
+                                      onClick={() => handleUploadFinalDesigns(campaignKey, index)}
+                                      disabled={!campaignFiles || campaignFiles.length === 0 || campaignIsUploading || isCompleting}
+                                      className="mt-2 px-4 py-2 bg-[#00F0FF] text-[#1A1A1A] rounded-md shadow-sm hover:bg-[#FF00B8] hover:text-white disabled:bg-gray-500 disabled:text-gray-300 disabled:cursor-not-allowed flex items-center justify-center min-w-[100px] font-semibold"
+                                  >
+                                      {/* Upload button state ... */} 
+                                      {campaignIsUploading ? 'Uploading...' : 'Upload'}
+                                  </button>
+                                  {campaignIsUploading && Object.keys(campaignUploadProgress).length > 0 && (
+                                     <div className="mt-2 space-y-1">
+                                      {Object.entries(campaignUploadProgress).map(([fileName, progress]) => (
+                                        <div key={fileName} className="text-xs text-gray-400">
+                                           {/* Progress bar rendering ... */} 
+                                           <span>{fileName}: {progress.toFixed(0)}%</span>
+                                         </div>
+                                      ))}
+                                     </div>
+                                  )}
+                              </div>
+                          </div>
+                      )}
+                  </div>
+              );
+          })}
+      </div>
+      {/* --- End Campaign Sections --- */} 
 
-            {/* Uploaded Files Display */}
-            {uploadedUrls.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium text-gray-700">Uploaded Designs:</h3>
-                <ul className="list-disc list-inside text-sm text-blue-600">
-                  {uploadedUrls.map((url, index) => (
-                    <li key={index}>
-                      <a href={url} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                        Final Design {index + 1}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Mark Complete Button */}
-            <div>
-              <button
-                onClick={handleMarkComplete}
-                disabled={uploadedUrls.length === 0 || isUploading || isCompleting}
-                className="px-4 py-2 bg-green-600 text-white rounded-md shadow-sm hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center min-w-[150px]"
-              >
-                {isCompleting ? (
-                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                ) : (
-                  'Mark as Complete'
-                )}
-              </button>
-            </div>
+      {/* --- Global Completion Action --- */} 
+      <div className={`mt-6 p-4 rounded-lg ${isCompleted ? 'bg-[#1a3a1a]' : 'bg-[#1a2a3a]'} border ${isCompleted ? 'border-[#00F0FF]' : 'border-gray-600'}`}>
+        <h2 className="text-xl font-semibold mb-3">Complete Request</h2>
+        {isCompleted ? (
+          <p className="text-[#00F0FF] font-medium">This request has been completed.</p>
+        ) : (
+          <div>
+            <button
+              onClick={handleMarkComplete}
+              disabled={!canMarkComplete || isCompleting || Object.values(isUploading).some(v => v)}
+              className="px-4 py-2 bg-green-600 text-white rounded-md shadow-sm hover:bg-green-700 disabled:bg-gray-500 disabled:text-gray-300 disabled:cursor-not-allowed flex items-center justify-center min-w-[150px] font-semibold"
+            >
+              {isCompleting ? 'Completing...' : 'Mark Request as Complete'}
+            </button>
+            {!canMarkComplete && <p className="text-xs text-yellow-400 mt-1">Requires final designs to be uploaded for all campaigns.</p>}
           </div>
         )}
       </div>
+      {/* --- End Global Completion Action --- */} 
+
     </div>
   );
 } 
