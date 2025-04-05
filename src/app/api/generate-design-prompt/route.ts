@@ -28,6 +28,10 @@ interface RequestCampaign {
   audienceData?: AudienceData;
   businessData?: BusinessData;
   visualData?: VisualData;
+  finalDesigns?: string[]; // Keep this for admin uploads
+  // Add fields for per-campaign AI results
+  aiPrompt?: string; 
+  aiSummary?: string;
 }
 // --- End Type Definitions ---
 
@@ -147,114 +151,128 @@ export async function POST(req: Request) {
       // --- End Early Notification --- 
 
     } else if (currentStatus === 'pending_prompt') {
-      // --- Handle Full AI Generation and Final Notification --- 
-      console.log(`Status is 'pending_prompt'. Processing AI generation for doc ${documentId}.`);
+      // --- Handle Per-Campaign AI Generation and Final Notification --- 
+      console.log(`Status is 'pending_prompt'. Processing AI generation PER CAMPAIGN for doc ${documentId}.`);
 
-      // Fetch data according to ACTUAL Firestore structure using defined types
       const brandDataForPrompt = designRequestData.globalBrandData as BrandData | undefined;
-      const firstCampaign = designRequestData.campaigns?.[0] as RequestCampaign | undefined;
+      const campaignsToProcess = designRequestData.campaigns as RequestCampaign[] | undefined;
       const logoForPrompt = designRequestData.logoUrl;
 
-      // Check if required data exists
-      if (!brandDataForPrompt || !firstCampaign) { 
-          console.error(`Incomplete global brand or campaign data found for document ${documentId}.`);
-          return NextResponse.json({ error: 'Incomplete design request data for prompt generation' }, { status: 400 });
-      }
-      // Destructure data from the first campaign directly
-      const { marketingData, audienceData, businessData, visualData } = firstCampaign;
-      if (!marketingData || !audienceData || !businessData || !visualData) {
-         console.error(`Incomplete nested data within first campaign for document ${documentId}.`);
-         return NextResponse.json({ error: 'Incomplete campaign data fields for prompt generation' }, { status: 400 });
+      if (!brandDataForPrompt || !campaignsToProcess || campaignsToProcess.length === 0) { 
+          console.error(`Incomplete global brand or campaign array found for document ${documentId}.`);
+          return NextResponse.json({ error: 'Incomplete request data for prompt generation' }, { status: 400 });
       }
 
-      console.log("Calling OpenAI API...");
-      // Construct the prompt using globalBrandData and direct campaign fields
-      const aiPrompt = `
-        You are an expert marketing assistant helping generate postcard image prompts and summaries for a human designer.
-        This request might involve multiple final designs (${designRequestData.designScope === 'multiple' ? designRequestData.campaigns?.length : 1} total campaigns: ${designRequestData.campaigns?.map((c: unknown) => (c as RequestCampaign).businessType).join(', ')}).
-        Generate a prompt and summary based on the following details (using global brand info and first campaign specifics) as a starting point. The human designer will adapt as needed for other campaigns.
+      // Use Promise.all to process campaigns concurrently
+      const updatedCampaignsPromises = campaignsToProcess.map(async (campaign) => {
+        // Destructure data for clarity
+        const { marketingData, audienceData, businessData, visualData, businessType } = campaign;
         
-        Brand Info (Global):
-        - Brand Name: ${brandDataForPrompt.brandName}
-        - Logo URL: ${logoForPrompt}
-        - Brand Style Preferences: ${brandDataForPrompt.stylePreferences?.join(', ')}
-        - Primary Color: ${brandDataForPrompt.primaryColor}
-        - Accent Color: ${brandDataForPrompt.accentColor}
+        // Basic check for necessary nested data within this specific campaign
+        if (!marketingData || !audienceData || !businessData || !visualData) {
+           console.warn(`Skipping AI generation for campaign '${businessType}' due to incomplete data.`);
+           return { ...campaign, aiPrompt: 'Error: Incomplete input data.', aiSummary: '-' }; // Return original with error placeholder
+        }
 
-        First Campaign Specifics:
-        - Marketing Objectives: ${marketingData.objectives?.join(', ')}
-        - Call To Action: ${marketingData.callToAction}
-        - Target Audience Industry: ${audienceData.industry}
-        - Target Audience Description: ${audienceData.targetDescription}
-        - Desired Image Styles: ${visualData.imageStyle?.join(', ')}
-        - Primary Image Subject: ${visualData.imagePrimarySubject}
-        - Desired Layout Style: ${visualData.layoutStyle}
-        - Extra Info/Notes: ${businessData.extraInfo}
-        
-        Provide the output STRICTLY in JSON format:
-        { "imagePrompt": "[Detailed prompt]", "adminSummary": "[Concise summary]" }
-      `;
+        console.log(`Generating AI prompt for campaign: ${businessType}`);
+        const specificAiPrompt = `
+          You are an expert marketing assistant generating content for a specific postcard campaign.
+          Campaign Type: ${businessType}
+          
+          Generate a detailed, creative image generation prompt (suitable for DALL-E/Midjourney) AND a concise summary (2-3 sentences) for a human designer based ONLY on the following requirements.
+          
+          Brand Info (Apply Globally):
+          - Brand Name: ${brandDataForPrompt.brandName}
+          - Logo URL: ${logoForPrompt}
+          - Brand Style Preferences: ${brandDataForPrompt.stylePreferences?.join(', ')}
+          - Primary Color: ${brandDataForPrompt.primaryColor}
+          - Accent Color: ${brandDataForPrompt.accentColor}
 
-      let aiGeneratedPrompt = '';
-      let aiSummary = '';
+          Campaign Specifics (${businessType}):
+          - Marketing Objectives: ${marketingData.objectives?.join(', ')}
+          - Call To Action: ${marketingData.callToAction}
+          - Target Audience Industry: ${audienceData.industry}
+          - Target Audience Description: ${audienceData.targetDescription}
+          - Desired Image Styles: ${visualData.imageStyle?.join(', ')}
+          - Primary Image Subject: ${visualData.imagePrimarySubject}
+          - Desired Layout Style: ${visualData.layoutStyle}
+          - Extra Info/Notes: ${businessData.extraInfo}
+          
+          Provide the output STRICTLY in JSON format:
+          { "imagePrompt": "[Detailed prompt]", "adminSummary": "[Concise summary]" }
+        `;
 
-      try {
-        const completion = await openai.chat.completions.create({
-          model: "gpt-4o", // Use appropriate model
-          messages: [{ role: "user", content: aiPrompt }],
-          temperature: 0.7,
-          response_format: { type: "json_object" }
-        });
-        // ... (Parsing logic as before) ...
-        const responseContent = completion.choices[0].message.content;
-        if (!responseContent) throw new Error('No response content from OpenAI');
-        const parsedResponse = JSON.parse(responseContent);
-        aiGeneratedPrompt = parsedResponse.imagePrompt;
-        aiSummary = parsedResponse.adminSummary;
-        if (!aiGeneratedPrompt || !aiSummary) throw new Error('AI response missing fields');
-        console.log("Successfully parsed AI response for prompt generation.");
+        try {
+          const completion = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [{ role: "user", content: specificAiPrompt }],
+            temperature: 0.7,
+            response_format: { type: "json_object" }
+          });
 
-      } catch (aiError) {
-        console.error("Error calling OpenAI or parsing response:", aiError);
-        // Update Firestore status to indicate failure?
-        // await docRef.update({ status: 'prompt_failed' });
-        return NextResponse.json({ error: 'Failed to generate prompt via AI', details: aiError instanceof Error ? aiError.message : 'Unknown AI error' }, { status: 500 });
-      }
+          const responseContent = completion.choices[0].message.content;
+          if (!responseContent) throw new Error('No response content from OpenAI');
+          
+          const parsedResponse = JSON.parse(responseContent);
+          const aiGeneratedPrompt = parsedResponse.imagePrompt;
+          const aiSummary = parsedResponse.adminSummary;
 
-      // Update Firestore with AI results and 'pending_review' status
-      console.log(`Updating Firestore document ${documentId} with AI results.`);
+          if (!aiGeneratedPrompt || !aiSummary) throw new Error('AI response missing fields');
+          
+          console.log(`Successfully generated AI content for campaign: ${businessType}`);
+          // Return the campaign object augmented with AI results
+          return { ...campaign, aiPrompt: aiGeneratedPrompt, aiSummary: aiSummary }; 
+
+        } catch (aiError) {
+          console.error(`Error generating AI content for campaign '${businessType}':`, aiError);
+          // Return original campaign data with error indicators
+          return { 
+              ...campaign, 
+              aiPrompt: `Error: ${aiError instanceof Error ? aiError.message : 'AI generation failed.'}`, 
+              aiSummary: 'Generation failed.' 
+          };
+        }
+      }); // End of map function
+
+      // Wait for all campaign processing promises to resolve
+      const updatedCampaigns = await Promise.all(updatedCampaignsPromises);
+
+      // Update Firestore with the results array and change status
+      console.log(`Updating Firestore document ${documentId} with results for all campaigns.`);
       await docRef.update({ 
-        aiGeneratedPrompt: aiGeneratedPrompt, 
-        aiSummary: aiSummary,             
+        campaigns: updatedCampaigns, // Save the array with AI results included
         status: 'pending_review',
         notifiedAdmin: false // Reset notification flag before sending final email
       });
-      console.log("Firestore document updated successfully with AI results.");
+      console.log("Firestore document updated successfully with all campaign AI results.");
 
-      // Send detailed SendGrid Notification
-      console.log("Attempting to send final notification email via SendGrid...");
+      // --- Send Modified Final SendGrid Notification --- 
+      console.log("Attempting to send final multi-campaign notification email...");
+      
+      // Create a summary of results for the email
+      const emailSummaries = updatedCampaigns.map(c => 
+         `Campaign: ${c.businessType}\nSummary: ${c.aiSummary || 'Not generated'}\n---\n`
+      ).join('\n');
+      const htmlSummaries = updatedCampaigns.map(c => 
+         `<p><strong>Campaign: ${c.businessType}</strong><br/>Summary: ${c.aiSummary?.replace(/\n/g, '<br/>') || 'Not generated'}</p>`
+      ).join('');
+
       const finalMsg = { 
           to: 'adam@posttimely.com', 
           from: 'team@magicmailing.com',
-          subject: `[Ready for Review] Design Request: ${brandDataForPrompt?.brandName || documentId}`,
-          text: `Design request ready for review (Doc ID: ${documentId}).\n\n` +
-                `Brand: ${brandDataForPrompt?.brandName || 'N/A'}\n\n` +
-                `Scope: ${designRequestData.designScope} (${designRequestData.campaigns?.length} campaigns)\n`+
-                `Business Types: ${designRequestData.campaigns?.map((c: unknown) => (c as RequestCampaign).businessType).join(', ') || 'N/A'}\n\n` +
-                `AI Generated Prompt (based on first campaign):
-${aiGeneratedPrompt}\n\n` +
-                `AI Summary for Admin:
-${aiSummary}\n\n` +
-                `Logo URL: ${logoForPrompt}\n\n` +
-                `Manage Request: ${adminRequestUrl}`, 
-          html: `<p>Design request ready for review (Doc ID: <strong>${documentId}</strong>)</p>` +
-                `<p>Brand: ${brandDataForPrompt?.brandName || 'N/A'}</p>` +
-                `<p>Scope: ${designRequestData.designScope} (${designRequestData.campaigns?.length} campaigns)</p>` +
-                `<p>Business Types: ${designRequestData.campaigns?.map((c: unknown) => (c as RequestCampaign).businessType).join(', ') || 'N/A'}</p>` +
-                `<p><strong>AI Generated Prompt (based on first campaign):</strong><br/>${aiGeneratedPrompt.replace(/\n/g, '<br/>')}</p>` +
-                `<p><strong>AI Summary for Admin:</strong><br/>${aiSummary.replace(/\n/g, '<br/>')}</p>` +
-                `<p>Logo URL: <a href="${logoForPrompt}">${logoForPrompt}</a></p>` +
-                `<p><strong><a href="${adminRequestUrl}">Click here to manage the request</a></strong></p>`, 
+          subject: `[Multi-Design Ready] Request: ${brandDataForPrompt?.brandName || documentId}`,
+          text: `Multi-design request ready for review (Doc ID: ${documentId}).\n\n` +
+              `Brand: ${brandDataForPrompt?.brandName || 'N/A'}\n\n` +
+              `Scope: ${designRequestData.designScope} (${updatedCampaigns.length} campaigns)\n\n` +
+              `Summaries:\n${emailSummaries}\n` +
+              `Logo URL: ${logoForPrompt}\n\n` +
+              `Manage Request: ${adminRequestUrl}`,
+          html: `<p>Multi-design request ready for review (Doc ID: <strong>${documentId}</strong>)</p>` +
+              `<p>Brand: ${brandDataForPrompt?.brandName || 'N/A'}</p>` +
+              `<p>Scope: ${designRequestData.designScope} (${updatedCampaigns.length} campaigns)</p>` +
+              `<hr/><h4>Summaries:</h4>${htmlSummaries}<hr/>` +
+              `<p>Logo URL: <a href="${logoForPrompt}">${logoForPrompt}</a></p>` +
+              `<p><strong><a href="${adminRequestUrl}">Click here to manage the request</a></strong></p>`, 
        }; 
 
       try {
@@ -262,18 +280,17 @@ ${aiSummary}\n\n` +
         console.log(`Final SendGrid email sent successfully for doc ${documentId}.`);
         await docRef.update({ notifiedAdmin: true });
         console.log(`Firestore document ${documentId} marked as notified (final).`);
-        // *** Return success for the full flow ***
-        return NextResponse.json({ success: true, message: 'Prompt generated and admin notified.' }); 
+        return NextResponse.json({ success: true, message: 'Prompts generated for all campaigns and admin notified.' }); 
       } catch (emailError) {
         // Log the error and include details in the response
         console.error(`Error sending final SendGrid email for doc ${documentId}:`, emailError);
         return NextResponse.json({
           success: true, // AI part still worked
-          message: 'Prompt generated, but failed to send final admin notification email.',
+          message: 'Prompts generated, but failed to send final admin notification email.',
           error: emailError instanceof Error ? emailError.message : 'Unknown email error' // Include error message
         });
       }
-      // --- End Full AI Generation --- 
+      // --- End Per-Campaign AI Generation --- 
 
     } else {
       // --- Handle other statuses (e.g., already processed, draft_multiple) --- 

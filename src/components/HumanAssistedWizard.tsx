@@ -1350,7 +1350,7 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
                     {/* Campaign Name */} 
                     <span className="flex-grow text-sm font-medium truncate">
                       {campaign.businessType === '__all__' ? 'General Design' : campaign.businessType}
-                    </span>
+               </span>
                     {/* Optional: More status icons (e.g., loading spinner if status==pending_review) */} 
                   </button>
                 );
@@ -1372,7 +1372,7 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
               <p className="text-electric-teal">
                 Designing one postcard for: <strong className="font-medium">{Array.from(selectedBusinessTypes).join(', ') || 'Selected Leads'}</strong>
               </p>
-              </div>
+           </div>
             )}
 
           {/* Removed the simple multi-design header - replaced by sidebar */} 
@@ -1390,14 +1390,14 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
                     initial={{ width: 0 }}
                     animate={{ width: `${progress}%` }}
                     transition={{ duration: 0.5, ease: "easeInOut" }}
-                  />
-              </div>
-              <p className="text-sm text-electric-teal/60 mt-1 text-right">Step {currentStepIndex + 1} of {totalSteps}</p>
+              />
             </div>
+              <p className="text-sm text-electric-teal/60 mt-1 text-right">Step {currentStepIndex + 1} of {totalSteps}</p>
+        </div>
           )}
 
           {/* --- Main Step/Status Content --- */} 
-          <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait">
             {(() => {
               // 1. Check for Overall Completion
               if (wizardState.requestStatus === 'completed' && wizardState.campaigns.some(c => c.finalDesigns && c.finalDesigns.length > 0)) {
@@ -1411,7 +1411,7 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
                     <h2 className="text-2xl font-bold text-green-500 mb-4">Design(s) Ready!</h2>
                     {/* ... Render final designs from designsToShow ... */}
                     {designsToShow.map((url, index) => <img key={index} src={url} alt={`Final Design ${index + 1}`} className="mb-4 max-w-full h-auto"/>)}
-                  </motion.div>
+          </motion.div>
                 );
               }
               
@@ -1455,7 +1455,7 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
               return <motion.div key={wizardState.currentStep} /* ... animations ... */>{renderStep()}</motion.div>; 
 
             })()}
-          </AnimatePresence>
+        </AnimatePresence>
         </div>
         {/* --- End Main Content Area --- */} 
 
