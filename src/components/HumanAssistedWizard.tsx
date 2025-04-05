@@ -262,12 +262,12 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
     globalBrandData: {
         brandName: businessName || '',
         logoUrl: '', // Will be populated by global logo upload
-        primaryColor: '#00c2a8',
-        accentColor: '#00858a',
-        brandValues: [],
-        stylePreferences: [],
-        useExistingGuidelines: false,
-        guidelinesNotes: '',
+      primaryColor: '#00c2a8',
+      accentColor: '#00858a',
+      brandValues: [],
+      stylePreferences: [],
+      useExistingGuidelines: false,
+      guidelinesNotes: '',
     },
     logoFile: null,
     logoUploadProgress: null,
@@ -340,8 +340,8 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
           designScope: 'single',
           campaigns: initialCampaigns,
           activeDesignType: singleCampaignType, // Set active type immediately
-        }));
-      }
+      }));
+    }
     }
     // Depend on selectedBusinessTypes and initial globalBrandName
   }, [selectedBusinessTypes, wizardState.designScope, wizardState.globalBrandData.brandName]);
@@ -519,7 +519,7 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
       currentStep: 'logo_upload'
     }));
   };
-
+  
   const handleLogoStepComplete = () => {
     // If logo uploaded, its URL is already stored globally in wizardState.logoFile / brandData.logoUrl
     // No campaign-specific data needed here unless logo could differ per campaign
@@ -643,11 +643,11 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
         console.error("Upload failed:", error);
         let errorMessage = 'Upload failed. Please try again.';
         // ... (error handling switch statement) ...
-         switch (error.code) {
+        switch (error.code) {
            case 'storage/unauthorized': errorMessage = 'Permission denied.'; break;
            case 'storage/canceled': errorMessage = 'Upload cancelled.'; break;
            default: errorMessage = 'An unknown error occurred.'; break;
-         }
+        }
         setWizardState(prev => ({ ...prev, logoUploadError: errorMessage, logoUploadProgress: null, isSubmitting: false }));
       },
       () => {
@@ -685,8 +685,8 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
 
     if (scope === 'multiple' && typesArray.length > 0) {
       // --- Early Submission Logic for Multiple --- 
-      setWizardState(prev => ({
-        ...prev,
+    setWizardState(prev => ({
+      ...prev,
         isSubmitting: true,
         submitError: null,
         processingMessage: 'Setting up your design projects & notifying admin...'
@@ -741,8 +741,8 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
         }
 
         // 3. Update local state AFTER setup
-        setWizardState(prev => ({
-          ...prev,
+    setWizardState(prev => ({
+      ...prev,
           designScope: scope,
           currentStep: 'brand',
           activeDesignType: firstActiveType,
@@ -755,8 +755,8 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
 
       } catch (error) {
         console.error("Error during early submission for multiple scope:", error);
-        setWizardState(prev => ({
-          ...prev,
+    setWizardState(prev => ({
+      ...prev,
           isSubmitting: false,
           submitError: `Failed to setup multi-design request: ${error instanceof Error ? error.message : 'Unknown error'}`,
           processingMessage: '',
@@ -781,8 +781,8 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
           visualData: { ...defaultVisualData },
       }];
 
-      setWizardState(prev => ({
-        ...prev,
+    setWizardState(prev => ({
+      ...prev,
         designScope: scope,
         currentStep: 'brand',
         activeDesignType: activeTypeForSingle,
@@ -799,10 +799,10 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
 
   // --- Modify Final Submission Handler ---
   const handleSubmitRequest = async () => {
-    setWizardState(prev => ({
-      ...prev,
-      isSubmitting: true,
-      submitError: null,
+    setWizardState(prev => ({ 
+      ...prev, 
+      isSubmitting: true, 
+      submitError: null, 
       processingMessage: 'Finalizing your request...'
     }));
 
@@ -820,18 +820,18 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
       if (designScope === 'single') {
         // --- Single Scope: Create document now --- 
         console.log("Submitting single-design request...");
-        const requestData = {
+      const requestData = {
           userId: user.uid,
-          status: 'pending_prompt',
+        status: 'pending_prompt',
           designScope: 'single',
           globalBrandData: globalBrandData, // Used here
           campaigns: campaigns, 
           logoUrl: uploadedLogoUrl || '',
-          createdAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
           notifiedAdmin: false,
-        };
+      };
         console.log("Writing single request data to Firestore...", requestData);
-        const docRef = await addDoc(collection(db, "design_requests"), requestData);
+      const docRef = await addDoc(collection(db, "design_requests"), requestData);
         finalRequestId = docRef.id;
         console.log("Single request document written with ID:", finalRequestId);
         setWizardState(prev => ({ ...prev, submittedRequestId: finalRequestId, requestStatus: 'pending_prompt' })); // Store ID and status
@@ -857,13 +857,13 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
       // --- Call the main processing API --- 
       if (needsApiCall && finalRequestId) {
         console.log(`Calling main API route /api/generate-design-prompt for document ${finalRequestId}`);
-        const response = await fetch('/api/generate-design-prompt', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+      const response = await fetch('/api/generate-design-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ documentId: finalRequestId }),
-        });
-        const result = await response.json();
-        if (!response.ok) {
+      });
+      const result = await response.json();
+      if (!response.ok) {
           // Even if API fails, the doc exists/was updated. Listener might still pick up changes?
           // Log error prominently.
           console.error("Main API call failed after Firestore operation:", result);
@@ -875,13 +875,13 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
       }
 
       // Update local state - Listener will take over for status updates
-      setWizardState(prev => ({
-        ...prev,
+      setWizardState(prev => ({ 
+        ...prev, 
         isSubmitting: false,
         // processingMessage is controlled by listener effect
         // requestStatus was set above or will be updated by listener
       }));
-
+      
     } catch (error) {
       console.error("Error submitting design request:", error);
       setWizardState(prev => ({
@@ -910,7 +910,7 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
         if (wizardState.currentStep === 'brand' && wizardState.designScope === 'multiple') {
            setWizardState(prev => ({ ...prev, currentStep: 'design_choice', designScope: 'undecided' })); // Reset scope decision
         } else {
-           setWizardState(prev => ({ ...prev, currentStep: stepOrder[currentIdx - 1]}));
+        setWizardState(prev => ({ ...prev, currentStep: stepOrder[currentIdx - 1]}));
         }
      } else if (onBack) {
         onBack(); // Call the original onBack if we are at the first step ('design_choice' or 'brand')
@@ -937,7 +937,7 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
         visualData: { imageStyle: [], imageSource: 'ai', imagePrimarySubject: '', useCustomImage: false, customImageDescription: '', layoutStyle: 'clean', colorSchemeConfirmed: true, customColorNotes: '' } as VisualData,
     };
 
-    // --- Add condition to show processing/results view ---
+    // --- Add condition to show processing/results view --- 
     if (wizardState.submittedRequestId && wizardState.requestStatus !== 'completed') {
       return (
         <div className="p-8 bg-charcoal rounded-lg shadow-lg max-w-3xl mx-auto text-center">
@@ -998,6 +998,54 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
       );
     }
     // --- End condition --- 
+
+    // --- Add new case for design_choice ---
+    if (wizardState.currentStep === 'design_choice') {
+       const typesArray = Array.from(selectedBusinessTypes); // Access from component scope
+       return (
+          <motion.div
+             key="design_choice"
+             initial={{ opacity: 0, x: -50 }}
+             animate={{ opacity: 1, x: 0 }}
+             exit={{ opacity: 0, x: 50 }}
+             transition={{ duration: 0.3 }}
+             className="p-8 bg-charcoal rounded-lg shadow-lg max-w-3xl mx-auto"
+          >
+             <h2 className="text-2xl font-bold text-electric-teal mb-4">Design Scope</h2>
+             <p className="text-electric-teal/70 mb-6">
+                You&apos;ve selected leads from multiple business types: <strong className="text-electric-teal">{typesArray.join(', ')}</strong>.
+             </p>
+             <p className="text-electric-teal/70 mb-6">
+                How would you like to proceed with the design?
+             </p>
+             <div className="space-y-4">
+                <button
+                   onClick={() => handleDesignScopeChoice('single')}
+                   className="w-full text-left p-4 rounded-lg border-2 border-electric-teal/50 hover:border-electric-teal hover:bg-electric-teal/10 transition-colors duration-200"
+                >
+                   <h3 className="text-lg font-medium text-electric-teal">Create ONE Design</h3>
+                   <p className="text-sm text-electric-teal/60">Generate a single postcard design suitable for all selected business types.</p>
+                </button>
+                <button
+                   onClick={() => handleDesignScopeChoice('multiple')}
+                   className="w-full text-left p-4 rounded-lg border-2 border-electric-teal/50 hover:border-electric-teal hover:bg-electric-teal/10 transition-colors duration-200"
+                >
+                   <h3 className="text-lg font-medium text-electric-teal">Create MULTIPLE Designs</h3>
+                   <p className="text-sm text-electric-teal/60">Generate a separate, tailored postcard design for each selected business type.</p>
+                </button>
+             </div>
+              <div className="flex justify-start mt-8">
+                 <button
+                    onClick={handleBack} // Use the existing back handler
+                    className="text-electric-teal hover:text-electric-teal/80 transition-colors"
+                 >
+                    &larr; Back
+                 </button>
+              </div>
+          </motion.div>
+       );
+    }
+    // --- End design_choice case ---
     
     // Original switch statement for wizard steps
     switch (wizardState.currentStep) {
@@ -1006,7 +1054,7 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
         
       case 'brand':
         return <BrandIdentity 
-          onComplete={handleBrandComplete} 
+            onComplete={handleBrandComplete}
           initialData={toComponentBrandData(wizardState.globalBrandData)}
         />;
         
@@ -1028,9 +1076,9 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
             
             <div className="mb-4">
               <input 
-                type="file" 
+                type="file"
                 accept="image/*" 
-                ref={fileInputRef} 
+                ref={fileInputRef}
                 onChange={handleLogoSelect} 
                 className="hidden" 
               />
@@ -1069,15 +1117,15 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
                   {wizardState.logoUploadProgress !== null && wizardState.logoUploadProgress < 100 && `Uploading ${Math.round(wizardState.logoUploadProgress)}%`}
                   {wizardState.logoUploadProgress === 100 && 'Upload Complete'} 
                 </button>
-                {wizardState.logoUploadProgress !== null && wizardState.logoUploadProgress < 100 && (
+              {wizardState.logoUploadProgress !== null && wizardState.logoUploadProgress < 100 && (
                    <div className="w-full bg-gray-700 rounded-full h-1.5 mt-2">
                       <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${wizardState.logoUploadProgress}%` }}></div>
                    </div>
                 )}
-              </div>
-            )}
-            
-            {wizardState.logoUploadError && (
+                </div>
+              )}
+              
+              {wizardState.logoUploadError && (
               <p className="text-red-500 text-sm mt-4">Error: {wizardState.logoUploadError}</p>
             )}
 
@@ -1096,9 +1144,9 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
                        : 'bg-electric-teal text-charcoal hover:bg-electric-teal/90'} 
                     disabled:opacity-50 disabled:cursor-not-allowed`}
                >
-                  {wizardState.uploadedLogoUrl ? 'Logo Saved, Continue' : 'Skip / Continue \&rarr;'}
+                  {wizardState.uploadedLogoUrl ? 'Logo Saved, Continue' : 'Skip / Continue &rarr;'}
                </button>
-             </div>
+            </div>
           </motion.div>
         );
         
@@ -1134,7 +1182,7 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
         
       case 'visual':
         return <VisualElements 
-          onComplete={handleVisualComplete} 
+            onComplete={handleVisualComplete}
           initialData={safeActiveCampaign.visualData}
           // primaryColor and accentColor props removed
         />;
@@ -1143,7 +1191,7 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
         // Placeholder for Review component - needs significant updates
         return (
           <div className="p-8 bg-charcoal rounded-lg shadow-lg max-w-3xl mx-auto">
-            <h2 className="text-2xl font-bold text-electric-teal mb-4">Review & Submit Request</h2>
+             <h2 className="text-2xl font-bold text-electric-teal mb-4">Review & Submit Request</h2>
              {/* TODO: Display summary based on wizardState.campaigns and wizardState.designScope */}
             <p className="text-white mb-4">
               Review your selections below. This will submit a request for our design team.
@@ -1160,8 +1208,8 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
                 </div>
               ))}
             </div>
-
-            {wizardState.submitError && (
+             
+             {wizardState.submitError && (
               <p className="text-red-500 text-sm mb-4">Error: {wizardState.submitError}</p>
             )}
 
@@ -1174,15 +1222,15 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
                   &larr; Back to Edit
                </button>
                <button 
-                  onClick={handleSubmitRequest} 
+                  onClick={handleSubmitRequest}
                   disabled={wizardState.isSubmitting}
                   className="px-6 py-3 rounded-lg bg-electric-teal text-charcoal font-medium 
                     hover:bg-electric-teal/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {wizardState.isSubmitting ? 'Submitting...' : 'Submit Design Request'}
                 </button>
-             </div>
-          </div>
+              </div>
+           </div>
         );
         
       default:
@@ -1269,8 +1317,8 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
             <p className="text-electric-teal">
               Designing one postcard for: <strong className="font-medium">{Array.from(selectedBusinessTypes).join(', ') || 'Selected Leads'}</strong>
             </p>
-          </div>
-        )}
+            </div>
+          )}
 
         {wizardState.designScope === 'multiple' && wizardState.currentStep !== 'design_choice' && !wizardState.submittedRequestId && (
           // TODO: Replace this with a more robust sidebar/tab structure on wider screens
@@ -1304,7 +1352,7 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
                 {stepTitles[wizardState.currentStep]}
              </h1>
              <div className="w-full bg-gray-700 rounded-full h-2.5">
-                 <motion.div
+          <motion.div
                    className="bg-electric-teal h-2.5 rounded-full"
                    style={{ width: `${progress}%` }} // Ensure progress is used here
                    initial={{ width: 0 }}
