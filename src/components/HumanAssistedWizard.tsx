@@ -14,7 +14,7 @@ import VisualElements from './VisualElements';
 import { ImageStyle, ImageSource, LayoutStyle } from './VisualElements';
 import { useMarketingStore } from '@/store/marketingStore';
 // Firebase Imports
-import { collection, addDoc, serverTimestamp, doc, onSnapshot, Unsubscribe } from "firebase/firestore"; 
+import { collection, addDoc, serverTimestamp, doc, onSnapshot, Unsubscribe, updateDoc } from "firebase/firestore"; 
 import { db, storage } from '@/lib/firebase'; // Import storage instance
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"; // Import storage functions
 // Auth Context
@@ -29,6 +29,7 @@ type MarketingObjective = 'awareness' | 'promotion' | 'traffic' | 'event' | 'oth
 // Removed DesignMethod type
 
 export type WizardStep = 
+  | 'design_choice' // New step to choose single vs multiple designs
   // Removed 'method'
   // Removed 'segmentation' for now, assuming single design path for this wizard
   | 'brand'
@@ -131,28 +132,37 @@ interface VisualData {
   customColorNotes: string;
 }
 
-interface WizardState {
-  currentStep: WizardStep;
-  // Removed selectedDesignMethod, segments, currentSegment
-  brandData: WizardBrandData;
+// --- Define CampaignState Type ---
+interface CampaignState {
+  businessType: string;
   marketingData: WizardMarketingData;
   audienceData: AudienceData;
   businessData: WizardBusinessData;
   visualData: VisualData;
-  logoFile: File | null; // State for the selected logo file
-  logoUploadProgress: number | null; // State for upload progress
-  logoUploadError: string | null; // State for upload errors
-  isSubmitting: boolean; // Added for submission state
-  submitError: string | null; // Added for submission error state
-  // --- New state for results ---
-  submittedRequestId: string | null; // Store the ID after submission
-  requestStatus: string | null; // Track status from Firestore
-  finalImageUrls: string[] | null; // Store final images from Firestore
-  processingMessage: string; // Message to show while waiting
-  // --- End new state ---
-  // --- Add state for logo preview ---
+}
+// --- End CampaignState Type ---
+
+interface WizardState {
+  currentStep: WizardStep;
+  designScope: 'single' | 'multiple' | 'undecided';
+  activeDesignType: string | null;
+  campaigns: CampaignState[];
+
+  // --- Global/Shared State ---
+  globalBrandData: WizardBrandData;
+  logoFile: File | null;
+  logoUploadProgress: number | null;
+  logoUploadError: string | null;
   logoPreviewUrl: string | null;
-  // --- End state for logo preview ---
+  uploadedLogoUrl: string | null;
+
+  // --- Submission & Results State ---
+  isSubmitting: boolean;
+  submitError: string | null;
+  submittedRequestId: string | null;
+  requestStatus: string | null;
+  finalImageUrls: string[] | null;
+  processingMessage: string;
 }
 
 interface HumanAssistedWizardProps {
@@ -241,86 +251,147 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
   const businessName = useMarketingStore((state) => state.businessInfo.businessName);
   const marketingStrategy = useMarketingStore((state) => state.marketingStrategy);
   const { user } = useAuth(); // Get user from AuthContext
+  const selectedBusinessTypes = useMarketingStore(state => state.selectedBusinessTypes); // Read selected types
   
-  const [wizardState, setWizardState] = useState<WizardState>({
-    currentStep: 'brand', // Start at brand step
-    brandData: {
-      brandName: '',
-      logoUrl: '', // Will be populated after upload
-      primaryColor: '#00c2a8',
-      accentColor: '#00858a',
-      brandValues: [],
-      stylePreferences: [],
-      useExistingGuidelines: false,
-      guidelinesNotes: '',
+  const [wizardState, setWizardState] = useState<WizardState>(() => ({ // Use function form for initial state
+    currentStep: 'brand', // Default, potentially overridden
+    designScope: 'undecided',
+    activeDesignType: null,
+    campaigns: [], // Initialize as empty, populated by useEffect
+    // --- Initialize Global State ---
+    globalBrandData: {
+        brandName: businessName || '',
+        logoUrl: '', // Will be populated by global logo upload
+        primaryColor: '#00c2a8',
+        accentColor: '#00858a',
+        brandValues: [],
+        stylePreferences: [],
+        useExistingGuidelines: false,
+        guidelinesNotes: '',
     },
-    marketingData: {
-      objectives: [],
-      callToAction: '',
-      promotionDetails: '',
-      eventDate: '',
-      offerDetails: '',
-      marketingObjectives: '',
-    },
-    audienceData: {
-      industry: '',
-      targetDescription: '',
-    },
-    businessData: {
-      tagline: '',
-      useAiTagline: true,
-      contactInfo: {
-        phone: '',
-        email: '',
-        website: '',
-        address: '',
-        includeQR: true,
-      },
-      disclaimer: '',
-      includeDisclaimer: false,
-      extraInfo: '',
-    },
-    visualData: {
-      imageStyle: [],
-      imageSource: 'ai', // This wizard implies AI source initially
-      imagePrimarySubject: '',
-      useCustomImage: false, // Logo is separate, maybe remove this?
-      customImageDescription: '',
-      layoutStyle: 'clean',
-      colorSchemeConfirmed: true,
-      customColorNotes: '',
-    },
-    logoFile: null, // Initialize logo file state
+    logoFile: null,
     logoUploadProgress: null,
     logoUploadError: null,
-    isSubmitting: false, // Initialize submitting state
-    submitError: null, // Initialize error state
-    // --- Initialize new state ---
+    logoPreviewUrl: null,
+    uploadedLogoUrl: null,
+    // --- Initialize Submission State ---
+    isSubmitting: false,
+    submitError: null,
     submittedRequestId: null,
     requestStatus: null,
     finalImageUrls: null,
     processingMessage: 'Your request is being submitted...',
-    // --- End initialize new state ---
-    // --- Initialize logo preview state ---
-    logoPreviewUrl: null,
-    // --- End initialize logo preview state ---
-  });
+  }));
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const unsubscribeRef = useRef<Unsubscribe | null>(null); // Ref for unsubscribe function
 
-  // Update brandName whenever businessName changes
+  // Update globalBrandData.brandName whenever businessName changes from the store
   useEffect(() => {
-    if (businessName) {
+    if (businessName && businessName !== wizardState.globalBrandData.brandName) {
       setWizardState(prev => ({
         ...prev,
-        brandData: {
-          ...prev.brandData,
-          brandName: businessName
-        }
+        globalBrandData: { ...prev.globalBrandData, brandName: businessName }
       }));
     }
-  }, [businessName]);
+  }, [businessName, wizardState.globalBrandData.brandName]);
+
+  // --- Update useEffect to initialize campaigns array (without brandData) ---
+  useEffect(() => {
+    const typesArray = Array.from(selectedBusinessTypes);
+    console.log("Wizard mounted/types changed. Selected Types:", typesArray);
+
+    if (wizardState.designScope === 'undecided') {
+      // Default data for non-brand fields
+      const defaultMarketingData: WizardMarketingData = { objectives: [], callToAction: '', promotionDetails: '', eventDate: '', offerDetails: '', marketingObjectives: '' };
+      const defaultAudienceData: AudienceData = { industry: '', targetDescription: '' };
+      const defaultBusinessData: WizardBusinessData = { tagline: '', useAiTagline: true, contactInfo: { phone: '', email: '', website: '', address: '', includeQR: true }, disclaimer: '', includeDisclaimer: false, extraInfo: '' };
+      const defaultVisualData: VisualData = { imageStyle: [], imageSource: 'ai', imagePrimarySubject: '', useCustomImage: false, customImageDescription: '', layoutStyle: 'clean', colorSchemeConfirmed: true, customColorNotes: '' };
+
+      if (typesArray.length > 1) {
+        console.log("Initializing for MULTIPLE designs (no brandData per campaign).");
+        const initialCampaigns: CampaignState[] = typesArray.map(type => ({
+          businessType: type,
+          marketingData: { ...defaultMarketingData },
+          audienceData: { ...defaultAudienceData },
+          businessData: { ...defaultBusinessData },
+          visualData: { ...defaultVisualData },
+        }));
+        setWizardState(prev => ({
+          ...prev,
+          currentStep: 'design_choice',
+          designScope: 'undecided',
+          campaigns: initialCampaigns,
+          activeDesignType: null,
+        }));
+      } else {
+        console.log("Initializing for SINGLE design (no brandData per campaign).");
+        const singleCampaignType = typesArray.length === 1 ? typesArray[0] : '__all__';
+        const initialCampaigns: CampaignState[] = [{
+          businessType: singleCampaignType,
+          marketingData: { ...defaultMarketingData },
+          audienceData: { ...defaultAudienceData },
+          businessData: { ...defaultBusinessData },
+          visualData: { ...defaultVisualData },
+        }];
+        setWizardState(prev => ({
+          ...prev,
+          currentStep: 'brand', // Skip choice step
+          designScope: 'single',
+          campaigns: initialCampaigns,
+          activeDesignType: singleCampaignType, // Set active type immediately
+        }));
+      }
+    }
+    // Depend on selectedBusinessTypes and initial globalBrandName
+  }, [selectedBusinessTypes, wizardState.designScope, wizardState.globalBrandData.brandName]);
+  // --- End campaign initialization useEffect ---
+
+  // --- Helper Functions for Campaign Data ---
+  const getActiveCampaign = (): CampaignState | undefined => {
+    return wizardState.campaigns.find(c => c.businessType === wizardState.activeDesignType);
+  };
+
+  // Specific helper to update nested data like brandData, marketingData, etc.
+  const updateActiveCampaignData = <K extends keyof Omit<CampaignState, 'businessType'>>(
+    dataKey: K,
+    dataUpdates: Partial<CampaignState[K]>
+  ) => {
+    setWizardState(prev => {
+      const activeType = prev.activeDesignType;
+      if (!activeType) return prev;
+
+      return {
+        ...prev,
+        campaigns: prev.campaigns.map(campaign => {
+          if (campaign.businessType === activeType) {
+            return {
+              ...campaign,
+              [dataKey]: {
+                ...campaign[dataKey],
+                ...dataUpdates,
+              },
+            };
+          }
+          return campaign;
+        }),
+      };
+    });
+  };
+  // --- End Helper Functions ---
+
+  // --- Handler to Switch Active Design Type ---
+  const handleSetActiveDesignType = (businessType: string) => {
+    // Optional: Add logic here to save any pending changes for the previous type?
+    // Optional: Add logic to check if the target type's steps are complete?
+    setWizardState(prev => ({
+      ...prev,
+      activeDesignType: businessType,
+      // Potentially reset currentStep if designs are at different stages?
+      // currentStep: findStepForType(businessType) // Requires tracking progress per campaign
+    }));
+  };
+  // --- End Handler to Switch Active Design Type ---
 
   // --- Add useEffect for Firestore Listener ---
   useEffect(() => {
@@ -426,6 +497,7 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
   };
 
   const stepTitles: Record<WizardStep, string> = {
+    design_choice: 'Design Scope', // Title for the new step
     brand: 'Brand Identity',
     logo_upload: 'Upload Your Logo', // Title for the new step
     marketing: 'Marketing Goals',
@@ -438,35 +510,87 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
   // Removed handleMethodSelect
   // Removed handleSegmentationComplete
 
-  // Update navigation: Brand -> Logo Upload
+  // --- Update Step Completion Handlers ---
   const handleBrandComplete = (componentBrandData: ComponentBrandData) => {
+    // Update the global brand data
     setWizardState(prev => ({
       ...prev,
-      brandData: {
-        ...toWizardBrandData(componentBrandData, prev.brandData),
-        brandName: componentBrandData.brandName || prev.brandData.brandName,
-        // Keep logoUrl potentially from input, but upload overwrites
-      },
-      currentStep: 'logo_upload' // Go to logo upload next
+      globalBrandData: toWizardBrandData(componentBrandData, prev.globalBrandData),
+      currentStep: 'logo_upload'
     }));
   };
-  
-  // Placeholder handler for logo selection
+
+  const handleLogoStepComplete = () => {
+    // If logo uploaded, its URL is already stored globally in wizardState.logoFile / brandData.logoUrl
+    // No campaign-specific data needed here unless logo could differ per campaign
+    setWizardState(prev => ({ ...prev, currentStep: 'marketing' }));
+  }
+
+  const handleMarketingComplete = async (componentMarketingData: ComponentMarketingData) => { // Make async
+    const activeCampaign = getActiveCampaign();
+    const updatedData = toWizardMarketingData(componentMarketingData, activeCampaign?.marketingData || {} as WizardMarketingData);
+
+    // 1. Update local state
+    updateActiveCampaignData('marketingData', updatedData);
+
+    // 2. If multiple scope and doc exists, update Firestore
+    if (wizardState.designScope === 'multiple' && wizardState.submittedRequestId) {
+       try {
+           console.log(`Updating Firestore doc ${wizardState.submittedRequestId} - Marketing data`);
+           const docRef = doc(db, "design_requests", wizardState.submittedRequestId);
+           // Find the index of the active campaign to update specific element
+           const campaignIndex = wizardState.campaigns.findIndex(c => c.businessType === wizardState.activeDesignType);
+           if (campaignIndex !== -1) {
+               await updateDoc(docRef, {
+                   // Use dot notation to update specific field within the array element
+                   [`campaigns.${campaignIndex}.marketingData`]: updatedData
+                   // Optionally update a 'lastUpdated' timestamp?
+               });
+               console.log("Firestore marketing data updated successfully.");
+           } else {
+               console.warn("Could not find active campaign index to update Firestore marketing data.");
+           }
+       } catch (error) {
+           console.error("Failed to update marketing data in Firestore:", error);
+           // Optional: Show error message to user? Maybe a small toast?
+           // setWizardState(prev => ({...prev, submitError: "Failed to save progress. Please try again."}))
+       }
+    }
+
+    // 3. Navigate to next step
+    setWizardState(prev => ({ ...prev, currentStep: 'audience' }));
+  };
+
+  const handleAudienceComplete = (audienceData: AudienceData) => {
+    updateActiveCampaignData('audienceData', audienceData);
+    setWizardState(prev => ({ ...prev, currentStep: 'business' }));
+  };
+
+  const handleBusinessComplete = (componentBusinessData: ComponentBusinessData) => {
+    updateActiveCampaignData('businessData', toWizardBusinessData(componentBusinessData, getActiveCampaign()?.businessData || {} as WizardBusinessData));
+    setWizardState(prev => ({ ...prev, currentStep: 'visual' }));
+  };
+
+  const handleVisualComplete = (visualData: VisualData) => {
+    updateActiveCampaignData('visualData', visualData);
+    setWizardState(prev => ({ ...prev, currentStep: 'review' }));
+  };
+  // --- End Update Step Completion Handlers ---
+
+  // --- Restore Logo Handlers ---
   const handleLogoSelect = (event: ChangeEvent<HTMLInputElement>) => {
-    // Revoke previous preview URL if exists
     if (wizardState.logoPreviewUrl) {
       URL.revokeObjectURL(wizardState.logoPreviewUrl);
     }
     
     if (event.target.files && event.target.files[0]) {
       const file = event.target.files[0];
-      // ... existing validation (type, size) ...
       if (!file.type.startsWith('image/') || file.size > 5 * 1024 * 1024) {
-         // Handle validation error, reset preview
          setWizardState(prev => ({
            ...prev,
            logoFile: null,
            logoPreviewUrl: null,
+           uploadedLogoUrl: null, // Clear final URL on error too
            logoUploadError: !file.type.startsWith('image/') 
              ? 'Please select an image file.' 
              : 'File size must be under 5MB.'
@@ -474,78 +598,67 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
          return;
       }
       
-      // Create preview URL
       const previewUrl = URL.createObjectURL(file);
       
       setWizardState(prev => ({
         ...prev,
         logoFile: file,
-        logoPreviewUrl: previewUrl, // Set preview URL
+        logoPreviewUrl: previewUrl,
+        uploadedLogoUrl: null, // Clear final URL when new file selected
         logoUploadError: null, 
         logoUploadProgress: null,
-        brandData: { ...prev.brandData, logoUrl: '' } 
       }));
     } else {
-       // No file selected, clear state
-       setWizardState(prev => ({ ...prev, logoFile: null, logoPreviewUrl: null }));
+       setWizardState(prev => ({ ...prev, logoFile: null, logoPreviewUrl: null, uploadedLogoUrl: null }));
     }
   };
 
-  // Placeholder for actual upload logic
   const handleUploadLogo = async () => {
     if (!wizardState.logoFile) {
       setWizardState(prev => ({ ...prev, logoUploadError: 'No file selected.' }));
       return;
     }
     
-    // Revoke preview URL before starting upload if it exists
     if (wizardState.logoPreviewUrl) {
-      URL.revokeObjectURL(wizardState.logoPreviewUrl);
+      URL.revokeObjectURL(wizardState.logoPreviewUrl); // Revoke preview before upload starts
     }
     setWizardState(prev => ({ 
         ...prev, 
         logoUploadProgress: 0, 
         logoUploadError: null, 
-        isSubmitting: true,
-        logoPreviewUrl: null // Clear preview once upload starts
+        isSubmitting: true, // Use general isSubmitting flag or add a specific one?
+        logoPreviewUrl: null, // Clear preview once upload starts
+        uploadedLogoUrl: null, // Ensure final URL is null during upload
     }));
 
-    // --- Firebase Upload Logic --- 
     const storageRef = ref(storage, `logos/${Date.now()}_${wizardState.logoFile.name}`);
     const uploadTask = uploadBytesResumable(storageRef, wizardState.logoFile);
     
     uploadTask.on('state_changed',
       (snapshot) => {
         const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        console.log('Upload is ' + progress + '% done');
         setWizardState(prev => ({ ...prev, logoUploadProgress: progress }));
       },
       (error) => {
         console.error("Upload failed:", error);
         let errorMessage = 'Upload failed. Please try again.';
-        switch (error.code) {
-          case 'storage/unauthorized':
-            errorMessage = 'Permission denied. Please check storage rules.';
-            break;
-          case 'storage/canceled':
-            errorMessage = 'Upload cancelled.';
-            break;
-          case 'storage/unknown':
-            errorMessage = 'An unknown error occurred during upload.';
-            break;
-        }
+        // ... (error handling switch statement) ...
+         switch (error.code) {
+           case 'storage/unauthorized': errorMessage = 'Permission denied.'; break;
+           case 'storage/canceled': errorMessage = 'Upload cancelled.'; break;
+           default: errorMessage = 'An unknown error occurred.'; break;
+         }
         setWizardState(prev => ({ ...prev, logoUploadError: errorMessage, logoUploadProgress: null, isSubmitting: false }));
       },
       () => {
-        // Upload completed successfully, now get the download URL
         getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
           console.log('File available at', downloadURL);
           setWizardState(prev => ({
             ...prev,
-            brandData: { ...prev.brandData, logoUrl: downloadURL }, // Save the REAL URL
-            logoUploadProgress: 100, // Mark as complete
-            isSubmitting: false, // Upload finished
-            // Keep currentStep as 'logo_upload' - user clicks Next to proceed
+            uploadedLogoUrl: downloadURL, // Save the final URL globally
+            logoUploadProgress: 100,
+            isSubmitting: false, 
+            logoFile: null, // Clear the file object after successful upload
           }));
         }).catch((error) => {
             console.error("Failed to get download URL:", error);
@@ -558,165 +671,239 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
         });
       }
     );
-    // --- End Firebase Upload Logic ---
-    
-    // --- Placeholder Success Removed --- 
-    // console.log("Simulating logo upload for:", wizardState.logoFile.name);
-    // await new Promise(resolve => setTimeout(resolve, 1500)); 
-    // const simulatedUrl = `https://fake-storage.com/logos/${Date.now()}_${wizardState.logoFile.name}`;
-    // setWizardState(prev => ({
-    //   ...prev,
-    //   brandData: { ...prev.brandData, logoUrl: simulatedUrl }, // Save simulated URL
-    //   logoUploadProgress: 100,
-    //   currentStep: 'marketing' // Navigate on success
-    // }));
-    // console.log("Simulated upload complete. URL:", simulatedUrl);
-    // --- End Placeholder Success ---
   };
+  // --- End Restore Logo Handlers ---
 
-  // Navigate to next step - **MODIFIED: Allow proceeding without logo**
-  const handleLogoStepComplete = () => {
-    // No check needed, always proceed
-    setWizardState(prev => ({ ...prev, currentStep: 'marketing' }));
-  }
+  // --- Update Handler for Design Choice --- 
+  const handleDesignScopeChoice = async (scope: 'single' | 'multiple') => { // Make async
+    const typesArray = Array.from(selectedBusinessTypes);
+    const firstActiveType = typesArray.length > 0 ? typesArray[0] : null;
+    const activeTypeForSingle = typesArray.length === 1 ? typesArray[0] : '__all__';
 
-  // Update navigation: Marketing -> Audience
-  const handleMarketingComplete = (componentMarketingData: ComponentMarketingData) => {
-    setWizardState(prev => ({
-      ...prev,
-      marketingData: toWizardMarketingData(componentMarketingData, prev.marketingData),
-      currentStep: 'audience'
-    }));
+    if (scope === 'multiple' && typesArray.length > 0) {
+      // --- Early Submission Logic for Multiple --- 
+      setWizardState(prev => ({
+        ...prev,
+        isSubmitting: true, // Indicate processing
+        submitError: null,
+        processingMessage: 'Setting up your design projects & notifying admin...'
+      }));
+
+      try {
+        if (!user) throw new Error("User not authenticated.");
+
+        // Prepare initial campaigns structure
+        const defaultBrandData: WizardBrandData = { brandName: wizardState.globalBrandData.brandName || '', logoUrl: wizardState.uploadedLogoUrl || '', primaryColor: '#00c2a8', accentColor: '#00858a', brandValues: [], stylePreferences: [], useExistingGuidelines: false, guidelinesNotes: '' };
+        const defaultMarketingData: WizardMarketingData = { objectives: [], callToAction: '', promotionDetails: '', eventDate: '', offerDetails: '', marketingObjectives: '' };
+        const defaultAudienceData: AudienceData = { industry: '', targetDescription: '' };
+        const defaultBusinessData: WizardBusinessData = { tagline: '', useAiTagline: true, contactInfo: { phone: '', email: '', website: '', address: '', includeQR: true }, disclaimer: '', includeDisclaimer: false, extraInfo: '' };
+        const defaultVisualData: VisualData = { imageStyle: [], imageSource: 'ai', imagePrimarySubject: '', useCustomImage: false, customImageDescription: '', layoutStyle: 'clean', colorSchemeConfirmed: true, customColorNotes: '' };
+
+        const initialCampaigns: CampaignState[] = typesArray.map(type => ({
+          businessType: type,
+          marketingData: { ...defaultMarketingData },
+          audienceData: { ...defaultAudienceData },
+          businessData: { ...defaultBusinessData },
+          visualData: { ...defaultVisualData },
+        }));
+
+        // 1. Create Firestore document with 'draft_multiple' status
+        const initialRequestData = {
+          userId: user.uid,
+          status: 'draft_multiple', // <<< Use specific draft status
+          designScope: 'multiple',
+          campaigns: initialCampaigns,
+          logoUrl: wizardState.uploadedLogoUrl || '',
+          createdAt: serverTimestamp(),
+          notifiedAdmin: false, // API will attempt to set this
+        };
+        console.log("Creating initial Firestore doc for multi-design request...", initialRequestData);
+        const docRef = await addDoc(collection(db, "design_requests"), initialRequestData);
+        const newRequestId = docRef.id;
+        console.log("Initial multi-design doc created with ID:", newRequestId);
+
+        // 2. Immediately call API to trigger early notification
+        console.log(`Calling API route /api/generate-design-prompt for initial notification (doc ${newRequestId})`);
+        const apiResponse = await fetch('/api/generate-design-prompt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ documentId: newRequestId }),
+        });
+        const apiResult = await apiResponse.json();
+        if (!apiResponse.ok) {
+            // Log warning but don't necessarily block user
+            console.warn("Initial notification API call failed:", apiResult);
+            // Optionally update local state to reflect notification failure?
+        } else {
+            console.log("Initial notification API call successful.");
+        }
+
+        // 3. Update local state AFTER setup
+        setWizardState(prev => ({
+          ...prev,
+          designScope: scope,
+          currentStep: 'brand',
+          activeDesignType: firstActiveType,
+          campaigns: initialCampaigns,
+          submittedRequestId: newRequestId,
+          isSubmitting: false,
+          processingMessage: '',
+          requestStatus: 'draft_multiple', // Sync status locally
+        }));
+
+      } catch (error) {
+        console.error("Error during early submission for multiple scope:", error);
+        setWizardState(prev => ({
+          ...prev,
+          isSubmitting: false,
+          submitError: `Failed to setup multi-design request: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          processingMessage: '',
+        }));
+        return; // Don't proceed if setup failed
+      }
+      // --- End Early Submission Logic ---
+
+    } else {
+      // Single scope - just update local state, no early submission
+      console.log("Setting scope to single, proceeding to brand step.");
+      // Re-initialize campaigns for single scope if needed (e.g., user went back)
+      const defaultBrandData: WizardBrandData = { brandName: wizardState.globalBrandData.brandName || '', logoUrl: wizardState.uploadedLogoUrl || '', primaryColor: '#00c2a8', accentColor: '#00858a', brandValues: [], stylePreferences: [], useExistingGuidelines: false, guidelinesNotes: '' };
+      const defaultMarketingData: WizardMarketingData = { objectives: [], callToAction: '', promotionDetails: '', eventDate: '', offerDetails: '', marketingObjectives: '' };
+      const defaultAudienceData: AudienceData = { industry: '', targetDescription: '' };
+      const defaultBusinessData: WizardBusinessData = { tagline: '', useAiTagline: true, contactInfo: { phone: '', email: '', website: '', address: '', includeQR: true }, disclaimer: '', includeDisclaimer: false, extraInfo: '' };
+      const defaultVisualData: VisualData = { imageStyle: [], imageSource: 'ai', imagePrimarySubject: '', useCustomImage: false, customImageDescription: '', layoutStyle: 'clean', colorSchemeConfirmed: true, customColorNotes: '' };
+      const singleCampaignType = typesArray.length === 1 ? typesArray[0] : '__all__';
+      const singleCampaign: CampaignState[] = [{
+          businessType: singleCampaignType,
+          marketingData: { ...defaultMarketingData },
+          audienceData: { ...defaultAudienceData },
+          businessData: { ...defaultBusinessData },
+          visualData: { ...defaultVisualData },
+      }];
+
+      setWizardState(prev => ({
+        ...prev,
+        designScope: scope,
+        currentStep: 'brand',
+        activeDesignType: activeTypeForSingle,
+        campaigns: prev.campaigns.length > 0 && prev.designScope === 'single' ? prev.campaigns : singleCampaign, // Preserve if already single, otherwise init
+        submittedRequestId: null, // Ensure no ID is carried over if switched to single
+        requestStatus: null,
+        isSubmitting: false,
+        submitError: null,
+        processingMessage: '',
+      }));
+    }
   };
+  // --- End Handler for Design Choice ---
 
-  // Update navigation: Audience -> Business
-  const handleAudienceComplete = (audienceData: AudienceData) => {
-    setWizardState(prev => ({
-      ...prev,
-      audienceData,
-      currentStep: 'business'
-    }));
-  };
-
-  // Update navigation: Business -> Visual
-  const handleBusinessComplete = (componentBusinessData: ComponentBusinessData) => {
-    setWizardState(prev => ({
-      ...prev,
-      businessData: toWizardBusinessData(componentBusinessData, prev.businessData),
-      currentStep: 'visual'
-    }));
-  };
-
-  // Update navigation: Visual -> Review
-  const handleVisualComplete = (visualData: VisualData) => {
-    setWizardState(prev => ({
-      ...prev,
-      visualData,
-      currentStep: 'review'
-    }));
-  };
-
-  // Renamed from handleGenerate - This is the final submission
+  // --- Modify Final Submission Handler ---
   const handleSubmitRequest = async () => {
-    setWizardState(prev => ({ 
-      ...prev, 
-      isSubmitting: true, 
-      submitError: null, 
-      processingMessage: 'Submitting your request...' // Initial message
+    setWizardState(prev => ({
+      ...prev,
+      isSubmitting: true,
+      submitError: null,
+      processingMessage: 'Finalizing your request...'
     }));
 
-    // --- Add check for authenticated user --- 
-    if (!user) {
+    if (!user) { /* ... user check ... */ return; }
+
+    try {
+      const { designScope, campaigns, uploadedLogoUrl, submittedRequestId } = wizardState;
+      let finalRequestId = submittedRequestId;
+      let needsApiCall = true; // Assume we need to call the main API
+
+      if (designScope === 'single') {
+        // --- Single Scope: Create document now --- 
+        console.log("Submitting single-design request...");
+        const requestData = {
+          userId: user.uid,
+          status: 'pending_prompt', // Directly to pending prompt
+          designScope: 'single',
+          campaigns: campaigns, 
+          logoUrl: uploadedLogoUrl || '',
+          createdAt: serverTimestamp(),
+          notifiedAdmin: false, // API will notify
+        };
+        console.log("Writing single request data to Firestore...", requestData);
+        const docRef = await addDoc(collection(db, "design_requests"), requestData);
+        finalRequestId = docRef.id;
+        console.log("Single request document written with ID:", finalRequestId);
+        setWizardState(prev => ({ ...prev, submittedRequestId: finalRequestId, requestStatus: 'pending_prompt' })); // Store ID and status
+
+      } else if (designScope === 'multiple' && finalRequestId) {
+        // --- Multiple Scope: Update existing document status --- 
+        console.log(`Finalizing multi-design request, updating doc ${finalRequestId}...`);
+        const docRef = doc(db, "design_requests", finalRequestId);
+        await updateDoc(docRef, {
+          status: 'pending_prompt', // <<< Update status to trigger processing
+          campaigns: campaigns, // <<< Save the final state of all campaigns
+          logoUrl: uploadedLogoUrl || '', // Ensure latest logo URL is saved
+          // Optionally add submittedAt: serverTimestamp()
+        });
+        console.log(`Doc ${finalRequestId} status updated to pending_prompt.`);
+        setWizardState(prev => ({ ...prev, requestStatus: 'pending_prompt' })); // Update local status
+        // API call will happen below
+
+      } else {
+        throw new Error(`Invalid state for submission: scope=${designScope}, id=${finalRequestId}`);
+      }
+
+      // --- Call the main processing API --- 
+      if (needsApiCall && finalRequestId) {
+        console.log(`Calling main API route /api/generate-design-prompt for document ${finalRequestId}`);
+        const response = await fetch('/api/generate-design-prompt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ documentId: finalRequestId }),
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          // Even if API fails, the doc exists/was updated. Listener might still pick up changes?
+          // Log error prominently.
+          console.error("Main API call failed after Firestore operation:", result);
+          throw new Error(result.error || 'Failed to trigger prompt generation API.');
+        }
+        console.log("Main API route call successful:", result);
+      } else if (!finalRequestId) {
+         throw new Error("Failed to get document ID for API call.");
+      }
+
+      // Update local state - Listener will take over for status updates
       setWizardState(prev => ({
         ...prev,
         isSubmitting: false,
-        submitError: 'You must be logged in to submit a design request.'
+        // processingMessage is controlled by listener effect
+        // requestStatus was set above or will be updated by listener
       }));
-      console.error("User is not authenticated. Cannot submit request.");
-      return;
-    }
-    // --- End user check ---
 
-    console.log('Submitting human-assisted design request with data for user:', user.uid, wizardState);
-
-    try {
-      // 1. Prepare data for Firestore
-      const requestData = {
-        userId: user.uid, // Use the authenticated user's ID
-        status: 'pending_prompt',
-        userInputData: {
-          brandData: wizardState.brandData,
-          marketingData: wizardState.marketingData,
-          audienceData: wizardState.audienceData,
-          businessData: wizardState.businessData,
-          visualData: wizardState.visualData,
-        },
-        // Send logoUrl even if it's an empty string
-        logoUrl: wizardState.brandData.logoUrl || '', 
-        createdAt: serverTimestamp(),
-        notifiedAdmin: false, // Initialize notification status
-      };
-      
-      console.log("Writing initial data to Firestore...", requestData);
-
-      // 2. Write initial data to Firestore
-      const docRef = await addDoc(collection(db, "design_requests"), requestData);
-      const newRequestId = docRef.id;
-      console.log("Initial document written with ID: ", newRequestId);
-      
-      // --- Set the submittedRequestId to trigger the listener --- 
-      setWizardState(prev => ({
-        ...prev,
-        submittedRequestId: newRequestId,
-        processingMessage: 'Request submitted. Triggering AI processing...',
-      }));
-      // --- End set ID ---
-
-      // 3. Call the backend API route
-      console.log(`Calling API route /api/generate-design-prompt for document ${newRequestId}`);
-      const response = await fetch('/api/generate-design-prompt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ documentId: newRequestId }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        console.error("API route call failed:", result);
-        // Update Firestore status to failed if API call fails?
-        // Or just show error to user
-        throw new Error(result.error || 'Failed to trigger prompt generation.');
-      }
-
-      console.log("API route call successful:", result);
-      // API success doesn't mean completion, the listener will handle status updates
-      // The isSubmitting state can be set to false here, but the UI should show the processing message
-      setWizardState(prev => ({ 
-        ...prev, 
-        isSubmitting: false, // API call finished, now waiting on Firestore updates
-        processingMessage: 'AI processing initiated. Waiting for admin review...' // Update message
-      }));
-      
     } catch (error) {
       console.error("Error submitting design request:", error);
       setWizardState(prev => ({
         ...prev,
         isSubmitting: false,
         submitError: error instanceof Error ? error.message : 'An unknown error occurred.',
-        processingMessage: 'Submission failed.', // Update message on error
-        submittedRequestId: null, // Reset ID on failure
+        processingMessage: 'Submission failed.',
+        // Don't reset submittedRequestId for multiple scope on error here, 
+        // as the document might still exist in a draft state.
+        submittedRequestId: prev.designScope === 'single' ? null : prev.submittedRequestId, // Use prev.designScope here
       }));
     }
   };
+  // --- End Modify Final Submission Handler ---
 
   // Handler to go back (needs adjustment based on current step)
   const handleBack = () => {
      const currentIdx = stepOrder.indexOf(wizardState.currentStep);
      if (currentIdx > 0) {
-        setWizardState(prev => ({ ...prev, currentStep: stepOrder[currentIdx - 1]}));
+        // If going back from 'brand' and scope was 'multiple', go back to 'design_choice'
+        if (wizardState.currentStep === 'brand' && wizardState.designScope === 'multiple') {
+           setWizardState(prev => ({ ...prev, currentStep: 'design_choice', designScope: 'undecided' })); // Reset scope decision
+        } else {
+           setWizardState(prev => ({ ...prev, currentStep: stepOrder[currentIdx - 1]}));
+        }
      } else if (onBack) {
-        onBack(); // Call the original onBack if we are at the first step
+        onBack(); // Call the original onBack if we are at the first step ('design_choice' or 'brand')
      }
   };
   
@@ -730,7 +917,20 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
 
   // Render the current step
   const renderStep = () => {
-    // --- Add condition to show processing/results view --- 
+    const activeCampaign = getActiveCampaign();
+    // Provide default empty objects if activeCampaign is somehow undefined
+    const safeActiveCampaign: CampaignState = activeCampaign || {
+        businessType: '__error__',
+        marketingData: { objectives: [], callToAction: '', promotionDetails: '', eventDate: '', offerDetails: '', marketingObjectives: '' } as WizardMarketingData,
+        audienceData: { industry: '', targetDescription: '' } as AudienceData,
+        brandData: {} as WizardBrandData,
+        marketingData: {} as WizardMarketingData,
+        audienceData: {} as AudienceData,
+        businessData: {} as WizardBusinessData,
+        visualData: {} as VisualData,
+    };
+
+    // --- Add condition to show processing/results view ---
     if (wizardState.submittedRequestId && wizardState.requestStatus !== 'completed') {
       return (
         <div className="p-8 bg-charcoal rounded-lg shadow-lg max-w-3xl mx-auto text-center">
@@ -798,131 +998,123 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
       // Removed 'segmentation' case
         
       case 'brand':
-        const brandInitialData = {
-          ...toComponentBrandData(wizardState.brandData),
-          brandName: businessName || wizardState.brandData.brandName,
-          logoUrl: wizardState.brandData.logoUrl // Pass existing URL if any
-        };
-        return (
-          <BrandIdentity
-            onComplete={handleBrandComplete}
-            initialData={brandInitialData}
-            hideLogoInput={true}
-          />
-        );
+        return <BrandIdentity 
+          onComplete={handleBrandComplete} 
+          initialData={toComponentBrandData(safeActiveCampaign.brandData)}
+          // brandName prop removed
+        />;
         
-      case 'logo_upload': // Render the new logo upload step
+      case 'logo_upload':
+        // This step uses global state
         return (
-          <div className="p-8 bg-charcoal rounded-lg shadow-lg max-w-3xl mx-auto">
+          <motion.div
+            key="logo_upload"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+            className="p-8 bg-charcoal rounded-lg shadow-lg max-w-3xl mx-auto"
+          >
             <h2 className="text-2xl font-bold text-electric-teal mb-4">Upload Your Logo (Optional)</h2>
-            <p className="text-white mb-2">
-              Please upload your company logo if you have one. This helps our designer match your brand.
-            </p>
-            {/* --- Add recommendation text --- */}
-            <p className="text-sm text-electric-teal/70 mb-6">
-              Tip: A PNG file with a transparent background often works best, but we accept common image types (JPG, SVG, etc.). Max size: 5MB.
+            <p className="text-electric-teal/70 mb-6">
+              Upload your company logo (PNG, JPG, SVG recommended, max 5MB).
             </p>
             
-            <div className="space-y-4">
-              {/* --- Logo Preview --- */}
-              {wizardState.logoPreviewUrl && (
-                 <div className="mb-4 p-2 border border-dashed border-electric-teal/30 rounded-lg inline-block">
-                   <img 
-                     src={wizardState.logoPreviewUrl}
-                     alt="Selected logo preview"
-                     className="max-h-32 max-w-full object-contain"
-                   />
-                 </div>
-              )}
-              {/* --- End Logo Preview --- */}
-              
+            <div className="mb-4">
               <input 
-                type="file"
-                accept="image/png, image/jpeg, image/svg+xml" 
-                onChange={handleLogoSelect}
-                ref={fileInputRef}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-electric-teal file:text-charcoal hover:file:bg-electric-teal/90 cursor-pointer"
+                type="file" 
+                accept="image/*" 
+                ref={fileInputRef} 
+                onChange={handleLogoSelect} 
+                className="hidden" 
               />
-              
-              {wizardState.logoFile && !wizardState.logoPreviewUrl && (
-                 <div className="text-white text-sm">Selected file: {wizardState.logoFile.name}</div>
-              )}
-
-              {wizardState.logoUploadProgress !== null && wizardState.logoUploadProgress < 100 && (
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div 
-                     className="bg-electric-teal h-2.5 rounded-full transition-all duration-300"
-                     style={{ width: `${wizardState.logoUploadProgress}%` }}
-                   ></div>
-                </div>
-              )}
-              
-              {wizardState.logoUploadError && (
-                <p className="text-red-500 text-sm">{wizardState.logoUploadError}</p>
-              )}
-              
-              {wizardState.logoUploadProgress === 100 && wizardState.brandData.logoUrl && (
-                 <p className="text-green-500 text-sm">Logo uploaded successfully!</p>
-              )}
-            </div>
-
-            <div className="mt-8 flex justify-between">
-              <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleBack} // Go back to Brand step
-                disabled={wizardState.isSubmitting} // Disable if uploading
-                className={`px-6 py-2 border border-electric-teal/50 text-electric-teal rounded-lg hover:border-electric-teal transition-colors ${wizardState.isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+              <button 
+                onClick={() => fileInputRef.current?.click()} 
+                className="px-4 py-2 rounded-lg border border-electric-teal/50 bg-electric-teal/10 text-electric-teal hover:bg-electric-teal/20 transition-colors"
               >
-                ← Back
-              </motion.button>
-              
-              {/* Button logic: Upload OR Next (always enabled unless uploading) */}
-              {wizardState.logoFile && !wizardState.brandData.logoUrl ? (
-                // Show Upload button only if a file is selected and not yet uploaded
-                <motion.button
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleUploadLogo} 
-                  disabled={wizardState.isSubmitting}
-                  className={`px-6 py-2 rounded-lg ${wizardState.isSubmitting ? 'bg-gray-500 cursor-not-allowed' : 'bg-electric-teal text-charcoal hover:bg-electric-teal/90'} transition-colors`}
-                >
-                  {wizardState.isSubmitting ? 'Uploading...' : 'Upload Logo'}
-                </motion.button>
-              ) : (
-                 // Show Next button if no file is selected, or if upload is done
-                 <motion.button
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleLogoStepComplete} // Navigate to next step
-                  disabled={wizardState.isSubmitting} // Disable only if an upload is somehow still in progress
-                  className={`px-6 py-2 rounded-lg ${wizardState.isSubmitting ? 'bg-gray-500 cursor-not-allowed' : 'bg-electric-teal text-charcoal hover:bg-electric-teal/90'} transition-colors`}
-                 >
-                   {wizardState.brandData.logoUrl ? 'Next →' : 'Skip & Next →'} {/* Change text if logo was uploaded */}
-                 </motion.button>
-              )}
+                {wizardState.logoFile ? 'Change Logo' : 'Select Logo'}
+              </button>
             </div>
-          </div>
+
+            {/* Logo Preview */}
+            {wizardState.logoPreviewUrl && (
+              <div className="mb-4 p-4 border border-dashed border-electric-teal/30 rounded-lg inline-block">
+                <p className="text-sm text-electric-teal/60 mb-2">Preview:</p>
+                <img src={wizardState.logoPreviewUrl} alt="Logo Preview" className="max-h-24 max-w-xs rounded" />
+              </div>
+            )}
+            {/* Show final URL if preview is gone but upload succeeded */}
+            {!wizardState.logoPreviewUrl && wizardState.uploadedLogoUrl && (
+                 <div className="mb-4 p-4 border border-solid border-green-500/50 rounded-lg inline-block">
+                    <p className="text-sm text-green-400 mb-2">Logo Uploaded:</p>
+                    <img src={wizardState.uploadedLogoUrl} alt="Uploaded Logo" className="max-h-24 max-w-xs rounded" />
+                 </div>
+            )}
+
+            {/* Upload Button & Progress */}
+            {wizardState.logoFile && !wizardState.uploadedLogoUrl && (
+              <div className="mt-4">
+                <button 
+                  onClick={handleUploadLogo} 
+                  disabled={wizardState.isSubmitting || wizardState.logoUploadProgress !== null && wizardState.logoUploadProgress < 100}
+                  className="px-6 py-2 rounded-lg bg-electric-teal text-charcoal font-medium hover:bg-electric-teal/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {wizardState.logoUploadProgress === null && 'Upload Logo'}
+                  {wizardState.logoUploadProgress !== null && wizardState.logoUploadProgress < 100 && `Uploading ${Math.round(wizardState.logoUploadProgress)}%`}
+                  {wizardState.logoUploadProgress === 100 && 'Upload Complete'} 
+                </button>
+                {wizardState.logoUploadProgress !== null && wizardState.logoUploadProgress < 100 && (
+                   <div className="w-full bg-gray-700 rounded-full h-1.5 mt-2">
+                      <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${wizardState.logoUploadProgress}%` }}></div>
+                   </div>
+                )}
+              </div>
+            )}
+            
+            {wizardState.logoUploadError && (
+              <p className="text-red-500 text-sm mt-4">Error: {wizardState.logoUploadError}</p>
+            )}
+
+            {/* Navigation Buttons */} 
+            <div className="flex justify-between mt-8">
+              <button onClick={handleBack} className="text-electric-teal hover:text-electric-teal/80 transition-colors">
+                 &larr; Back to Brand Identity
+              </button>
+               {/* Allow proceeding even if logo upload failed or skipped, but indicate success */}
+               <button 
+                 onClick={handleLogoStepComplete} 
+                 disabled={wizardState.isSubmitting && wizardState.logoUploadProgress !== 100} // Disable only during active upload
+                 className={`px-6 py-2 rounded-lg font-medium transition-colors duration-200 
+                    ${wizardState.uploadedLogoUrl 
+                       ? 'bg-green-600 text-white hover:bg-green-700' 
+                       : 'bg-electric-teal text-charcoal hover:bg-electric-teal/90'} 
+                    disabled:opacity-50 disabled:cursor-not-allowed`}
+               >
+                  {wizardState.uploadedLogoUrl ? 'Logo Saved, Continue' : 'Skip / Continue \&rarr;'}
+               </button>
+             </div>
+          </motion.div>
         );
         
       case 'marketing':
         return (
           <MarketingGoals
             onComplete={handleMarketingComplete}
-            initialData={toComponentMarketingData(wizardState.marketingData)}
+            initialData={toComponentMarketingData(safeActiveCampaign.marketingData)}
           />
         );
         
       case 'audience':
         const targetDescription = getTargetDescription();
         const audienceInitialData = {
-          ...wizardState.audienceData,
-          targetDescription: targetDescription || wizardState.audienceData.targetDescription
+          ...safeActiveCampaign.audienceData,
+          targetDescription: targetDescription || safeActiveCampaign.audienceData.targetDescription
         };
         return (
           <TargetAudience
             onComplete={handleAudienceComplete}
             initialData={audienceInitialData}
+            segment={wizardState.designScope === 'multiple' ? (wizardState.activeDesignType ?? undefined) : undefined} // Fix type error
           />
         );
         
@@ -930,63 +1122,61 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
         return (
           <BusinessDetails
             onComplete={handleBusinessComplete}
-            initialData={toComponentBusinessData(wizardState.businessData)}
+            initialData={toComponentBusinessData(safeActiveCampaign.businessData)}
           />
         );
         
       case 'visual':
-        return (
-          <VisualElements
-            onComplete={handleVisualComplete}
-            initialData={wizardState.visualData}
-            brandColors={{
-              primaryColor: wizardState.brandData.primaryColor,
-              accentColor: wizardState.brandData.accentColor,
-            }}
-          />
-        );
+        return <VisualElements 
+          onComplete={handleVisualComplete} 
+          initialData={safeActiveCampaign.visualData}
+          // primaryColor and accentColor props removed
+        />;
         
       case 'review':
-        // Simplified Review step - assumes user just submits from here
+        // Placeholder for Review component - needs significant updates
         return (
-           <div className="p-8 bg-charcoal rounded-lg shadow-lg max-w-3xl mx-auto text-white">
-             <h2 className="text-2xl font-bold text-electric-teal mb-4">Review & Submit Request</h2>
-             {/* Consider showing a summary here instead of full JSON */}
-             <p className="text-sm text-gray-300 mb-4">Summary of your request:</p>
-             <ul className="list-disc list-inside mb-6 text-sm space-y-1">
-                <li>Brand Name: {wizardState.brandData.brandName}</li>
-                <li>Logo: {wizardState.brandData.logoUrl ? 'Uploaded' : 'Missing'}</li>
-                <li>Marketing Objective: {wizardState.marketingData.objectives.join(', ') || 'Not specified'}</li>
-                {/* Add more key details */} 
-             </ul>
-             
-             <p className="text-sm text-amber-400 mb-6">Note: This request involves human review and image generation. This process may take some time. You&apos;ll be shown progress updates after submission.</p>
-             
-             {wizardState.submitError && (
-               <p className="text-red-500 mb-4">Error: {wizardState.submitError}</p>
-             )}
-             
-             <div className="flex justify-between">
-                <motion.button
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleBackToEdit} // Use specific back to edit from review
-                  disabled={wizardState.isSubmitting} // Disable if submitting
-                  className={`px-6 py-2 border border-electric-teal/50 text-electric-teal rounded-lg hover:border-electric-teal transition-colors ${wizardState.isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                   ← Edit Details
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleSubmitRequest}
+          <div className="p-8 bg-charcoal rounded-lg shadow-lg max-w-3xl mx-auto">
+            <h2 className="text-2xl font-bold text-electric-teal mb-4">Review & Submit Request</h2>
+             {/* TODO: Display summary based on wizardState.campaigns and wizardState.designScope */}
+            <p className="text-white mb-4">
+              Review your selections below. This will submit a request for our design team.
+              (Review summary not implemented yet for campaign structure)
+            </p>
+            
+            {/* Display selected campaigns */}
+            <div className="mb-6 space-y-2">
+              <h3 className="text-lg font-semibold text-electric-teal">Campaign(s) to be designed:</h3>
+              {wizardState.campaigns.map(campaign => (
+                <div key={campaign.businessType} className="p-2 bg-gray-800/50 rounded">
+                  <p className="text-electric-teal/80">- {campaign.businessType === '__all__' ? 'General Design' : campaign.businessType}</p>
+                  {/* Add more detail previews here if needed */}
+                </div>
+              ))}
+            </div>
+
+            {wizardState.submitError && (
+              <p className="text-red-500 text-sm mb-4">Error: {wizardState.submitError}</p>
+            )}
+
+            <div className="flex justify-between items-center mt-8">
+               <button 
+                 onClick={handleBackToEdit}
+                 disabled={wizardState.isSubmitting}
+                 className="text-electric-teal hover:text-electric-teal/80 transition-colors disabled:opacity-50"
+               >
+                  &larr; Back to Edit
+               </button>
+               <button 
+                  onClick={handleSubmitRequest} 
                   disabled={wizardState.isSubmitting}
-                  className={`px-6 py-2 rounded-lg ${wizardState.isSubmitting ? 'bg-gray-500 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'} transition-colors`}
+                  className="px-6 py-3 rounded-lg bg-electric-teal text-charcoal font-medium 
+                    hover:bg-electric-teal/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                   {wizardState.isSubmitting ? 'Submitting...' : 'Submit Request'}
-                </motion.button>
-              </div>
-           </div>
+                  {wizardState.isSubmitting ? 'Submitting...' : 'Submit Design Request'}
+                </button>
+             </div>
+          </div>
         );
         
       default:
@@ -994,64 +1184,135 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
     }
   };
 
-  // Calculate step order dynamically (only includes steps up to review)
-  const stepOrder: WizardStep[] = ['brand', 'logo_upload', 'marketing', 'audience', 'business', 'visual', 'review'];
-  const currentStepIndex = stepOrder.indexOf(wizardState.currentStep);
+  // --- Update stepOrder to include design_choice ---
+  const stepOrder: WizardStep[] = [
+    'design_choice',
+    'brand',
+    'logo_upload',
+    'marketing',
+    'audience',
+    'business',
+    'visual',
+    'review'
+  ];
+  // --- End stepOrder update ---
 
-  // Conditionally render steps or processing/results view
-  const shouldShowWizardSteps = !wizardState.submittedRequestId || (wizardState.requestStatus === 'completed' && wizardState.finalImageUrls !== null); // Show steps initially OR when completed
+  // --- Determine current step index for progress bar ---
+  const getCurrentStepIndex = () => {
+     // Adjust index calculation because 'design_choice' is conditional
+     const currentVisibleStep = wizardState.currentStep;
+     // If scope is single, treat 'brand' as the first step visually
+     if (wizardState.designScope === 'single' && wizardState.currentStep === 'brand') {
+       // This logic might need refinement depending on how progress is displayed
+     }
 
+     // If the current step is design_choice, index is 0
+     if (currentVisibleStep === 'design_choice') return 0;
+
+     // Find index in potentially filtered list
+     const baseSteps = stepOrder.filter(step => step !== 'design_choice');
+     const indexInBase = baseSteps.indexOf(currentVisibleStep);
+     
+     // If scope was multiple, the base index is effectively shifted by 1
+     return wizardState.designScope === 'multiple' ? indexInBase + 1 : indexInBase;
+  };
+  const totalSteps = wizardState.designScope !== 'multiple' 
+      ? stepOrder.length - 1 // Exclude design_choice
+      : stepOrder.length; // Include design_choice
+  const currentStepIndex = getCurrentStepIndex();
+  const progress = totalSteps > 0 ? ((currentStepIndex + 1) / totalSteps) * 100 : 0;
+  // --- End progress calculation ---
+
+  // --- Main component return ---
   return (
-    <div className="min-h-screen bg-gradient-to-b from-charcoal to-charcoal-dark p-4 md:p-8">
-      <div className="max-w-5xl mx-auto">
-        {/* Step title and progress */}
-        <div className="mb-8">
-          <div className="flex justify-between items-center mb-2">
-             <h1 className="text-3xl font-bold text-electric-teal">
-               {/* Handle potential undefined step title if stepOrder/currentStep mismatch */}
-               {wizardState.currentStep in stepTitles ? stepTitles[wizardState.currentStep] : 'Loading...'}
-             </h1>
-             {currentStepIndex !== -1 && (
-               <span className="text-electric-teal">
-                 Step {currentStepIndex + 1} of {stepOrder.length}
-               </span>
-             )}
-           </div>
-          
-          {/* Progress bar */}
-          {shouldShowWizardSteps && currentStepIndex !== -1 && (
-            <div className="w-full h-2 bg-charcoal-light rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-electric-teal rounded-full transition-all duration-300"
-                style={{ width: `${(currentStepIndex / (stepOrder.length - 1)) * 100}%` }}
-              />
-            </div>
-          )}
-        </div>
-        
-        {/* Back button (global, for first step) - only show if onBack provided and we are on first step */}
-        {onBack && currentStepIndex === 0 && (
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={onBack}
-            className="mb-4 px-4 py-1 border border-electric-teal/50 text-electric-teal rounded-lg hover:border-electric-teal transition-colors text-sm"
+    <div className="min-h-screen bg-gradient-to-b from-charcoal to-gray-900 p-4 sm:p-8 text-white">
+      <div className="max-w-6xl mx-auto">
+        {/* Back Button (Logic adjusted slightly for clarity) */}
+        {wizardState.currentStep !== 'design_choice' && 
+         wizardState.currentStep !== 'brand' && 
+         !wizardState.submittedRequestId && (
+          <button 
+            onClick={handleBack} 
+            className="mb-4 text-electric-teal hover:text-electric-teal/80 transition-colors"
           >
-            ← Back to Design Options
-          </motion.button>
+            &larr; Back to {stepTitles[stepOrder[stepOrder.indexOf(wizardState.currentStep) -1]] ?? 'Previous Step'}
+          </button>
+        )}
+        {/* Back from Brand step */}
+        {wizardState.currentStep === 'brand' && !wizardState.submittedRequestId && (
+           <button 
+            onClick={handleBack} 
+            className="mb-4 text-electric-teal hover:text-electric-teal/80 transition-colors"
+          >
+            &larr; Back to {wizardState.designScope === 'multiple' ? 'Scope Selection' : 'Design Method Choice'}
+          </button>
+        )}
+         {/* Back button specific for design_choice step */}
+         {wizardState.currentStep === 'design_choice' && onBack && (
+          <button 
+            onClick={onBack} 
+            className="mb-4 text-electric-teal hover:text-electric-teal/80 transition-colors"
+          >
+            &larr; Back to Design Options
+          </button>
         )}
 
-        {/* Current step content */}
+        {/* Conditional Header/Sidebar (Placeholder Structure) */}
+        {wizardState.designScope === 'single' && wizardState.currentStep !== 'design_choice' && !wizardState.submittedRequestId && (
+          <div className="bg-electric-teal/10 border border-electric-teal/30 rounded-lg p-3 mb-6 text-center text-sm">
+            <p className="text-electric-teal">
+              Designing one postcard for: <strong className="font-medium">{Array.from(selectedBusinessTypes).join(', ') || 'Selected Leads'}</strong>
+            </p>
+          </div>
+        )}
+
+        {wizardState.designScope === 'multiple' && wizardState.currentStep !== 'design_choice' && !wizardState.submittedRequestId && (
+          // TODO: Replace this with a more robust sidebar/tab structure on wider screens
+          <div className="bg-blue-900/20 border border-blue-400/30 rounded-lg p-3 mb-6 text-sm flex flex-wrap gap-2 justify-center items-center">
+             <p className="text-blue-300 font-medium mr-2">
+               Designing for:
+             </p>
+             {Array.from(selectedBusinessTypes).map(type => (
+               <button
+                 key={type}
+                 onClick={() => handleSetActiveDesignType(type)} // Connect handler
+                 className={`px-3 py-1 rounded transition-colors ${ 
+                   wizardState.activeDesignType === type
+                     ? 'bg-blue-500 text-white'
+                     : 'bg-blue-900/50 hover:bg-blue-800/70 text-blue-200'
+                 }`}
+               >
+                 {type}
+               </button>
+             ))}
+             {/* Consider adding "Done" indicators per type */}
+          </div>
+        )}
+        {/* End Conditional Header/Sidebar */}
+
+
+        {/* Progress Bar & Title (only if not submitted and not on choice step) */}
+        {!wizardState.submittedRequestId && wizardState.currentStep !== 'design_choice' && (
+           <div className="mb-8">
+             <h1 className="text-3xl font-bold text-electric-teal mb-2">
+                {stepTitles[wizardState.currentStep]}
+             </h1>
+             <div className="w-full bg-gray-700 rounded-full h-2.5">
+                 <motion.div
+                   className="bg-electric-teal h-2.5 rounded-full"
+                   style={{ width: `${progress}%` }} // Ensure progress is used here
+                   initial={{ width: 0 }}
+                   animate={{ width: `${progress}%` }}
+                   transition={{ duration: 0.5, ease: "easeInOut" }}
+                 />
+             </div>
+             <p className="text-sm text-electric-teal/60 mt-1 text-right">Step {currentStepIndex + 1} of {totalSteps}</p>
+           </div>
+        )}
+
+        {/* Step Content */}
         <AnimatePresence mode="wait">
-          <motion.div
-            key={wizardState.submittedRequestId ? (wizardState.requestStatus === 'completed' ? 'results' : 'processing') : wizardState.currentStep} // Key changes for processing/results
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.3 }}
-          >
-            {renderStep()}
-          </motion.div>
+          {renderStep()} {/* renderStep includes the design_choice step where handleDesignScopeChoice is used */}
         </AnimatePresence>
       </div>
     </div>
