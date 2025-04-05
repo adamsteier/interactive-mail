@@ -675,7 +675,7 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
   // --- End Restore Logo Handlers ---
 
   // --- Update Handler for Design Choice --- 
-  const handleDesignScopeChoice = async (scope: 'single' | 'multiple') => { // Make async
+  const handleDesignScopeChoice = async (scope: 'single' | 'multiple') => {
     const typesArray = Array.from(selectedBusinessTypes);
     const firstActiveType = typesArray.length > 0 ? typesArray[0] : null;
     const activeTypeForSingle = typesArray.length === 1 ? typesArray[0] : '__all__';
@@ -684,7 +684,7 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
       // --- Early Submission Logic for Multiple --- 
       setWizardState(prev => ({
         ...prev,
-        isSubmitting: true, // Indicate processing
+        isSubmitting: true,
         submitError: null,
         processingMessage: 'Setting up your design projects & notifying admin...'
       }));
@@ -692,8 +692,7 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
       try {
         if (!user) throw new Error("User not authenticated.");
 
-        // Prepare initial campaigns structure
-        const defaultBrandData: WizardBrandData = { brandName: wizardState.globalBrandData.brandName || '', logoUrl: wizardState.uploadedLogoUrl || '', primaryColor: '#00c2a8', accentColor: '#00858a', brandValues: [], stylePreferences: [], useExistingGuidelines: false, guidelinesNotes: '' };
+        // Default data structures (No defaultBrandData needed here)
         const defaultMarketingData: WizardMarketingData = { objectives: [], callToAction: '', promotionDetails: '', eventDate: '', offerDetails: '', marketingObjectives: '' };
         const defaultAudienceData: AudienceData = { industry: '', targetDescription: '' };
         const defaultBusinessData: WizardBusinessData = { tagline: '', useAiTagline: true, contactInfo: { phone: '', email: '', website: '', address: '', includeQR: true }, disclaimer: '', includeDisclaimer: false, extraInfo: '' };
@@ -761,13 +760,11 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
         }));
         return; // Don't proceed if setup failed
       }
-      // --- End Early Submission Logic ---
 
     } else {
-      // Single scope - just update local state, no early submission
+      // Single scope - just update local state
       console.log("Setting scope to single, proceeding to brand step.");
-      // Re-initialize campaigns for single scope if needed (e.g., user went back)
-      const defaultBrandData: WizardBrandData = { brandName: wizardState.globalBrandData.brandName || '', logoUrl: wizardState.uploadedLogoUrl || '', primaryColor: '#00c2a8', accentColor: '#00858a', brandValues: [], stylePreferences: [], useExistingGuidelines: false, guidelinesNotes: '' };
+      // Default data (No defaultBrandData needed here)
       const defaultMarketingData: WizardMarketingData = { objectives: [], callToAction: '', promotionDetails: '', eventDate: '', offerDetails: '', marketingObjectives: '' };
       const defaultAudienceData: AudienceData = { industry: '', targetDescription: '' };
       const defaultBusinessData: WizardBusinessData = { tagline: '', useAiTagline: true, contactInfo: { phone: '', email: '', website: '', address: '', includeQR: true }, disclaimer: '', includeDisclaimer: false, extraInfo: '' };
@@ -809,9 +806,9 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
     if (!user) { /* ... user check ... */ return; }
 
     try {
-      const { designScope, campaigns, uploadedLogoUrl, submittedRequestId } = wizardState;
+      const { designScope, campaigns, uploadedLogoUrl, submittedRequestId, globalBrandData } = wizardState;
       let finalRequestId = submittedRequestId;
-      let needsApiCall = true; // Assume we need to call the main API
+      const needsApiCall = true; // Use const
 
       if (designScope === 'single') {
         // --- Single Scope: Create document now --- 
@@ -918,16 +915,13 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
   // Render the current step
   const renderStep = () => {
     const activeCampaign = getActiveCampaign();
-    // Provide default empty objects if activeCampaign is somehow undefined
+    // Default object for campaign-specific data if activeCampaign is undefined
     const safeActiveCampaign: CampaignState = activeCampaign || {
         businessType: '__error__',
         marketingData: { objectives: [], callToAction: '', promotionDetails: '', eventDate: '', offerDetails: '', marketingObjectives: '' } as WizardMarketingData,
         audienceData: { industry: '', targetDescription: '' } as AudienceData,
-        brandData: {} as WizardBrandData,
-        marketingData: {} as WizardMarketingData,
-        audienceData: {} as AudienceData,
-        businessData: {} as WizardBusinessData,
-        visualData: {} as VisualData,
+        businessData: { tagline: '', useAiTagline: true, contactInfo: { phone: '', email: '', website: '', address: '', includeQR: true }, disclaimer: '', includeDisclaimer: false, extraInfo: '' } as WizardBusinessData,
+        visualData: { imageStyle: [], imageSource: 'ai', imagePrimarySubject: '', useCustomImage: false, customImageDescription: '', layoutStyle: 'clean', colorSchemeConfirmed: true, customColorNotes: '' } as VisualData,
     };
 
     // --- Add condition to show processing/results view ---
@@ -1000,8 +994,7 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
       case 'brand':
         return <BrandIdentity 
           onComplete={handleBrandComplete} 
-          initialData={toComponentBrandData(safeActiveCampaign.brandData)}
-          // brandName prop removed
+          initialData={toComponentBrandData(wizardState.globalBrandData)}
         />;
         
       case 'logo_upload':

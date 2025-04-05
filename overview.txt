@@ -192,16 +192,32 @@ Helps users identify and define different audience segments for targeted postcar
 Collects brand information like name, colors, logo, and style preferences. This data is used to ensure the postcard design aligns with the brand's visual identity.
 
 #### `MarketingGoals.tsx`
-Allows users to define marketing objectives and call-to-action for their postcards. The goals influence the design and messaging of the postcard.
+Collects marketing objectives and call-to-action, influencing postcard design and messaging.
 
 #### `TargetAudience.tsx`
-Collects information about the target audience demographics, interests, and preferences to tailor the postcard design to appeal to specific customer groups.
+Collects target audience details to tailor postcard design.
 
-#### `HumanAssistedWizard.tsx` (New Component)
-A multi-step wizard similar to `AIDesignWizard`, but specifically for the "AI Design + Expert Review" flow. It collects brand, marketing, audience, business, and visual data, and crucially includes a step for uploading the user's logo. Upon completion, it saves the request data to Firestore, triggering backend processes for AI prompt generation and admin notification.
+#### `HumanAssistedWizard.tsx` (New Component / Refined Flow)
+A multi-step wizard specifically for the "AI Design + Expert Review" flow.
+- **Detects Scope:** Checks if user selected leads from single or multiple business types.
+- **(Conditional) Design Scope Choice:** If multiple types, prompts user to choose between one design for all types or separate designs per type.
+- **Global Brand Identity:** Guides user through defining brand name, colors, style preferences, etc., *once*, applying globally to all designs in the request.
+- **Logo Upload:** Includes a dedicated step for logo upload (optional), saved globally for the request.
+- **Campaign-Specific Data Collection:** Guides user through Marketing Goals, Target Audience, Business Details, and Visual Elements steps. If multiple designs were chosen, user can switch between business types to enter specific details for each.
+- **Progressive Saving (Multi-Design):**
+    - Creates Firestore document (`design_requests/{id}`) immediately with `status: 'draft_multiple'`.
+    - Calls backend (`/api/generate-design-prompt`) for an initial admin notification.
+    - Saves user input for each campaign step (Marketing, Audience, etc.) to the Firestore document progressively via `updateDoc`.
+- **Final Submission (`handleSubmitRequest`):**
+    - **Single Design:** Creates Firestore document, sets status to `pending_prompt`, calls `/api/generate-design-prompt` API.
+    - **Multi-Design:** Updates existing Firestore document status to `pending_prompt`, saves final state of all campaigns, calls `/api/generate-design-prompt` API.
+- **Backend API Interaction (`/api/generate-design-prompt`):**
+    - **On `draft_multiple` status:** Sends only an initial admin notification via SendGrid.
+    - **On `pending_prompt` status:** Fetches full data, calls OpenAI for AI prompt/summary (based on first campaign as starting point), updates Firestore with AI results and status `pending_review`, sends detailed admin notification.
+- **UI Feedback:** Shows processing/waiting state after final submission while backend processing occurs.
 
 #### `BusinessDetails.tsx`
-Gathers business contact information, taglines, and other details to be included on the postcard. Ensures the postcard contains all necessary business information.
+Gathers business contact info, tagline, etc.
 
 #### `VisualElements.tsx`
 Enables selection of design style, layout, and image preferences for the postcard. Controls the visual aspects of the postcard design. Specifically, users can choose:
@@ -299,23 +315,26 @@ The store also contains key actions like:
     - AI-generated designs (`AIDesignWizard` -> `PostcardGeneration`)
     - Work with a human designer (Not fully implemented)
     - AI Design + Expert Review (`HumanAssistedWizard`):
-        - Wizard collects Brand, Marketing, Audience, Business, Visual data.
-        - Requires logo upload (saved to Firebase Storage).
-        - On submit (`handleSubmitRequest`):
-            - Saves initial request data to Firestore (`design_requests/{id}`).
-            - Calls `/api/generate-design-prompt` API.
-            - **API Route (`/api/generate-design-prompt`):**
-                - Fetches full request data from Firestore.
-                - Calls OpenAI API for `aiGeneratedPrompt` and `aiSummary`.
-                - Updates Firestore document with AI results and status `pending_review`.
-                - Sends SendGrid email to admin (`adam@posttimely.com`) including:
-                    - AI Prompt & Summary
-                    - Logo URL
-                    - Link to the admin review page (`/admin/requests/{id}`)
-                - Updates Firestore document `notifiedAdmin: true`.
-            - User UI shows processing/waiting state.
+        - User is guided through the wizard.
+        - **If multiple business types were selected in the previous stage:** User first chooses whether to create one postcard for all types or a separate one for each.
+        - **Brand Identity:** User defines global brand details (name, colors, style, logo upload) once.
+        - **Campaign Details:** User fills out Marketing Goals, Target Audience, Business Details, and Visual Elements.
+            - If designing multiple postcards, user can switch between business types to fill details for each.
+        - **Early Admin Notification (Multi-Design):** When the multi-design flow starts, a document is created in Firestore (`status: 'draft_multiple'`) and the backend is called to send an initial notification to the admin.
+        - **Progressive Saving (Multi-Design):** As the user completes steps for each business type, the data is saved to the corresponding campaign within the Firestore document.
+        - **Final Submission (`handleSubmitRequest`):**
+            - User reaches the Review step.
+            - Clicking "Submit Design Request":
+                - **Single Design:** Creates the Firestore request document (`status: 'pending_prompt'`).
+                - **Multi-Design:** Updates the existing Firestore document status to `pending_prompt` and saves the final state of all campaigns.
+                - Calls the `/api/generate-design-prompt` API.
+        - **API Route (`/api/generate-design-prompt`):**
+            - **Checks Status:** Determines action based on Firestore status (`draft_multiple` or `pending_prompt`).
+            - **`draft_multiple`:** Sends only initial admin notification.
+            - **`pending_prompt`:** Fetches full data, calls OpenAI (using first campaign data as basis) for `aiGeneratedPrompt` and `aiSummary`, updates Firestore with AI results and status `pending_review`, sends detailed SendGrid email to admin, updates Firestore `notifiedAdmin: true`.
+        - User UI shows processing/waiting state, listening for status changes.
 12. **Admin Workflow:**
-    - Admin receives email notification with a link.
+    - Admin receives email notification(s) with a link.
     - Link goes to `/admin/requests/{id}` page.
     - **Admin Page (`src/app/admin/requests/[id]/page.tsx`):**
         - Fetches and displays the full request details from Firestore (user inputs, logo, AI prompt/summary).
