@@ -18,6 +18,7 @@ interface BrandData {
 interface BrandIdentityProps {
   onComplete: (brandData: BrandData) => void;
   initialData?: Partial<BrandData>;
+  hideLogoInput?: boolean;
 }
 
 const styleOptions: { id: BrandStylePreference; label: string; description: string }[] = [
@@ -43,7 +44,7 @@ const styleOptions: { id: BrandStylePreference; label: string; description: stri
   }
 ];
 
-const BrandIdentity = ({ onComplete, initialData = {} }: BrandIdentityProps) => {
+const BrandIdentity = ({ onComplete, initialData = {}, hideLogoInput = false }: BrandIdentityProps) => {
   const [brandData, setBrandData] = useState<BrandData>({
     hasBrandGuidelines: initialData.hasBrandGuidelines ?? false,
     primaryColor: initialData.primaryColor ?? '#1ecbe1', // Default to electric-teal
@@ -323,74 +324,76 @@ const BrandIdentity = ({ onComplete, initialData = {} }: BrandIdentityProps) => 
         />
       </div>
       
-      <div className="mb-6">
-        <label className="block text-electric-teal mb-2">
-          Logo Upload
-        </label>
-        <div className="border-2 border-dashed border-electric-teal/50 rounded-lg p-4 text-center">
-          {logoPreview ? (
-            <div className="mb-3">
-              <img 
-                src={logoPreview} 
-                alt="Logo preview" 
-                className="max-h-32 mx-auto bg-white/10 p-2 rounded-lg"
-              />
-              <button 
-                onClick={() => {
-                  setLogoPreview('');
-                  setBrandData(prev => ({ ...prev, logoUrl: '' }));
-                }}
-                className="mt-2 text-electric-teal/70 hover:text-electric-teal text-sm"
-              >
-                Remove logo
-              </button>
-            </div>
-          ) : (
-            <div className="py-8">
-              <svg className="w-12 h-12 mx-auto text-electric-teal/50 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-              </svg>
-              <p className="text-electric-teal mb-2">
-                Drag and drop your logo or click to browse
-              </p>
-              <p className="text-electric-teal/60 text-sm">
-                Recommended: PNG file with transparent background
-              </p>
-            </div>
-          )}
-          
-          <input 
-            type="file"
-            id="logo-upload"
-            accept="image/png,image/jpeg,image/svg+xml"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                // Create a URL for preview
-                const objectUrl = URL.createObjectURL(file);
-                setLogoPreview(objectUrl);
-                // In a real app, you would upload the file to a server here
-                // For now, we'll just simulate it by setting the logoUrl to the object URL
-                setBrandData(prev => ({ ...prev, logoUrl: objectUrl }));
-              }
-            }}
-          />
-          
-          <label 
-            htmlFor="logo-upload"
-            className="inline-block px-4 py-2 bg-electric-teal/20 border border-electric-teal/50
-              rounded-lg text-electric-teal cursor-pointer hover:bg-electric-teal/30 transition-colors"
-          >
-            {logoPreview ? 'Choose a different logo' : 'Select file'}
+      {!hideLogoInput && (
+        <div className="mb-6">
+          <label className="block text-electric-teal mb-2">
+            Logo Upload
           </label>
+          <div className="border-2 border-dashed border-electric-teal/50 rounded-lg p-4 text-center">
+            {logoPreview ? (
+              <div className="mb-3">
+                <img 
+                  src={logoPreview} 
+                  alt="Logo preview" 
+                  className="max-h-32 mx-auto bg-white/10 p-2 rounded-lg"
+                />
+                <button 
+                  onClick={() => {
+                    setLogoPreview('');
+                    setBrandData(prev => ({ ...prev, logoUrl: '' }));
+                  }}
+                  className="mt-2 text-electric-teal/70 hover:text-electric-teal text-sm"
+                >
+                  Remove logo
+                </button>
+              </div>
+            ) : (
+              <div className="py-8">
+                <svg className="w-12 h-12 mx-auto text-electric-teal/50 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                <p className="text-electric-teal mb-2">
+                  Drag and drop your logo or click to browse
+                </p>
+                <p className="text-electric-teal/60 text-sm">
+                  Recommended: PNG file with transparent background
+                </p>
+              </div>
+            )}
+            
+            <input 
+              type="file"
+              id="logo-upload"
+              accept="image/png,image/jpeg,image/svg+xml"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  // Create a URL for preview
+                  const objectUrl = URL.createObjectURL(file);
+                  setLogoPreview(objectUrl);
+                  // In a real app, you would upload the file to a server here
+                  // For now, we'll just simulate it by setting the logoUrl to the object URL
+                  setBrandData(prev => ({ ...prev, logoUrl: objectUrl }));
+                }
+              }}
+            />
+            
+            <label 
+              htmlFor="logo-upload"
+              className="inline-block px-4 py-2 bg-electric-teal/20 border border-electric-teal/50
+                rounded-lg text-electric-teal cursor-pointer hover:bg-electric-teal/30 transition-colors"
+            >
+              {logoPreview ? 'Choose a different logo' : 'Select file'}
+            </label>
+          </div>
+          
+          <p className="mt-2 text-electric-teal/70 text-sm">
+            For best results, upload a high-resolution logo (PNG or SVG) with a transparent background.
+            This will appear on your postcards and ensure your brand stands out.
+          </p>
         </div>
-        
-        <p className="mt-2 text-electric-teal/70 text-sm">
-          For best results, upload a high-resolution logo (PNG or SVG) with a transparent background.
-          This will appear on your postcards and ensure your brand stands out.
-        </p>
-      </div>
+      )}
     </motion.div>
   );
 

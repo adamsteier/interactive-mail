@@ -150,6 +150,9 @@ interface WizardState {
   finalImageUrls: string[] | null; // Store final images from Firestore
   processingMessage: string; // Message to show while waiting
   // --- End new state ---
+  // --- Add state for logo preview ---
+  logoPreviewUrl: string | null;
+  // --- End state for logo preview ---
 }
 
 interface HumanAssistedWizardProps {
@@ -298,6 +301,9 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
     finalImageUrls: null,
     processingMessage: 'Your request is being submitted...',
     // --- End initialize new state ---
+    // --- Initialize logo preview state ---
+    logoPreviewUrl: null,
+    // --- End initialize logo preview state ---
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -398,6 +404,17 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
   }, [wizardState.submittedRequestId]); // Re-run effect if submittedRequestId changes
   // --- End Firestore Listener useEffect ---
 
+  // --- Add useEffect for preview URL cleanup ---
+  useEffect(() => {
+    // Cleanup function to revoke object URL
+    return () => {
+      if (wizardState.logoPreviewUrl) {
+        URL.revokeObjectURL(wizardState.logoPreviewUrl);
+      }
+    };
+  }, [wizardState.logoPreviewUrl]);
+  // --- End preview URL cleanup useEffect ---
+
   // Keep getTargetDescription for now, might be useful
   const getTargetDescription = () => {
     if (!marketingStrategy) return '';
@@ -436,27 +453,41 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
   
   // Placeholder handler for logo selection
   const handleLogoSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    // Revoke previous preview URL if exists
+    if (wizardState.logoPreviewUrl) {
+      URL.revokeObjectURL(wizardState.logoPreviewUrl);
+    }
+    
     if (event.target.files && event.target.files[0]) {
       const file = event.target.files[0];
-      // Basic validation (example: check type and size)
-      if (!file.type.startsWith('image/')) {
-        setWizardState(prev => ({ ...prev, logoUploadError: 'Please select an image file.', logoFile: null }));
-        return;
+      // ... existing validation (type, size) ...
+      if (!file.type.startsWith('image/') || file.size > 5 * 1024 * 1024) {
+         // Handle validation error, reset preview
+         setWizardState(prev => ({
+           ...prev,
+           logoFile: null,
+           logoPreviewUrl: null,
+           logoUploadError: !file.type.startsWith('image/') 
+             ? 'Please select an image file.' 
+             : 'File size must be under 5MB.'
+         }));
+         return;
       }
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit example
-        setWizardState(prev => ({ ...prev, logoUploadError: 'File size must be under 5MB.', logoFile: null }));
-        return;
-      }
+      
+      // Create preview URL
+      const previewUrl = URL.createObjectURL(file);
       
       setWizardState(prev => ({
         ...prev,
         logoFile: file,
-        logoUploadError: null, // Clear previous errors
+        logoPreviewUrl: previewUrl, // Set preview URL
+        logoUploadError: null, 
         logoUploadProgress: null,
-        brandData: { ...prev.brandData, logoUrl: '' } // Clear any manually entered URL
+        brandData: { ...prev.brandData, logoUrl: '' } 
       }));
     } else {
-       setWizardState(prev => ({ ...prev, logoFile: null }));
+       // No file selected, clear state
+       setWizardState(prev => ({ ...prev, logoFile: null, logoPreviewUrl: null }));
     }
   };
 
@@ -467,7 +498,17 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
       return;
     }
     
-    setWizardState(prev => ({ ...prev, logoUploadProgress: 0, logoUploadError: null, isSubmitting: true })); // Indicate upload start
+    // Revoke preview URL before starting upload if it exists
+    if (wizardState.logoPreviewUrl) {
+      URL.revokeObjectURL(wizardState.logoPreviewUrl);
+    }
+    setWizardState(prev => ({ 
+        ...prev, 
+        logoUploadProgress: 0, 
+        logoUploadError: null, 
+        isSubmitting: true,
+        logoPreviewUrl: null // Clear preview once upload starts
+    }));
 
     // --- Firebase Upload Logic --- 
     const storageRef = ref(storage, `logos/${Date.now()}_${wizardState.logoFile.name}`);
@@ -533,14 +574,10 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
     // --- End Placeholder Success ---
   };
 
-  // Navigate to next step AFTER successful upload and URL retrieval
+  // Navigate to next step - **MODIFIED: Allow proceeding without logo**
   const handleLogoStepComplete = () => {
-    if (wizardState.brandData.logoUrl) { 
-       setWizardState(prev => ({ ...prev, currentStep: 'marketing' }));
-    } else {
-       // This case should ideally be prevented by disabling the button
-       setWizardState(prev => ({ ...prev, logoUploadError: 'Please upload a logo successfully before continuing.'}));
-    }
+    // No check needed, always proceed
+    setWizardState(prev => ({ ...prev, currentStep: 'marketing' }));
   }
 
   // Update navigation: Marketing -> Audience
@@ -602,16 +639,6 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
 
     console.log('Submitting human-assisted design request with data for user:', user.uid, wizardState);
 
-    // Ensure logo is uploaded
-    if (!wizardState.brandData.logoUrl) {
-      setWizardState(prev => ({
-        ...prev,
-        isSubmitting: false,
-        submitError: 'Logo URL is missing. Please ensure the logo was uploaded successfully.'
-      }));
-      return;
-    }
-
     try {
       // 1. Prepare data for Firestore
       const requestData = {
@@ -624,7 +651,8 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
           businessData: wizardState.businessData,
           visualData: wizardState.visualData,
         },
-        logoUrl: wizardState.brandData.logoUrl,
+        // Send logoUrl even if it's an empty string
+        logoUrl: wizardState.brandData.logoUrl || '', 
         createdAt: serverTimestamp(),
         notifiedAdmin: false, // Initialize notification status
       };
@@ -779,18 +807,35 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
           <BrandIdentity
             onComplete={handleBrandComplete}
             initialData={brandInitialData}
+            hideLogoInput={true}
           />
         );
         
       case 'logo_upload': // Render the new logo upload step
         return (
           <div className="p-8 bg-charcoal rounded-lg shadow-lg max-w-3xl mx-auto">
-            <h2 className="text-2xl font-bold text-electric-teal mb-4">Upload Your Logo</h2>
-            <p className="text-white mb-6">
-Please upload your company logo. This will be shared with our designer. Recommended formats: PNG, JPG, SVG. Max size: 5MB.
+            <h2 className="text-2xl font-bold text-electric-teal mb-4">Upload Your Logo (Optional)</h2>
+            <p className="text-white mb-2">
+              Please upload your company logo if you have one. This helps our designer match your brand.
+            </p>
+            {/* --- Add recommendation text --- */}
+            <p className="text-sm text-electric-teal/70 mb-6">
+              Tip: A PNG file with a transparent background often works best, but we accept common image types (JPG, SVG, etc.). Max size: 5MB.
             </p>
             
             <div className="space-y-4">
+              {/* --- Logo Preview --- */}
+              {wizardState.logoPreviewUrl && (
+                 <div className="mb-4 p-2 border border-dashed border-electric-teal/30 rounded-lg inline-block">
+                   <img 
+                     src={wizardState.logoPreviewUrl}
+                     alt="Selected logo preview"
+                     className="max-h-32 max-w-full object-contain"
+                   />
+                 </div>
+              )}
+              {/* --- End Logo Preview --- */}
+              
               <input 
                 type="file"
                 accept="image/png, image/jpeg, image/svg+xml" 
@@ -799,8 +844,8 @@ Please upload your company logo. This will be shared with our designer. Recommen
                 className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-electric-teal file:text-charcoal hover:file:bg-electric-teal/90 cursor-pointer"
               />
               
-              {wizardState.logoFile && (
-                <div className="text-white text-sm">Selected file: {wizardState.logoFile.name}</div>
+              {wizardState.logoFile && !wizardState.logoPreviewUrl && (
+                 <div className="text-white text-sm">Selected file: {wizardState.logoFile.name}</div>
               )}
 
               {wizardState.logoUploadProgress !== null && wizardState.logoUploadProgress < 100 && (
@@ -832,27 +877,29 @@ Please upload your company logo. This will be shared with our designer. Recommen
                 ← Back
               </motion.button>
               
-              {/* Button logic: Show Upload or Next depending on state */} 
-              {!wizardState.brandData.logoUrl ? (
+              {/* Button logic: Upload OR Next (always enabled unless uploading) */}
+              {wizardState.logoFile && !wizardState.brandData.logoUrl ? (
+                // Show Upload button only if a file is selected and not yet uploaded
                 <motion.button
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={handleUploadLogo} // Trigger upload 
-                  disabled={!wizardState.logoFile || wizardState.isSubmitting}
-                  className={`px-6 py-2 rounded-lg ${!wizardState.logoFile || wizardState.isSubmitting ? 'bg-gray-500 cursor-not-allowed' : 'bg-electric-teal text-charcoal hover:bg-electric-teal/90'} transition-colors`}
+                  onClick={handleUploadLogo} 
+                  disabled={wizardState.isSubmitting}
+                  className={`px-6 py-2 rounded-lg ${wizardState.isSubmitting ? 'bg-gray-500 cursor-not-allowed' : 'bg-electric-teal text-charcoal hover:bg-electric-teal/90'} transition-colors`}
                 >
                   {wizardState.isSubmitting ? 'Uploading...' : 'Upload Logo'}
                 </motion.button>
               ) : (
+                 // Show Next button if no file is selected, or if upload is done
                  <motion.button
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleLogoStepComplete} // Navigate to next step
-                  disabled={wizardState.isSubmitting} // Still disable if somehow submitting state is true
-                  className={`px-6 py-2 rounded-lg ${wizardState.isSubmitting ? 'bg-gray-500 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'} transition-colors`}
-                >
-                  Next →
-                </motion.button>
+                  disabled={wizardState.isSubmitting} // Disable only if an upload is somehow still in progress
+                  className={`px-6 py-2 rounded-lg ${wizardState.isSubmitting ? 'bg-gray-500 cursor-not-allowed' : 'bg-electric-teal text-charcoal hover:bg-electric-teal/90'} transition-colors`}
+                 >
+                   {wizardState.brandData.logoUrl ? 'Next →' : 'Skip & Next →'} {/* Change text if logo was uploaded */}
+                 </motion.button>
               )}
             </div>
           </div>

@@ -126,7 +126,7 @@ export async function POST(req: Request) {
 
     try {
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-latest", // Ensure this model is available/correct
+        model: "chatgpt-4o-latest", // Correct the model name here
         messages: [{ role: "user", content: aiPrompt }],
         temperature: 0.7,
         response_format: { type: "json_object" }
