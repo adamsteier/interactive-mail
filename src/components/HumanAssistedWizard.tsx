@@ -1467,11 +1467,23 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
 
               // 3. Check if in Multi-Design and Active Campaign is Submitted by User (Awaiting Admin)
               if (isMultiDesignActive && wizardState.completedCampaigns.has(wizardState.activeDesignType || '')) {
+                 // Get the specific campaign status
+                 const campaignStatus = activeCampaignData?.campaignStatus || 'Unknown';
+                 let statusMessage = 'Awaiting admin review';
+                 switch (campaignStatus) {
+                   case 'processing_ai': statusMessage = 'Generating AI prompt...'; break;
+                   case 'review_ready': statusMessage = 'Ready for admin review.'; break;
+                   case 'completed': statusMessage = 'Design complete!'; break; // Should be caught by earlier check, but good fallback
+                   case 'ai_failed': statusMessage = 'Error during AI processing.'; break;
+                   case 'draft': statusMessage = 'Pending submission (Error?)'; break; // Should ideally not be in completedCampaigns if draft
+                 }
+
                  return (
                     <motion.div key={`${wizardState.activeDesignType}-pending`} /* ... animations ... */ className="p-8 bg-gray-800 rounded-lg shadow-lg text-center">
                       <h2 className="text-xl font-bold text-yellow-400 mb-4">Campaign Submitted: {wizardState.activeDesignType}</h2>
                       <p className="text-gray-300">This campaign&apos;s details have been submitted.</p>
-                      <p className="text-gray-300 mt-2">Status: <span className="font-medium">{wizardState.processingMessage || wizardState.requestStatus || 'Awaiting admin review'}</span></p>
+                      {/* Display specific campaign status */}
+                      <p className="text-gray-300 mt-2">Status: <span className="font-medium">{statusMessage}</span></p>
                       {/* Spinner? */} 
                       <p className="text-sm text-gray-500 mt-4">You can work on other campaigns using the sidebar.</p>
                     </motion.div>
