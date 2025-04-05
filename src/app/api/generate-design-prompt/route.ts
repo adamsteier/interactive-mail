@@ -165,85 +165,83 @@ export async function POST(req: Request) {
     });
     console.log("Firestore document updated successfully with AI results.");
 
-    // 5. Send SendGrid Notification
-    console.log("Attempting to send notification email via SendGrid...");
+ // 5. Send SendGrid Notification
+ console.log("Attempting to send notification email via SendGrid...");
 
-    // --- Construct Admin Link ---
-    // TODO: Replace with environment variable for production
-    const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'; 
-    const adminRequestUrl = `${appBaseUrl}/admin/requests/${documentId}`;
-    // --- End Admin Link ---
+ // --- Construct Admin Link ---
+ // TODO: Replace with environment variable for production
+ const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+ const adminRequestUrl = `${appBaseUrl}/admin/requests/${documentId}`;
+ // --- End Admin Link ---
 
-    const msg = {
-      to: 'adam@posttimely.com', // Your admin email
-      from: 'adam@posttimely.com', // Your verified SendGrid sender
-      subject: `New Design Request Ready for Review: ${designRequestData.userInputData.brandData?.brandName || documentId}`,
-      // Text version with the link
-      text: `A new design request needs review for document ID: ${documentId}\n\n` +
-            `Brand: ${designRequestData.userInputData.brandData?.brandName || 'N/A'}\n\n` +
-            `AI Generated Prompt:\n${aiGeneratedPrompt}\n\n` +
-            `AI Summary for Admin:\n${aiSummary}\n\n` +
-            `Logo URL: ${designRequestData.logoUrl}\n\n` +
-            `Manage Request: ${adminRequestUrl}`,
-      // HTML version for a clickable link
-      html: `<p>A new design request needs review for document ID: <strong>${documentId}</strong></p>` +
-            `<p>Brand: ${designRequestData.userInputData.brandData?.brandName || 'N/A'}</p>` +
-            `<p><strong>AI Generated Prompt:</strong><br/>${aiGeneratedPrompt.replace(/\n/g, '<br/>')}</p>` +
-            `<p><strong>AI Summary for Admin:</strong><br/>${aiSummary.replace(/\n/g, '<br/>')}</p>` +
-            `<p>Logo URL: <a href="${designRequestData.logoUrl}">${designRequestData.logoUrl}</a></p>` +
-            `<p><strong><a href="${adminRequestUrl}">Click here to manage the request</a></strong></p>`,
-    };
+ const msg = {
+   to: 'adam@posttimely.com', // Your admin email (Keep for testing)
+   from: 'team@magicmailing.com', // <<< USE THIS VERIFIED SENDER
+   subject: `New Design Request Ready for Review: ${designRequestData.userInputData.brandData?.brandName || documentId}`,
+   // Text version with the link
+   text: `A new design request needs review for document ID: ${documentId}\n\n` +
+         `Brand: ${designRequestData.userInputData.brandData?.brandName || 'N/A'}\n\n` +
+         `AI Generated Prompt:\n${aiGeneratedPrompt}\n\n` +
+         `AI Summary for Admin:\n${aiSummary}\n\n` +
+         `Logo URL: ${designRequestData.logoUrl}\n\n` +
+         `Manage Request: ${adminRequestUrl}`,
+   // HTML version for a clickable link
+   html: `<p>A new design request needs review for document ID: <strong>${documentId}</strong></p>` +
+         `<p>Brand: ${designRequestData.userInputData.brandData?.brandName || 'N/A'}</p>` +
+         `<p><strong>AI Generated Prompt:</strong><br/>${aiGeneratedPrompt.replace(/\n/g, '<br/>')}</p>` +
+         `<p><strong>AI Summary for Admin:</strong><br/>${aiSummary.replace(/\n/g, '<br/>')}</p>` +
+         `<p>Logo URL: <a href="${designRequestData.logoUrl}">${designRequestData.logoUrl}</a></p>` +
+         `<p><strong><a href="${adminRequestUrl}">Click here to manage the request</a></strong></p>`,
+ };
 
-    try {
-      await sgMail.send(msg);
-      console.log('SendGrid email sent successfully.');
-      
-      // 6. Update Firestore document: mark as notified
-      try {
-          await docRef.update({ notifiedAdmin: true });
-          console.log(`Firestore document ${documentId} marked as notified.`);
-      } catch (updateError) {
-          console.error(`Failed to mark document ${documentId} as notified after sending email:`, updateError);
-          // Log this error, but don't necessarily fail the whole request just because the final flag update failed.
-      }
+ try {
+   await sgMail.send(msg);
+   console.log('SendGrid email sent successfully.');
 
-    } catch (emailError: unknown) {
-      console.error('Error sending SendGrid email:', emailError);
-      // Type check for SendGrid specific error structure
-      let sendGridBody = 'Unknown SendGrid error details';
-      if (
-        emailError && 
-        typeof emailError === 'object' && 
-        'response' in emailError && 
-        emailError.response && 
-        typeof emailError.response === 'object' && 
-        'body' in emailError.response
-      ) {
-        // Now we know response and body exist, but body could be anything
-        sendGridBody = JSON.stringify((emailError as { response: { body: unknown } }).response.body);
-        console.error('SendGrid Response Error Body:', sendGridBody);
-      }
-      
-      const errorMessage = emailError instanceof Error ? emailError.message : 'Unknown email sending error';
-      // Optionally include sendGridBody in the error response for debugging
-      // console.error('SendGrid Response Error:', sendGridBody); 
-      // Consider adding a status like 'pending_review_notification_failed' ?
-      return NextResponse.json({ 
-          success: true, // Indicate main task (AI gen) succeeded
-          message: 'Prompt generated, but failed to send admin notification email.', 
-          emailError: errorMessage, 
-          sendGridDetails: sendGridBody // Optionally return details
-      }); 
-    }
-    
-    // 7. Return success response
-    console.log("API route execution successful.");
-    return NextResponse.json({ success: true, message: 'Prompt generated and admin notified.' });
+   // 6. Update Firestore document: mark as notified
+   try {
+       await docRef.update({ notifiedAdmin: true });
+       console.log(`Firestore document ${documentId} marked as notified.`);
+   } catch (updateError) {
+       console.error(`Failed to mark document ${documentId} as notified after sending email:`, updateError);
+       // Log this error, but don't necessarily fail the whole request just because the final flag update failed.
+   }
 
-  } catch (error) {
-    console.error('Error in /api/generate-design-prompt:', error);
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    // Avoid leaking detailed stack traces to the client in production
-    return NextResponse.json({ error: 'Failed to process design request', details: message }, { status: 500 });
-  }
-} 
+ } catch (emailError: unknown) {
+   console.error('Error sending SendGrid email:', emailError);
+   // Type check for SendGrid specific error structure
+   let sendGridBody = 'Unknown SendGrid error details';
+   if (
+     emailError &&
+     typeof emailError === 'object' &&
+     'response' in emailError &&
+     emailError.response &&
+     typeof emailError.response === 'object' &&
+     'body' in emailError.response
+   ) {
+     // Now we know response and body exist, but body could be anything
+     sendGridBody = JSON.stringify((emailError as { response: { body: unknown } }).response.body);
+     console.error('SendGrid Response Error Body:', sendGridBody);
+   }
+
+   const errorMessage = emailError instanceof Error ? emailError.message : 'Unknown email sending error';
+   // Return an error, but indicate the AI part succeeded
+   return NextResponse.json({
+       success: true, // Indicate main task (AI gen) succeeded
+       message: 'Prompt generated, but failed to send admin notification email.',
+       emailError: errorMessage,
+       sendGridDetails: sendGridBody // Optionally return details
+   }); // Status 500 or similar might be appropriate here too
+ }
+
+ // 7. Return success response (if email sent successfully)
+ console.log("API route execution successful.");
+ return NextResponse.json({ success: true, message: 'Prompt generated and admin notified.' });
+
+} catch (error) { // Catch errors from before email sending (e.g., OpenAI error, Firestore fetch error)
+ console.error('Error in /api/generate-design-prompt:', error);
+ const message = error instanceof Error ? error.message : 'Unknown error';
+ // Avoid leaking detailed stack traces to the client in production
+ return NextResponse.json({ error: 'Failed to process design request', details: message }, { status: 500 });
+}
+}
