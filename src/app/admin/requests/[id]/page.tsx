@@ -326,8 +326,14 @@ export default function AdminRequestPage() {
       {/* --- Campaign Sections --- */} 
       <div className="space-y-6">
           <h2 className="text-2xl font-semibold border-b border-gray-600 pb-2">Campaign Details & Final Designs</h2>
-          {requestData.campaigns.map((campaign, index) => {
-              const campaignKey = campaign.businessType; // Use businessType as key
+          {requestData.campaigns && requestData.campaigns.length > 0 ? requestData.campaigns.map((campaign, index) => {
+              console.log(`Rendering campaign at index ${index}:`, campaign);
+              
+              if (!campaign || !campaign.businessType) { 
+                  console.warn(`Skipping rendering for invalid campaign object at index ${index}:`, campaign);
+                  return null;
+              }
+              const campaignKey = campaign.businessType; 
               const campaignFiles = filesToUpload[campaignKey];
               const campaignIsUploading = isUploading[campaignKey];
               const campaignActionError = actionError[campaignKey];
@@ -335,7 +341,7 @@ export default function AdminRequestPage() {
               const campaignUploadProgress = uploadProgress[campaignKey] || {};
               
               return (
-                  <div key={campaignKey} className="bg-[#2F2F2F] p-4 rounded-lg border border-gray-700 space-y-4">
+                  <div key={index} className="bg-[#2F2F2F] p-4 rounded-lg border border-gray-700 space-y-4">
                       <h3 className="text-xl font-bold text-[#00F0FF]">Campaign: {campaign.businessType === '__all__' ? 'General Design' : campaign.businessType}</h3>
                       
                       {/* Optional: Display campaign-specific user input summary */} 
@@ -401,7 +407,7 @@ export default function AdminRequestPage() {
                       )}
                   </div>
               );
-          })}
+          }) : <p className="text-gray-400">No campaign data found in this request.</p> }
       </div>
       {/* --- End Campaign Sections --- */} 
 

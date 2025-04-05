@@ -511,10 +511,13 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
   };
   
   const handleLogoStepComplete = () => {
-    // If logo uploaded, its URL is already stored globally in wizardState.logoFile / brandData.logoUrl
-    // No campaign-specific data needed here unless logo could differ per campaign
-    setWizardState(prev => ({ ...prev, currentStep: 'marketing' }));
-  }
+    setWizardState(prev => ({
+        ...prev,
+        // Ensure globalBrandData also gets the final logo URL when completing this step
+        globalBrandData: { ...prev.globalBrandData, logoUrl: prev.uploadedLogoUrl || prev.globalBrandData.logoUrl }, 
+        currentStep: 'marketing' 
+    }));
+  };
 
   const handleMarketingComplete = async (componentMarketingData: ComponentMarketingData) => { // Make async
     const activeCampaign = getActiveCampaign();
@@ -565,7 +568,9 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
     // 1. Update local state first
     updateActiveCampaignData('visualData', visualData);
 
-    const { designScope, submittedRequestId, campaigns, activeDesignType, globalBrandData, uploadedLogoUrl } = wizardState;
+    // Destructure relevant state AFTER local update
+    const currentState = { ...wizardState, campaigns: wizardState.campaigns.map(c => c.businessType === wizardState.activeDesignType ? {...c, visualData} : c) };
+    const { designScope, submittedRequestId, campaigns, activeDesignType, globalBrandData, uploadedLogoUrl } = currentState;
 
     // 2. Check if this is the FIRST campaign completion in MULTIPLE scope
     if (designScope === 'multiple' && !submittedRequestId) {
@@ -583,18 +588,13 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
             // Create the initial Firestore document now
             const initialRequestData = {
                 userId: user.uid,
-                status: 'draft_multiple', // Initial draft status
+                status: 'draft_multiple',
                 designScope: 'multiple',
-                globalBrandData: globalBrandData, // Save global brand data
-                // Save the current state of campaigns array (first one is complete)
-                campaigns: campaigns.map(c => 
-                    c.businessType === activeDesignType 
-                       ? { ...c, visualData: visualData } // Ensure latest visual data is included
-                       : c 
-                ),
-                logoUrl: uploadedLogoUrl || '',
+                globalBrandData: globalBrandData,
+                campaigns: campaigns, // Use campaigns from currentState
+                logoUrl: uploadedLogoUrl || '', // <<< Ensure current logo URL is included
                 createdAt: serverTimestamp(),
-                notifiedAdmin: false, // API will attempt notification
+                notifiedAdmin: false,
             };
             console.log("Creating initial Firestore doc for multi-design request...", initialRequestData);
             const docRef = await addDoc(collection(db, "design_requests"), initialRequestData);
@@ -838,11 +838,10 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
         console.log(`Finalizing multi-design request, updating doc ${finalRequestId} status...`);
         const docRef = doc(db, "design_requests", finalRequestId);
         await updateDoc(docRef, {
-          status: 'pending_prompt', // Set status to trigger AI processing
-          globalBrandData: globalBrandData, // Ensure latest global data is saved
-          campaigns: campaigns, // Save the final state of all campaigns
-          logoUrl: uploadedLogoUrl || '', // Ensure latest logo URL is saved
-          // optionally add submittedAt: serverTimestamp()
+          status: 'pending_prompt',
+          globalBrandData: globalBrandData,
+          campaigns: campaigns,
+          logoUrl: uploadedLogoUrl || '', // <<< Ensure current logo URL is included
         });
         console.log(`Doc ${finalRequestId} status updated to pending_prompt.`);
         setWizardState(prev => ({ ...prev, requestStatus: 'pending_prompt' })); // Update local status
@@ -865,7 +864,7 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
               designScope: 'single',
               globalBrandData: globalBrandData, 
               campaigns: campaigns,
-              logoUrl: uploadedLogoUrl || '',
+              logoUrl: uploadedLogoUrl || '', // <<< Ensure current logo URL is included
               createdAt: serverTimestamp(),
               notifiedAdmin: false,
           };
@@ -955,7 +954,15 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
     };
 
     // --- Add condition to show processing/results view --- 
-    if (wizardState.submittedRequestId && wizardState.requestStatus !== 'completed') {
+    // Show processing view ONLY if request submitted AND status indicates backend processing 
+    // OR if there's a final submission error. Allow UI interaction for 'draft_multiple'.
+    const isBackendProcessing = wizardState.submittedRequestId && 
+                               (wizardState.requestStatus === 'pending_prompt' || 
+                                wizardState.requestStatus === 'pending_review' || 
+                                wizardState.requestStatus === 'processing_failed' || // Add failed status
+                                wizardState.submitError); // Show on submit error too
+
+    if (isBackendProcessing && wizardState.requestStatus !== 'completed') {
       return (
         <div className="p-8 bg-charcoal rounded-lg shadow-lg max-w-3xl mx-auto text-center">
           <h2 className="text-2xl font-bold text-electric-teal mb-4">Processing Your Request</h2>
@@ -967,13 +974,12 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
              </svg>
           </div>
           <p className="text-white mb-6">
-            {wizardState.processingMessage}
+            {wizardState.processingMessage || `Processing request (Status: ${wizardState.requestStatus ?? 'Unknown'})...`}
           </p>
           {wizardState.submitError && (
             <p className="text-red-500 text-sm mt-4">Error: {wizardState.submitError}</p>
           )}
-          <p className="text-sm text-gray-400">You can leave this page, your request is being processed. We&apos;ll notify you (or implement display on return later).</p>
-          {/* Optionally add a button to go back to dashboard or start new? */}
+          <p className="text-sm text-gray-400">You can leave this page, your request is being processed. We&apos;ll notify you.</p>
         </div>
       );
     }
