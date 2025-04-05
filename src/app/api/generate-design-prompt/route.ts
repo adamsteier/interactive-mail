@@ -7,6 +7,30 @@ import sgMail from '@sendgrid/mail';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
+// --- Define types needed by the API route ---
+// (These should ideally match types used elsewhere, e.g., admin page)
+interface BrandData { 
+  brandName?: string; 
+  logoUrl?: string; 
+  primaryColor?: string; 
+  accentColor?: string; 
+  stylePreferences?: string[]; 
+}
+
+interface MarketingData { objectives?: string[]; callToAction?: string; }
+interface AudienceData { industry?: string; targetDescription?: string; }
+interface BusinessData { extraInfo?: string; /* Add other needed fields */ }
+interface VisualData { imageStyle?: string[]; imagePrimarySubject?: string; layoutStyle?: string; }
+
+interface RequestCampaign { 
+  businessType: string; 
+  marketingData?: MarketingData;
+  audienceData?: AudienceData;
+  businessData?: BusinessData;
+  visualData?: VisualData;
+}
+// --- End Type Definitions ---
+
 // Initialize Firebase Admin SDK
 // Check if FIREBASE_SERVICE_ACCOUNT_JSON is set
 if (!process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
@@ -46,20 +70,6 @@ if (!process.env.SENDGRID_API_KEY) {
   // Handle missing key appropriately
 }
 sgMail.setApiKey(process.env.SENDGRID_API_KEY || '');
-
-// --- Define type for Firestore Campaign data --- 
-interface FirestoreCampaign { 
-  businessType: string; 
-  // Add other fields if needed for stricter typing later
-  userInputData?: { // Define nested structure for accessing prompt data
-      brandData?: { brandName?: string; stylePreferences?: string[]; primaryColor?: string; accentColor?: string };
-      marketingData?: { objectives?: string[]; callToAction?: string };
-      audienceData?: { industry?: string; targetDescription?: string };
-      visualData?: { imageStyle?: string[]; imagePrimarySubject?: string; layoutStyle?: string };
-      businessData?: { extraInfo?: string };
-  }
-}
-// --- End Type Definition ---
 
 export async function POST(req: Request) {
   console.log("Received request for /api/generate-design-prompt");
@@ -103,17 +113,19 @@ export async function POST(req: Request) {
       // --- Handle Early Notification Only --- 
       console.log(`Status is 'draft_multiple'. Sending initial notification for doc ${documentId}.`);
       
+      const globalBrandDataForEmail = designRequestData.globalBrandData as BrandData | undefined;
+
       const draftMsg = {
         to: 'adam@posttimely.com', 
         from: 'team@magicmailing.com',
-        subject: `[Draft Started] Multi-Design Request: ${designRequestData.campaigns?.[0]?.userInputData?.brandData?.brandName || documentId}`, 
+        subject: `[Draft Started] Multi-Design Request: ${globalBrandDataForEmail?.brandName || documentId}`,
         text: `A new multi-design request has been started by a user (Doc ID: ${documentId}).\n\n` +
-              `Brand: ${designRequestData.campaigns?.[0]?.userInputData?.brandData?.brandName || 'N/A'}\n\n` +
-              `Business Types: ${designRequestData.campaigns?.map((c: unknown) => (c as FirestoreCampaign).businessType).join(', ') || 'N/A'}\n\n` + // Use type assertion
+              `Brand: ${globalBrandDataForEmail?.brandName || 'N/A'}\n\n` +
+              `Business Types: ${designRequestData.campaigns?.map((c: unknown) => (c as RequestCampaign).businessType).join(', ') || 'N/A'}\n\n` +
               `You can monitor progress here: ${adminRequestUrl}`, 
         html: `<p>A new multi-design request has been started by a user (Doc ID: <strong>${documentId}</strong>).</p>` +
-              `<p>Brand: ${designRequestData.campaigns?.[0]?.userInputData?.brandData?.brandName || 'N/A'}</p>` +
-              `<p>Business Types: ${designRequestData.campaigns?.map((c: unknown) => (c as FirestoreCampaign).businessType).join(', ') || 'N/A'}</p>` + // Use type assertion
+              `<p>Brand: ${globalBrandDataForEmail?.brandName || 'N/A'}</p>` +
+              `<p>Business Types: ${designRequestData.campaigns?.map((c: unknown) => (c as RequestCampaign).businessType).join(', ') || 'N/A'}</p>` +
               `<p><strong><a href="${adminRequestUrl}">Click here to monitor the request</a></strong></p>`, 
       };
 
@@ -138,37 +150,46 @@ export async function POST(req: Request) {
       // --- Handle Full AI Generation and Final Notification --- 
       console.log(`Status is 'pending_prompt'. Processing AI generation for doc ${documentId}.`);
 
-      // *** ALL AI generation and final notification logic stays within this block ***
-      
-      // Check data validity specific for prompt generation
-      const firstCampaign = designRequestData.campaigns?.[0] as FirestoreCampaign | undefined; 
+      // Fetch data according to ACTUAL Firestore structure using defined types
+      const brandDataForPrompt = designRequestData.globalBrandData as BrandData | undefined;
+      const firstCampaign = designRequestData.campaigns?.[0] as RequestCampaign | undefined;
       const logoForPrompt = designRequestData.logoUrl;
-      if (!firstCampaign?.userInputData) { 
-          // ... handle incomplete data error ...
+
+      // Check if required data exists
+      if (!brandDataForPrompt || !firstCampaign) { 
+          console.error(`Incomplete global brand or campaign data found for document ${documentId}.`);
           return NextResponse.json({ error: 'Incomplete design request data for prompt generation' }, { status: 400 });
       }
-      const firstCampaignData = firstCampaign.userInputData;
+      // Destructure data from the first campaign directly
+      const { marketingData, audienceData, businessData, visualData } = firstCampaign;
+      if (!marketingData || !audienceData || !businessData || !visualData) {
+         console.error(`Incomplete nested data within first campaign for document ${documentId}.`);
+         return NextResponse.json({ error: 'Incomplete campaign data fields for prompt generation' }, { status: 400 });
+      }
 
       console.log("Calling OpenAI API...");
+      // Construct the prompt using globalBrandData and direct campaign fields
       const aiPrompt = `
         You are an expert marketing assistant helping generate postcard image prompts and summaries for a human designer.
-        This request might involve multiple final designs (${designRequestData.designScope === 'multiple' ? designRequestData.campaigns?.length : 1} total campaigns: ${designRequestData.campaigns?.map((c: unknown) => (c as FirestoreCampaign).businessType).join(', ')}).
-        Generate a prompt and summary based on the *first* campaign's details provided below as a starting point. The human designer will adapt as needed for other campaigns.
+        This request might involve multiple final designs (${designRequestData.designScope === 'multiple' ? designRequestData.campaigns?.length : 1} total campaigns: ${designRequestData.campaigns?.map((c: unknown) => (c as RequestCampaign).businessType).join(', ')}).
+        Generate a prompt and summary based on the following details (using global brand info and first campaign specifics) as a starting point. The human designer will adapt as needed for other campaigns.
         
-        Requirements (from first campaign):
-        - Brand Name: ${firstCampaignData.brandData?.brandName}
+        Brand Info (Global):
+        - Brand Name: ${brandDataForPrompt.brandName}
         - Logo URL: ${logoForPrompt}
-        - Brand Style Preferences: ${firstCampaignData.brandData?.stylePreferences?.join(', ')}
-        - Primary Color: ${firstCampaignData.brandData?.primaryColor}
-        - Accent Color: ${firstCampaignData.brandData?.accentColor}
-        - Marketing Objectives: ${firstCampaignData.marketingData?.objectives?.join(', ')}
-        - Call To Action: ${firstCampaignData.marketingData?.callToAction}
-        - Target Audience Industry: ${firstCampaignData.audienceData?.industry}
-        - Target Audience Description: ${firstCampaignData.audienceData?.targetDescription}
-        - Desired Image Styles: ${firstCampaignData.visualData?.imageStyle?.join(', ')}
-        - Primary Image Subject: ${firstCampaignData.visualData?.imagePrimarySubject}
-        - Desired Layout Style: ${firstCampaignData.visualData?.layoutStyle}
-        - Extra Info/Notes: ${firstCampaignData.businessData?.extraInfo}
+        - Brand Style Preferences: ${brandDataForPrompt.stylePreferences?.join(', ')}
+        - Primary Color: ${brandDataForPrompt.primaryColor}
+        - Accent Color: ${brandDataForPrompt.accentColor}
+
+        First Campaign Specifics:
+        - Marketing Objectives: ${marketingData.objectives?.join(', ')}
+        - Call To Action: ${marketingData.callToAction}
+        - Target Audience Industry: ${audienceData.industry}
+        - Target Audience Description: ${audienceData.targetDescription}
+        - Desired Image Styles: ${visualData.imageStyle?.join(', ')}
+        - Primary Image Subject: ${visualData.imagePrimarySubject}
+        - Desired Layout Style: ${visualData.layoutStyle}
+        - Extra Info/Notes: ${businessData.extraInfo}
         
         Provide the output STRICTLY in JSON format:
         { "imagePrompt": "[Detailed prompt]", "adminSummary": "[Concise summary]" }
@@ -215,11 +236,11 @@ export async function POST(req: Request) {
       const finalMsg = { 
           to: 'adam@posttimely.com', 
           from: 'team@magicmailing.com',
-          subject: `[Ready for Review] Design Request: ${firstCampaignData.brandData?.brandName || documentId}`,
+          subject: `[Ready for Review] Design Request: ${brandDataForPrompt?.brandName || documentId}`,
           text: `Design request ready for review (Doc ID: ${documentId}).\n\n` +
-                `Brand: ${firstCampaignData.brandData?.brandName || 'N/A'}\n\n` +
+                `Brand: ${brandDataForPrompt?.brandName || 'N/A'}\n\n` +
                 `Scope: ${designRequestData.designScope} (${designRequestData.campaigns?.length} campaigns)\n`+
-                `Business Types: ${designRequestData.campaigns?.map((c: unknown) => (c as FirestoreCampaign).businessType).join(', ') || 'N/A'}\n\n` + // Use type assertion
+                `Business Types: ${designRequestData.campaigns?.map((c: unknown) => (c as RequestCampaign).businessType).join(', ') || 'N/A'}\n\n` +
                 `AI Generated Prompt (based on first campaign):
 ${aiGeneratedPrompt}\n\n` +
                 `AI Summary for Admin:
@@ -227,9 +248,9 @@ ${aiSummary}\n\n` +
                 `Logo URL: ${logoForPrompt}\n\n` +
                 `Manage Request: ${adminRequestUrl}`, 
           html: `<p>Design request ready for review (Doc ID: <strong>${documentId}</strong>)</p>` +
-                `<p>Brand: ${firstCampaignData.brandData?.brandName || 'N/A'}</p>` +
+                `<p>Brand: ${brandDataForPrompt?.brandName || 'N/A'}</p>` +
                 `<p>Scope: ${designRequestData.designScope} (${designRequestData.campaigns?.length} campaigns)</p>` +
-                `<p>Business Types: ${designRequestData.campaigns?.map((c: unknown) => (c as FirestoreCampaign).businessType).join(', ') || 'N/A'}</p>` + // Use type assertion
+                `<p>Business Types: ${designRequestData.campaigns?.map((c: unknown) => (c as RequestCampaign).businessType).join(', ') || 'N/A'}</p>` +
                 `<p><strong>AI Generated Prompt (based on first campaign):</strong><br/>${aiGeneratedPrompt.replace(/\n/g, '<br/>')}</p>` +
                 `<p><strong>AI Summary for Admin:</strong><br/>${aiSummary.replace(/\n/g, '<br/>')}</p>` +
                 `<p>Logo URL: <a href="${logoForPrompt}">${logoForPrompt}</a></p>` +
@@ -255,7 +276,8 @@ ${aiSummary}\n\n` +
       // --- End Full AI Generation --- 
 
     } else {
-      // --- Handle other statuses (e.g., already processed) --- 
+      // --- Handle other statuses (e.g., already processed, draft_multiple) --- 
+      // Note: The draft_multiple case is handled earlier now
       console.log(`Document ${documentId} has status '${currentStatus}'. No action taken by generate-design-prompt.`);
       return NextResponse.json({ success: false, message: `Request status is '${currentStatus}'. No action needed.` });
     }

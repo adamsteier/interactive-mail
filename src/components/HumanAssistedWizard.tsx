@@ -148,6 +148,7 @@ interface WizardState {
   designScope: 'single' | 'multiple' | 'undecided';
   activeDesignType: string | null;
   campaigns: CampaignState[];
+  completedCampaigns: Set<string>; // Track businessTypes user finished input for
 
   // --- Global/Shared State ---
   globalBrandData: WizardBrandData;
@@ -258,6 +259,7 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
     designScope: 'undecided',
     activeDesignType: null,
     campaigns: [], // Initialize as empty, populated by useEffect
+    completedCampaigns: new Set<string>(), // Initialize empty set
     // --- Initialize Global State ---
     globalBrandData: {
         brandName: businessName || '',
@@ -564,99 +566,97 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
     setWizardState(prev => ({ ...prev, currentStep: 'visual' }));
   };
 
-  const handleVisualComplete = async (visualData: VisualData) => { // Make async
-    // 1. Update local state first
+  const handleVisualComplete = async (visualData: VisualData) => {
+    // 1. Update local visual data state synchronously first
+    const currentActiveType = wizardState.activeDesignType;
     updateActiveCampaignData('visualData', visualData);
+    
+    // 2. Add to completed set (sync state update)
+    if (currentActiveType) {
+      setWizardState(prev => ({ ...prev, completedCampaigns: new Set(prev.completedCampaigns).add(currentActiveType) }));
+    }
 
-    // Destructure relevant state AFTER local update
-    const currentState = { ...wizardState, campaigns: wizardState.campaigns.map(c => c.businessType === wizardState.activeDesignType ? {...c, visualData} : c) };
-    const { designScope, submittedRequestId, campaigns, activeDesignType, globalBrandData, uploadedLogoUrl } = currentState;
+    // 3. Perform Async Operations (Firestore/API) based on current state
+    // Get necessary state *after* sync updates have likely settled (or read directly)
+    const { designScope, submittedRequestId, campaigns, activeDesignType, globalBrandData, uploadedLogoUrl } = wizardState;
+    // Create a snapshot of campaigns *with the updated visual data* for Firestore write
+     const campaignsForWrite = campaigns.map(c => 
+          c.businessType === activeDesignType ? {...c, visualData} : c
+      );
 
-    // 2. Check if this is the FIRST campaign completion in MULTIPLE scope
+    // Check if this is the FIRST campaign completion in MULTIPLE scope
     if (designScope === 'multiple' && !submittedRequestId) {
-        console.log("Completing Visual step for the FIRST campaign in multi-design mode. Creating doc and notifying...");
-        setWizardState(prev => ({ 
-            ...prev, 
-            isSubmitting: true, 
-            submitError: null, 
-            processingMessage: 'Saving first campaign & notifying admin...'
-        }));
+        console.log("Completing Visual step for the FIRST campaign... Creating doc and notifying...");
+        setWizardState(prev => ({ ...prev, isSubmitting: true, submitError: null, processingMessage: 'Saving first campaign & notifying admin...'}));
 
+        let newRequestId: string | null = null;
         try {
             if (!user) throw new Error("User not authenticated.");
-
-            // Create the initial Firestore document now
             const initialRequestData = {
                 userId: user.uid,
                 status: 'draft_multiple',
                 designScope: 'multiple',
                 globalBrandData: globalBrandData,
-                campaigns: campaigns, // Use campaigns from currentState
-                logoUrl: uploadedLogoUrl || '', // <<< Ensure current logo URL is included
+                campaigns: campaignsForWrite, // Use updated campaigns array
+                logoUrl: uploadedLogoUrl || '',
                 createdAt: serverTimestamp(),
-                notifiedAdmin: false,
+                notifiedAdmin: false, 
             };
-            console.log("Creating initial Firestore doc for multi-design request...", initialRequestData);
             const docRef = await addDoc(collection(db, "design_requests"), initialRequestData);
-            const newRequestId = docRef.id;
+            newRequestId = docRef.id;
             console.log("Initial multi-design doc created with ID:", newRequestId);
 
-            // Call API to trigger early notification
-            console.log(`Calling API route /api/generate-design-prompt for initial notification (doc ${newRequestId})`);
-            const apiResponse = await fetch('/api/generate-design-prompt', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ documentId: newRequestId }),
-            });
-            const apiResult = await apiResponse.json();
-            if (!apiResponse.ok) {
-                console.warn("Initial notification API call failed:", apiResult);
-            } else {
-                console.log("Initial notification API call successful.");
-            }
+            // Call API
+            await fetch('/api/generate-design-prompt', { 
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({ documentId: newRequestId }),
+             });
+            // TODO: Check API response ok? For now, proceed.
+            console.log("Initial notification API call initiated.");
 
-            // Update local state with the new ID and status
+            // Update state AFTER successful async operations
             setWizardState(prev => ({
                 ...prev,
-                submittedRequestId: newRequestId,
+                submittedRequestId: newRequestId, 
                 requestStatus: 'draft_multiple',
                 isSubmitting: false,
                 processingMessage: '',
+                currentStep: 'review' // Navigate on success
             }));
+            return; // Exit function after successful state update
 
         } catch (error) {
             console.error("Error during first campaign save & notify:", error);
             setWizardState(prev => ({
-                ...prev,
-                isSubmitting: false,
+                ...prev, 
+                isSubmitting: false, 
                 submitError: `Failed to save first campaign: ${error instanceof Error ? error.message : 'Unknown error'}`,
                 processingMessage: '',
+                // Don't navigate if save failed
             }));
-            // Don't proceed to review if this failed?
-             return; 
+            return; // Exit function on error
         }
     }
-    // 3. If subsequent campaign completion in MULTIPLE scope, update existing doc
+    // If subsequent campaign completion in MULTIPLE scope, update existing doc
     else if (designScope === 'multiple' && submittedRequestId) {
          try {
-           console.log(`Updating Firestore doc ${submittedRequestId} - Visual data for type ${activeDesignType}`);
-           const docRef = doc(db, "design_requests", submittedRequestId);
-           const campaignIndex = campaigns.findIndex(c => c.businessType === activeDesignType);
-           if (campaignIndex !== -1) {
-               await updateDoc(docRef, {
-                   [`campaigns.${campaignIndex}.visualData`]: visualData // Update just this campaign's visual data
-               });
-               console.log("Firestore visual data updated successfully for subsequent campaign.");
-           } else {
-               console.warn("Could not find active campaign index to update Firestore visual data.");
-           }
-       } catch (error) {
-           console.error("Failed to update visual data in Firestore for subsequent campaign:", error);
-           // Optional: Show error message to user?
-       }
+             const docRef = doc(db, "design_requests", submittedRequestId);
+             const campaignIndex = campaignsForWrite.findIndex(c => c.businessType === activeDesignType);
+             if (campaignIndex !== -1) {
+                 await updateDoc(docRef, { [`campaigns.${campaignIndex}.visualData`]: visualData });
+                 console.log("Firestore visual data updated successfully for subsequent campaign.");
+             } else {
+                 console.warn("Could not find active campaign index to update Firestore visual data.");
+             }
+         } catch (error) {
+             console.error("Failed to update visual data in Firestore for subsequent campaign:", error);
+             // Potentially set an error state here?
+         }
     }
 
-    // 4. Navigate to next step (Review)
+    // If single scope, or if multi-scope update finished (or failed gracefully),
+    // navigate to the next step. Do this outside the async try/catch for first save.
     setWizardState(prev => ({ ...prev, currentStep: 'review' }));
   };
   // --- End Update Step Completion Handlers ---
@@ -793,7 +793,7 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
         }
 
         return {
-            ...prev,
+      ...prev,
             designScope: scope,
             currentStep: 'brand', // Always start at brand after choice
             activeDesignType: scope === 'multiple' ? firstActiveType : activeTypeForSingle,
@@ -858,17 +858,17 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
       // Create document if needed (only for single scope now)
       if (docNeedsCreation) {
           console.log("Creating document for single-design request...");
-          const requestData = {
+      const requestData = {
               userId: user.uid,
-              status: 'pending_prompt',
+        status: 'pending_prompt',
               designScope: 'single',
               globalBrandData: globalBrandData, 
               campaigns: campaigns,
               logoUrl: uploadedLogoUrl || '', // <<< Ensure current logo URL is included
-              createdAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
               notifiedAdmin: false,
-          };
-          const docRef = await addDoc(collection(db, "design_requests"), requestData);
+      };
+      const docRef = await addDoc(collection(db, "design_requests"), requestData);
           finalRequestId = docRef.id;
           console.log("Single request document created with ID:", finalRequestId);
           setWizardState(prev => ({ ...prev, submittedRequestId: finalRequestId, requestStatus: 'pending_prompt' }));
@@ -1077,9 +1077,9 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
         
       case 'brand':
         return <BrandIdentity 
-          onComplete={handleBrandComplete} 
+            onComplete={handleBrandComplete}
           initialData={toComponentBrandData(wizardState.globalBrandData)}
-          hideLogoInput={true}
+            hideLogoInput={true}
         />;
         
       case 'logo_upload':
@@ -1126,50 +1126,63 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
                  <div className="mb-4 p-4 border border-solid border-green-500/50 rounded-lg inline-block">
                     <p className="text-sm text-green-400 mb-2">Logo Uploaded:</p>
                     <img src={wizardState.uploadedLogoUrl} alt="Uploaded Logo" className="max-h-24 max-w-xs rounded" />
-                 </div>
-            )}
-
-            {/* Upload Button & Progress */}
-            {wizardState.logoFile && !wizardState.uploadedLogoUrl && (
-              <div className="mt-4">
-                <button 
-                  onClick={handleUploadLogo} 
-                  disabled={wizardState.isSubmitting || wizardState.logoUploadProgress !== null && wizardState.logoUploadProgress < 100}
-                  className="px-6 py-2 rounded-lg bg-electric-teal text-charcoal font-medium hover:bg-electric-teal/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {wizardState.logoUploadProgress === null && 'Upload Logo'}
-                  {wizardState.logoUploadProgress !== null && wizardState.logoUploadProgress < 100 && `Uploading ${Math.round(wizardState.logoUploadProgress)}%`}
-                  {wizardState.logoUploadProgress === 100 && 'Upload Complete'} 
-                </button>
-              {wizardState.logoUploadProgress !== null && wizardState.logoUploadProgress < 100 && (
-                   <div className="w-full bg-gray-700 rounded-full h-1.5 mt-2">
-                      <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${wizardState.logoUploadProgress}%` }}></div>
-                   </div>
-                )}
                 </div>
               )}
+
+            {/* Upload Button & Progress - REMOVED OLD SECTION */}
+            {/* {wizardState.logoFile && !wizardState.uploadedLogoUrl && ( ... )} */}
+            {/* End Removed Section */}
               
               {wizardState.logoUploadError && (
               <p className="text-red-500 text-sm mt-4">Error: {wizardState.logoUploadError}</p>
             )}
 
-            {/* Navigation Buttons */} 
-            <div className="flex justify-between mt-8">
+            {/* Navigation Buttons */}
+            <div className="flex justify-between items-center mt-8"> {/* Use items-center for vertical alignment */}
+              {/* Back Button (remains on the left) */}
               <button onClick={handleBack} className="text-electric-teal hover:text-electric-teal/80 transition-colors">
                  &larr; Back to Brand Identity
               </button>
-               {/* Allow proceeding even if logo upload failed or skipped, but indicate success */}
-               <button 
-                 onClick={handleLogoStepComplete} 
-                 disabled={wizardState.isSubmitting && wizardState.logoUploadProgress !== 100} // Disable only during active upload
-                 className={`px-6 py-2 rounded-lg font-medium transition-colors duration-200 
-                    ${wizardState.uploadedLogoUrl 
-                       ? 'bg-green-600 text-white hover:bg-green-700' 
-                       : 'bg-electric-teal text-charcoal hover:bg-electric-teal/90'} 
-                    disabled:opacity-50 disabled:cursor-not-allowed`}
-               >
-                  {wizardState.uploadedLogoUrl ? 'Continue' : 'Skip / Continue'}
-               </button>
+
+              {/* Right-side Buttons Container */}
+              <div className="flex items-center space-x-3"> {/* Use flex and space-x for side-by-side */}
+
+                {/* Upload Logo Button (Conditional Display & State) */}
+                {wizardState.logoFile && !wizardState.uploadedLogoUrl && (
+                  <div className="flex flex-col items-end"> {/* Container for button + progress */}
+                    <button
+                  onClick={handleUploadLogo} 
+                      disabled={wizardState.isSubmitting || (wizardState.logoUploadProgress !== null && wizardState.logoUploadProgress < 100)}
+                      className="px-6 py-2 rounded-lg bg-electric-teal text-charcoal font-medium hover:bg-electric-teal/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {wizardState.logoUploadProgress === null && 'Upload Logo'}
+                      {wizardState.logoUploadProgress !== null && wizardState.logoUploadProgress < 100 && `Uploading ${Math.round(wizardState.logoUploadProgress)}%`}
+                      {wizardState.logoUploadProgress === 100 && 'Upload Complete'}
+                    </button>
+                    {/* Progress Bar (shown below button during upload) */}
+                    {wizardState.logoUploadProgress !== null && wizardState.logoUploadProgress < 100 && (
+                      <div className="w-full bg-gray-700 rounded-full h-1.5 mt-1">
+                        <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${wizardState.logoUploadProgress}%` }}></div>
+                      </div>
+              )}
+            </div>
+                )}
+
+                {/* Skip / Continue Button */}
+                <button
+                  onClick={handleLogoStepComplete}
+                  // Disable during any submission/upload process
+                  disabled={wizardState.isSubmitting || (wizardState.logoUploadProgress !== null && wizardState.logoUploadProgress < 100)}
+                  className={`px-6 py-2 rounded-lg font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed
+                    ${wizardState.uploadedLogoUrl
+                      ? 'bg-green-600 text-white hover:bg-green-700' // Style for Continue (logo uploaded)
+                      : 'border border-electric-teal/50 text-electric-teal hover:bg-electric-teal/10' // Style for Skip (no logo or not uploaded yet)
+                    }
+                  `}
+                >
+                  {wizardState.uploadedLogoUrl ? 'Continue' : 'Skip'}
+                </button>
+          </div>
             </div>
           </motion.div>
         );
@@ -1297,96 +1310,155 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
   // --- End progress calculation ---
 
   // --- Main component return ---
+  // Determine if we are in the multi-design flow after initial submission
+  const isMultiDesignActive = wizardState.designScope === 'multiple' && wizardState.submittedRequestId;
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-charcoal to-gray-900 p-4 sm:p-8 text-white">
-      <div className="max-w-6xl mx-auto">
-        {/* Back Button (Logic adjusted slightly for clarity) */}
-        {wizardState.currentStep !== 'design_choice' && 
-         wizardState.currentStep !== 'brand' && 
-         !wizardState.submittedRequestId && (
-          <button 
-            onClick={handleBack} 
-            className="mb-4 text-electric-teal hover:text-electric-teal/80 transition-colors"
-          >
-            &larr; Back to {stepTitles[stepOrder[stepOrder.indexOf(wizardState.currentStep) -1]] ?? 'Previous Step'}
-          </button>
-        )}
-        {/* Back from Brand step */}
-        {wizardState.currentStep === 'brand' && !wizardState.submittedRequestId && (
-           <button 
-            onClick={handleBack} 
-            className="mb-4 text-electric-teal hover:text-electric-teal/80 transition-colors"
-          >
-            &larr; Back to {wizardState.designScope === 'multiple' ? 'Scope Selection' : 'Design Method Choice'}
-          </button>
-        )}
-         {/* Back button specific for design_choice step */}
-         {wizardState.currentStep === 'design_choice' && onBack && (
-          <button 
-            onClick={onBack} 
-            className="mb-4 text-electric-teal hover:text-electric-teal/80 transition-colors"
-          >
-            &larr; Back to Design Options
-          </button>
-        )}
+      {/* Wrap content and potential sidebar */}
+      <div className={`max-w-6xl mx-auto ${isMultiDesignActive ? 'md:flex md:gap-8' : ''}`}>
+        
+        {/* --- Persistent Sidebar/Switcher (Multi-Design Active) --- */} 
+        {isMultiDesignActive && (
+          <div className="md:w-1/4 lg:w-1/5 mb-6 md:mb-0 md:sticky md:top-8 self-start">
+            <h3 className="text-lg font-semibold text-blue-300 mb-3 border-b border-blue-400/30 pb-2">Campaigns</h3>
+            <div className="space-y-2">
+              {wizardState.campaigns.map(campaign => {
+                const isComplete = campaign.finalDesigns && campaign.finalDesigns.length > 0;
+                const isActive = wizardState.activeDesignType === campaign.businessType;
+                const thumbnail = campaign.finalDesigns?.[0]; // Get first image for thumbnail
 
-        {/* Conditional Header/Sidebar (Placeholder Structure) */}
-        {wizardState.designScope === 'single' && wizardState.currentStep !== 'design_choice' && !wizardState.submittedRequestId && (
-          <div className="bg-electric-teal/10 border border-electric-teal/30 rounded-lg p-3 mb-6 text-center text-sm">
-            <p className="text-electric-teal">
-              Designing one postcard for: <strong className="font-medium">{Array.from(selectedBusinessTypes).join(', ') || 'Selected Leads'}</strong>
-            </p>
+                return (
+                  <button
+                    key={campaign.businessType}
+                    onClick={() => handleSetActiveDesignType(campaign.businessType)}
+                    className={`w-full text-left p-3 rounded transition-colors duration-150 flex items-center gap-3 
+                      ${isActive 
+                        ? 'bg-blue-600 shadow-md' 
+                        : 'bg-blue-900/50 hover:bg-blue-800/70'}
+                      ${isComplete ? 'border-l-4 border-green-500' : 'border-l-4 border-transparent'}
+                    `}
+                  >
+                    {/* Thumbnail or Placeholder */} 
+                    <div className="flex-shrink-0 w-10 h-10 bg-gray-700 rounded overflow-hidden flex items-center justify-center">
+                      {isComplete && thumbnail ? (
+                        <img src={thumbnail} alt={`${campaign.businessType} thumbnail`} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-gray-400 text-xs">{isComplete ? 'Done' : 'WIP'}</span> // Simple status indicator
+                      )}
+                    </div>
+                    {/* Campaign Name */} 
+                    <span className="flex-grow text-sm font-medium truncate">
+                      {campaign.businessType === '__all__' ? 'General Design' : campaign.businessType}
+                    </span>
+                    {/* Optional: More status icons (e.g., loading spinner if status==pending_review) */} 
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {/* --- End Sidebar --- */} 
+
+        {/* --- Main Content Area --- */} 
+        <div className={`${isMultiDesignActive ? 'md:flex-grow' : 'w-full'}`}>
+          {/* Back Button Logic (Adjusted - might need rethinking with sidebar) */} 
+           {/* ... Existing Back button rendering ... */}
+          {/* Maybe hide global back button when sidebar is active? */} 
+
+          {/* Conditional Header (Single Design Only Now) */} 
+          {wizardState.designScope === 'single' && wizardState.currentStep !== 'design_choice' && !wizardState.submittedRequestId && (
+            <div className="bg-electric-teal/10 border border-electric-teal/30 rounded-lg p-3 mb-6 text-center text-sm">
+              <p className="text-electric-teal">
+                Designing one postcard for: <strong className="font-medium">{Array.from(selectedBusinessTypes).join(', ') || 'Selected Leads'}</strong>
+              </p>
+              </div>
+            )}
+
+          {/* Removed the simple multi-design header - replaced by sidebar */} 
+
+          {/* Progress Bar & Title (Show if not fully completed) */} 
+          {wizardState.requestStatus !== 'completed' && wizardState.currentStep !== 'design_choice' && (
+            <div className="mb-8">
+              <h1 className="text-3xl font-bold text-electric-teal mb-2">
+                 {stepTitles[wizardState.currentStep]}
+              </h1>
+              <div className="w-full bg-gray-700 rounded-full h-2.5">
+           <motion.div
+                    className="bg-electric-teal h-2.5 rounded-full"
+                    style={{ width: `${progress}%` }} // Ensure progress is used here
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progress}%` }}
+                    transition={{ duration: 0.5, ease: "easeInOut" }}
+                  />
+              </div>
+              <p className="text-sm text-electric-teal/60 mt-1 text-right">Step {currentStepIndex + 1} of {totalSteps}</p>
             </div>
           )}
 
-        {wizardState.designScope === 'multiple' && wizardState.currentStep !== 'design_choice' && !wizardState.submittedRequestId && (
-          // TODO: Replace this with a more robust sidebar/tab structure on wider screens
-          <div className="bg-blue-900/20 border border-blue-400/30 rounded-lg p-3 mb-6 text-sm flex flex-wrap gap-2 justify-center items-center">
-             <p className="text-blue-300 font-medium mr-2">
-               Designing for:
-             </p>
-             {Array.from(selectedBusinessTypes).map(type => (
-               <button
-                 key={type}
-                 onClick={() => handleSetActiveDesignType(type)} // Connect handler
-                 className={`px-3 py-1 rounded transition-colors ${ 
-                   wizardState.activeDesignType === type
-                     ? 'bg-blue-500 text-white'
-                     : 'bg-blue-900/50 hover:bg-blue-800/70 text-blue-200'
-                 }`}
-               >
-                 {type}
-               </button>
-             ))}
-             {/* Consider adding "Done" indicators per type */}
-          </div>
-        )}
-        {/* End Conditional Header/Sidebar */}
+          {/* --- Main Step/Status Content --- */} 
+          <AnimatePresence mode="wait">
+            {(() => {
+              // 1. Check for Overall Completion
+              if (wizardState.requestStatus === 'completed' && wizardState.campaigns.some(c => c.finalDesigns && c.finalDesigns.length > 0)) {
+                // Find designs for the *active* type if possible, or show all?
+                const activeCamp = getActiveCampaign();
+                const designsToShow = activeCamp?.finalDesigns && activeCamp.finalDesigns.length > 0 
+                                      ? activeCamp.finalDesigns 
+                                      : wizardState.campaigns.flatMap(c => c.finalDesigns || []); // Fallback: show all
+                return (
+                  <motion.div key="completed-view" /* ... animations ... */ className="p-8 bg-charcoal rounded-lg shadow-lg max-w-3xl mx-auto">
+                    <h2 className="text-2xl font-bold text-green-500 mb-4">Design(s) Ready!</h2>
+                    {/* ... Render final designs from designsToShow ... */}
+                    {designsToShow.map((url, index) => <img key={index} src={url} alt={`Final Design ${index + 1}`} className="mb-4 max-w-full h-auto"/>)}
+                  </motion.div>
+                );
+              }
+              
+              // 2. Check if in Multi-Design and Active Campaign has Final Designs
+              const activeCampaignData = getActiveCampaign();
+              if (isMultiDesignActive && activeCampaignData?.finalDesigns && activeCampaignData.finalDesigns.length > 0) {
+                return (
+                  <motion.div key={`${activeCampaignData.businessType}-final`} /* ... animations ... */ className="p-8 bg-charcoal rounded-lg shadow-lg">
+                    <h2 className="text-xl font-bold text-green-400 mb-4">Final Design for: {activeCampaignData.businessType}</h2>
+                    {/* Render final designs for THIS campaign */}
+                    {activeCampaignData.finalDesigns.map((url, index) => <img key={index} src={url} alt={`${activeCampaignData.businessType} Design ${index + 1}`} className="mb-4 max-w-full h-auto"/>)}
+                    {/* Add button to switch campaign or proceed? */} 
+                  </motion.div>
+                );
+              }
 
+              // 3. Check if in Multi-Design and Active Campaign is Submitted by User (Awaiting Admin)
+              if (isMultiDesignActive && wizardState.completedCampaigns.has(wizardState.activeDesignType || '')) {
+                 return (
+                    <motion.div key={`${wizardState.activeDesignType}-pending`} /* ... animations ... */ className="p-8 bg-gray-800 rounded-lg shadow-lg text-center">
+                      <h2 className="text-xl font-bold text-yellow-400 mb-4">Campaign Submitted: {wizardState.activeDesignType}</h2>
+                      <p className="text-gray-300">This campaign&apos;s details have been submitted.</p>
+                      <p className="text-gray-300 mt-2">Status: <span className="font-medium">{wizardState.processingMessage || wizardState.requestStatus || 'Awaiting admin review'}</span></p>
+                      {/* Spinner? */} 
+                      <p className="text-sm text-gray-500 mt-4">You can work on other campaigns using the sidebar.</p>
+                    </motion.div>
+                 );
+              }
+              
+              // 4. Check for global backend processing or submission error
+              const isBackendProcessing = wizardState.submittedRequestId && 
+                                        (wizardState.requestStatus === 'pending_prompt' || 
+                                         wizardState.requestStatus === 'pending_review' || 
+                                         wizardState.requestStatus === 'processing_failed' || 
+                                         wizardState.submitError); // Only show full block on FINAL submit error/processing
+              if (isBackendProcessing && wizardState.designScope !== 'multiple') { // Only block for single scope now
+                 return <motion.div key="processing-view" className="p-8 bg-charcoal rounded-lg shadow-lg max-w-3xl mx-auto">{renderStep()}</motion.div>; 
+              }
+              
+              // 5. Otherwise, render the current wizard step using renderStep()
+              return <motion.div key={wizardState.currentStep} /* ... animations ... */>{renderStep()}</motion.div>; 
 
-        {/* Progress Bar & Title (only if not submitted and not on choice step) */}
-        {!wizardState.submittedRequestId && wizardState.currentStep !== 'design_choice' && (
-           <div className="mb-8">
-             <h1 className="text-3xl font-bold text-electric-teal mb-2">
-                {stepTitles[wizardState.currentStep]}
-             </h1>
-             <div className="w-full bg-gray-700 rounded-full h-2.5">
-          <motion.div
-                   className="bg-electric-teal h-2.5 rounded-full"
-                   style={{ width: `${progress}%` }} // Ensure progress is used here
-                   initial={{ width: 0 }}
-                   animate={{ width: `${progress}%` }}
-                   transition={{ duration: 0.5, ease: "easeInOut" }}
-                 />
-             </div>
-             <p className="text-sm text-electric-teal/60 mt-1 text-right">Step {currentStepIndex + 1} of {totalSteps}</p>
-           </div>
-        )}
+            })()}
+          </AnimatePresence>
+        </div>
+        {/* --- End Main Content Area --- */} 
 
-        {/* Step Content */}
-        <AnimatePresence mode="wait">
-          {renderStep()} {/* renderStep includes the design_choice step where handleDesignScopeChoice is used */}
-        </AnimatePresence>
       </div>
     </div>
   );
