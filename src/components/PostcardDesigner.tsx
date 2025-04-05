@@ -4,17 +4,27 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import AIDesignWizard from './AIDesignWizard';
 import DesignGuideModal from './DesignGuideModal';
+// Assume HumanAssistedWizard will be created later
+// import HumanAssistedWizard from './HumanAssistedWizard';
 
-type DesignOption = 'upload' | 'ai' | 'human' | null;
+// Update DesignOption type
+type DesignOption = 'upload' | 'ai' | 'human' | 'ai_human' | null;
 
 const PostcardDesigner = () => {
   const [selectedOption, setSelectedOption] = useState<DesignOption>(null);
   const [showAIWizard, setShowAIWizard] = useState(false);
   const [showDesignGuide, setShowDesignGuide] = useState(false);
+  // Add state for the new wizard
+  const [showHumanAssistedWizard, setShowHumanAssistedWizard] = useState(false);
 
   if (showAIWizard) {
     return <AIDesignWizard onBack={() => setShowAIWizard(false)} />;
   }
+
+  // Placeholder for the new wizard component
+  // if (showHumanAssistedWizard) {
+  //   return <HumanAssistedWizard onBack={() => setShowHumanAssistedWizard(false)} />;
+  // }
 
   const designOptions = [
     {
@@ -49,6 +59,21 @@ const PostcardDesigner = () => {
             d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
         </svg>
       )
+    },
+    // Add the new option
+    {
+      id: 'ai_human',
+      title: 'AI Design + Expert Review',
+      description: 'Use AI for ideas, then have our expert finalize the design for you. Best of both worlds!',
+      icon: (
+        // Example Icon (Combination of AI and Human?) - Consider replacing with a better one
+        <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          {/* Simple combination: Robot head + Pencil */}
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 0l-3-3m3 3l-3 3m-1.886 3.944A8.5 8.5 0 113.1 10M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657l-1.414-1.414m1.414 1.414L19.071 18M6.343 16.657l1.414-1.414M4.929 18l1.414-1.414" /> {/* Simplified human/expert touch */}
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.343 3.343l-5.657 5.657a2 2 0 00-.586 1.414V14h3.586a2 2 0 001.414-.586l5.657-5.657a2 2 0 000-2.828l-.879-.879a2 2 0 00-2.828 0L11.343 3.343z" />
+        </svg>
+      )
     }
   ];
 
@@ -59,7 +84,13 @@ const PostcardDesigner = () => {
       setShowDesignGuide(true);
     } else if (selectedOption === 'human') {
       // Handle human designer flow
-      console.log('Starting human designer flow');
+      console.log('Starting human designer flow (Not Implemented Yet)');
+      // Potentially show a modal or different UI here
+    } else if (selectedOption === 'ai_human') {
+      // Trigger the new wizard flow
+      console.log('Starting AI + Human wizard flow');
+      setShowHumanAssistedWizard(true); // This will trigger the display when the component is created
+      // Currently, this will do nothing visible until HumanAssistedWizard is implemented and uncommented above
     }
   };
 
@@ -68,7 +99,8 @@ const PostcardDesigner = () => {
       <div className="max-w-6xl mx-auto space-y-12">
         <h1 className="text-3xl font-bold text-electric-teal">Choose Your Design Method</h1>
         
-        <div className="grid md:grid-cols-3 gap-6">
+        {/* Adjust grid columns for responsiveness */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {designOptions.map((option) => (
             <motion.div
               key={option.id}
@@ -105,10 +137,20 @@ const PostcardDesigner = () => {
               Continue with {
                 selectedOption === 'upload' ? 'Upload' :
                 selectedOption === 'ai' ? 'AI Design' :
-                'Designer'
+                selectedOption === 'human' ? 'Designer' :
+                'AI Design + Expert Review'
               }
             </button>
           </div>
+        )}
+
+        {/* Display HumanAssistedWizard if state is true */}
+        {showHumanAssistedWizard && (
+           <div className="fixed inset-0 bg-charcoal bg-opacity-95 z-50 flex items-center justify-center">
+             <p className="text-white text-2xl">Human Assisted Wizard Placeholder - Press Back</p>
+             <button onClick={() => setShowHumanAssistedWizard(false)} className="absolute top-4 right-4 text-white text-3xl">&times;</button>
+             {/* <HumanAssistedWizard onBack={() => setShowHumanAssistedWizard(false)} /> */}
+           </div>
         )}
       </div>
 

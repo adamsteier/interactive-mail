@@ -345,7 +345,27 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
     }
     
     // Otherwise fall back to the storage URL
-    return generatedImages[index];
+    const url = generatedImages[index];
+    
+    // Add extra logging for debugging
+    console.log(`Using image URL for index ${index}:`, 
+      url.length > 100 ? `${url.substring(0, 100)}... (${url.length} chars)` : url);
+    
+    return url;
+  };
+
+  // Helper function to handle image loading errors
+  const handleImageError = (event: React.SyntheticEvent<HTMLImageElement, Event>, imgIndex: number) => {
+    console.error(`Failed to load image ${imgIndex}:`, generatedImages[imgIndex]);
+    
+    // Try to show a fallback if available
+    if (originalDataUrls && originalDataUrls.length > imgIndex) {
+      console.log(`Attempting to use original data URL as fallback for image ${imgIndex}`);
+      event.currentTarget.src = originalDataUrls[imgIndex];
+    } else {
+      // Use a placeholder if all else fails
+      event.currentTarget.src = `https://placehold.co/1872x1271/e83e8c/FFFFFF?text=Image+${imgIndex+1}+Failed`;
+    }
   };
 
   // Generate AI images after countdown finishes
@@ -733,6 +753,7 @@ const PostcardGeneration: React.FC<PostcardGenerationProps> = ({
                           alt={`Generated image ${imgIndex + 1}`}
                           fill
                           className="object-cover"
+                          onError={(event) => handleImageError(event, imgIndex)}
                         />
                       </div>
                     </div>

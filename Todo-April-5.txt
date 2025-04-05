@@ -1,0 +1,104 @@
+# Todo - April 5th, 2024
+
+This file outlines the development tasks for the interactive postcard generator project.
+
+## Core Task Breakdown:
+
+### 1. Admin Dashboard for Image Moderation & Upload
+   - [ ] Design UI/UX for the Admin Dashboard.
+   - [ ] Implement Admin Authentication/Authorization (e.g., separate login, role-based access).
+   - [ ] Create Firestore listeners/queries to display pending user generation requests (prompt, logo, colors, etc.).
+   - [ ] Build UI component to show user-provided details and the generated prompt.
+   - [ ] Integrate button/action for Admin to trigger image generation using the prepared data.
+   - [ ] Display generated images received from the generation service.
+   - [ ] Implement image upload functionality for Admin to upload the approved/edited image back to the system (e.g., to Firestore Storage).
+   - [ ] Update Firestore document for the user's session/request with the uploaded image URL and status (e.g., 'approved').
+   - [ ] **(Optional/Stretch)** Implement a basic live chat feature between Admin and User (consider Firestore real-time updates or a dedicated service).
+
+### 2. Secure Firestore Rules
+   - [ ] Define rules allowing anonymous users read/write access ONLY to their specific session data (e.g., `/sessions/{anonUserId}`).
+   - [ ] Define rules allowing authenticated users read/write access ONLY to their own data (e.g., `/users/{userId}`).
+   - [ ] Implement logic (Cloud Function or client-side) to migrate/link data from an anonymous session to an authenticated user upon sign-up/login.
+   - [ ] Define rules for Admin role granting necessary access (e.g., read access to relevant user data, write access to specific fields like image approval status/URL).
+   - [ ] Write and deploy Firestore security rules.
+   - [ ] Test rules thoroughly using the Firestore emulator or manual testing.
+
+### 3. Ensure Full Data Persistence to Firestore
+   - [ ] Review `PostcardGeneration.tsx` and other relevant components.
+   - [ ] Verify that ALL form inputs (Brand, Marketing, Audience, Business, Visual data) are being saved to the user's session document in Firestore.
+   - [ ] Ensure generated `prompt`, `imageIds`, `templateStyle`, `creativityLevel`, `selectedImageIndex`, `imagePosition`, and final postcard design details are saved.
+   - [ ] Implement logic to fetch this saved data when a user resumes a session or logs back in.
+   - [ ] Ensure data is correctly associated with the user (anonymous or authenticated).
+
+### 4. Improve User Dashboard
+   - [ ] Define specific improvements (e.g., view past postcard designs/orders, manage account, update payment info).
+   - [ ] Design UI/UX for the improved dashboard sections.
+   - [ ] Implement React components for the new dashboard features.
+   - [ ] Add necessary Firestore queries to fetch user-specific data (past orders, account details).
+
+### 5. Improve Admin Dashboard (Beyond Initial Build)
+   - [ ] Define specific improvements (e.g., user management list, view user details, analytics on generations/orders, system configuration).
+   - [ ] Design UI/UX for these additional admin features.
+   - [ ] Implement the corresponding components and Firestore queries/functions.
+
+### 6. Stripe Integration (Payment Processing)
+   - [ ] Create a Stripe account and get API keys (test and live).
+   - [ ] Install Stripe Node.js library (`stripe`) for backend and Stripe.js (`@stripe/stripe-js`, `@stripe/react-stripe-js`) for frontend.
+   - [ ] Create backend Cloud Functions or endpoints for:
+     - [ ] Creating Stripe Customers.
+     - [ ] Creating Stripe Payment Intents or Checkout Sessions.
+     - [ ] Handling Stripe Webhooks (e.g., `payment_intent.succeeded`, `checkout.session.completed`).
+   - [ ] Integrate Stripe Elements or Stripe Checkout into the frontend payment flow.
+   - [ ] Securely handle API keys (use environment variables/Firebase config).
+   - [ ] Update Firestore order documents with payment status based on webhook events.
+
+### 7. Payment System Logic
+   - [ ] Define pricing structure (e.g., per postcard, bulk discounts, subscription tiers?).
+   - [ ] Integrate payment steps into the user flow (e.g., after design approval, before sending).
+   - [ ] Display pricing clearly in the UI.
+   - [ ] Implement logic to check for successful payment before proceeding to the sending step.
+
+### 8. Stannp API Integration (Postcard Sending)
+   - [ ] Research Stannp API documentation (https://www.stannp.com/uk/direct-mail-api or similar). Look for endpoints related to creating campaigns/sending postcards.
+   - [ ] Sign up for a Stannp account and obtain API credentials.
+   - [ ] Create backend Cloud Functions or endpoints to:
+     - [ ] Format postcard data (approved image URL, recipient address - needs adding to user flow/data model).
+     - [ ] Make authenticated requests to the Stannp API to trigger postcard sending.
+   - [ ] Handle Stannp API responses (success, failure, tracking info if available).
+   - [ ] Update Firestore order documents with sending status (e.g., 'sent', 'failed', Stannp job ID).
+   - [ ] Add UI elements/forms for users to input recipient addresses.
+   - [ ] Securely handle Stannp API keys.
+
+### 9. AI Design + Expert Review Flow (Detailed Steps)
+   - [ ] **Frontend (`PostcardDesigner.tsx`):**
+     - [ ] Add a fourth design option: "AI Design + Expert Review".
+     - [ ] Update `handleContinue` to trigger the new `HumanAssistedWizard` for this option.
+   - [ ] **Frontend (New Component: `HumanAssistedWizard.tsx`):**
+     - [ ] Create a new wizard component, potentially reusing elements from `AIDesignWizard`.
+     - [ ] Include all necessary data collection steps (Brand, Marketing, Audience, etc.).
+     - [ ] **Crucially:** Add a step for required logo file upload (using Firebase Storage).
+     - [ ] On submit, gather all user data and the uploaded logo URL(s).
+   - [ ] **Backend (New Cloud Function: `processHumanAssistedRequest`):**
+     - [ ] Trigger this function when `HumanAssistedWizard` is submitted.
+     - [ ] Input: User data object and logo URL(s).
+     - [ ] Logic: Call a generative AI (e.g., Gemini) to craft an image generation prompt *and* a summary for the human designer based on input data.
+     - [ ] Output: Create a new document in the `design_requests` Firestore collection.
+   - [ ] **Firestore (New Collection: `design_requests`):**
+     - [ ] Define schema: `userId`, `status` (e.g., `pending_review`, `completed`, `failed`), `userInputData`, `logoUrls`, `aiGeneratedPrompt`, `aiSummary`, `finalImageUrls` (array), `createdAt`, `completedAt`.
+     - [ ] Secure this collection with appropriate Firestore Rules (user reads own, admin reads all/updates status/images).
+   - [ ] **Admin Dashboard (Task #1 Integration):**
+     - [ ] Create a view/section to list `design_requests` where `status == 'pending_review'`.
+     - [ ] Display `aiGeneratedPrompt`, `aiSummary`, and provide links/previews for `logoUrls`.
+     - [ ] Implement UI for admin to manually trigger external image generation (this is an external step for the admin).
+     - [ ] Implement UI for admin to upload the resulting generated images (to Firebase Storage).
+     - [ ] Add button/action for admin to mark the request as `completed` and save the `finalImageUrls` to the Firestore document.
+   - [ ] **Frontend (User Results Display):**
+     - [ ] Implement a mechanism (e.g., Firestore listener) for the user app to monitor their specific `design_requests` document.
+     - [ ] Create a UI view to inform the user their request is processing ("human review in progress...").
+     - [ ] When `status == 'completed'`, fetch `finalImageUrls`.
+     - [ ] Display the admin-uploaded images to the user (similar to `PostcardGeneration` image selection, but perhaps without regeneration option initially).
+     - [ ] Update user flow to proceed from here (e.g., to payment/sending).
+
+---
+
+Let's tackle these step-by-step. Which section should we focus on first? 
