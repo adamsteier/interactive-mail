@@ -14,8 +14,11 @@ import VisualElements from './VisualElements';
 import { ImageStyle, ImageSource, LayoutStyle } from './VisualElements';
 import { useMarketingStore } from '@/store/marketingStore';
 // Firebase Imports
-import { collection, addDoc, serverTimestamp } from "firebase/firestore"; 
-import { db } from '@/lib/firebase'; // Assuming firebase config exists
+import { collection, addDoc, serverTimestamp, doc, onSnapshot, Unsubscribe } from "firebase/firestore"; 
+import { db, storage } from '@/lib/firebase'; // Import storage instance
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"; // Import storage functions
+// Auth Context
+import { useAuth } from '@/contexts/AuthContext';
 // TODO: Import Firebase storage functions
 // import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 // import { storage } from '@/lib/firebase';
@@ -141,6 +144,12 @@ interface WizardState {
   logoUploadError: string | null; // State for upload errors
   isSubmitting: boolean; // Added for submission state
   submitError: string | null; // Added for submission error state
+  // --- New state for results ---
+  submittedRequestId: string | null; // Store the ID after submission
+  requestStatus: string | null; // Track status from Firestore
+  finalImageUrls: string[] | null; // Store final images from Firestore
+  processingMessage: string; // Message to show while waiting
+  // --- End new state ---
 }
 
 interface HumanAssistedWizardProps {
@@ -228,6 +237,7 @@ const toWizardBusinessData = (componentBusinessData: ComponentBusinessData, curr
 const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
   const businessName = useMarketingStore((state) => state.businessInfo.businessName);
   const marketingStrategy = useMarketingStore((state) => state.marketingStrategy);
+  const { user } = useAuth(); // Get user from AuthContext
   
   const [wizardState, setWizardState] = useState<WizardState>({
     currentStep: 'brand', // Start at brand step
@@ -282,9 +292,16 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
     logoUploadError: null,
     isSubmitting: false, // Initialize submitting state
     submitError: null, // Initialize error state
+    // --- Initialize new state ---
+    submittedRequestId: null,
+    requestStatus: null,
+    finalImageUrls: null,
+    processingMessage: 'Your request is being submitted...',
+    // --- End initialize new state ---
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const unsubscribeRef = useRef<Unsubscribe | null>(null); // Ref for unsubscribe function
 
   // Update brandName whenever businessName changes
   useEffect(() => {
@@ -298,6 +315,88 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
       }));
     }
   }, [businessName]);
+
+  // --- Add useEffect for Firestore Listener ---
+  useEffect(() => {
+    // Clear previous listener if component re-renders or unmounts
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
+    }
+
+    // Only listen if we have a submitted request ID
+    if (wizardState.submittedRequestId) {
+      const docRef = doc(db, "design_requests", wizardState.submittedRequestId);
+      
+      console.log(`Listening to Firestore document: ${wizardState.submittedRequestId}`);
+
+      // Set up the real-time listener
+      unsubscribeRef.current = onSnapshot(docRef, 
+        (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            console.log("Firestore update received:", data);
+            const status = data.status;
+            let message = wizardState.processingMessage;
+            let finalUrls = wizardState.finalImageUrls;
+
+            switch (status) {
+              case 'pending_prompt':
+                message = 'Generating initial AI prompt...';
+                break;
+              case 'pending_review':
+                message = 'Your request is awaiting admin review...';
+                break;
+              case 'completed':
+                message = 'Your final designs are ready!';
+                finalUrls = data.finalImageUrls || [];
+                break;
+              case 'failed': // Handle a potential failure status
+                 message = 'There was an issue processing your request. Please contact support.';
+                 break;
+              default:
+                message = `Processing request (Status: ${status})...`;
+            }
+
+            setWizardState(prev => ({
+              ...prev,
+              requestStatus: status,
+              finalImageUrls: finalUrls,
+              processingMessage: message,
+            }));
+
+          } else {
+            console.error("Listening document no longer exists!");
+            setWizardState(prev => ({
+              ...prev,
+              submitError: 'The request document was unexpectedly deleted.',
+              processingMessage: 'Error: Request not found.',
+              requestStatus: 'deleted',
+            }));
+            if (unsubscribeRef.current) unsubscribeRef.current(); // Stop listening
+          }
+        },
+        (error) => {
+          console.error("Firestore listener error:", error);
+          setWizardState(prev => ({
+            ...prev,
+            submitError: 'Failed to listen for request updates.',
+            processingMessage: 'Error: Could not get updates.',
+          }));
+        }
+      );
+    }
+
+    // Cleanup function to unsubscribe when the component unmounts or ID changes
+    return () => {
+      if (unsubscribeRef.current) {
+        console.log(`Unsubscribing from Firestore document: ${wizardState.submittedRequestId}`);
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+    };
+  }, [wizardState.submittedRequestId]); // Re-run effect if submittedRequestId changes
+  // --- End Firestore Listener useEffect ---
 
   // Keep getTargetDescription for now, might be useful
   const getTargetDescription = () => {
@@ -368,49 +467,81 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
       return;
     }
     
-    setWizardState(prev => ({ ...prev, logoUploadProgress: 0, logoUploadError: null }));
+    setWizardState(prev => ({ ...prev, logoUploadProgress: 0, logoUploadError: null, isSubmitting: true })); // Indicate upload start
 
     // --- Firebase Upload Logic --- 
-    // const storageRef = ref(storage, `logos/${Date.now()}_${wizardState.logoFile.name}`);
-    // const uploadTask = uploadBytesResumable(storageRef, wizardState.logoFile);
+    const storageRef = ref(storage, `logos/${Date.now()}_${wizardState.logoFile.name}`);
+    const uploadTask = uploadBytesResumable(storageRef, wizardState.logoFile);
     
-    // uploadTask.on('state_changed',
-    //   (snapshot) => {
-    //     const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-    //     setWizardState(prev => ({ ...prev, logoUploadProgress: progress }));
-    //   },
-    //   (error) => {
-    //     console.error("Upload failed:", error);
-    //     setWizardState(prev => ({ ...prev, logoUploadError: `Upload failed: ${error.message}`, logoUploadProgress: null }));
-    //   },
-    //   () => {
-    //     getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
-    //       console.log('File available at', downloadURL);
-    //       setWizardState(prev => ({
-    //         ...prev,
-    //         brandData: { ...prev.brandData, logoUrl: downloadURL }, // Save the URL
-    //         logoUploadProgress: 100, // Mark as complete
-    //         currentStep: 'marketing' // Move to next step on success
-    //       }));
-    //     });
-    //   }
-    // );
+    uploadTask.on('state_changed',
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        console.log('Upload is ' + progress + '% done');
+        setWizardState(prev => ({ ...prev, logoUploadProgress: progress }));
+      },
+      (error) => {
+        console.error("Upload failed:", error);
+        let errorMessage = 'Upload failed. Please try again.';
+        switch (error.code) {
+          case 'storage/unauthorized':
+            errorMessage = 'Permission denied. Please check storage rules.';
+            break;
+          case 'storage/canceled':
+            errorMessage = 'Upload cancelled.';
+            break;
+          case 'storage/unknown':
+            errorMessage = 'An unknown error occurred during upload.';
+            break;
+        }
+        setWizardState(prev => ({ ...prev, logoUploadError: errorMessage, logoUploadProgress: null, isSubmitting: false }));
+      },
+      () => {
+        // Upload completed successfully, now get the download URL
+        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+          console.log('File available at', downloadURL);
+          setWizardState(prev => ({
+            ...prev,
+            brandData: { ...prev.brandData, logoUrl: downloadURL }, // Save the REAL URL
+            logoUploadProgress: 100, // Mark as complete
+            isSubmitting: false, // Upload finished
+            // Keep currentStep as 'logo_upload' - user clicks Next to proceed
+          }));
+        }).catch((error) => {
+            console.error("Failed to get download URL:", error);
+            setWizardState(prev => ({
+               ...prev, 
+               logoUploadError: 'Upload succeeded but failed to get file URL.', 
+               logoUploadProgress: null, 
+               isSubmitting: false 
+            }));
+        });
+      }
+    );
     // --- End Firebase Upload Logic ---
     
-    // --- Placeholder Success --- 
-    console.log("Simulating logo upload for:", wizardState.logoFile.name);
-    // Simulate upload delay and success
-    await new Promise(resolve => setTimeout(resolve, 1500)); 
-    const simulatedUrl = `https://fake-storage.com/logos/${Date.now()}_${wizardState.logoFile.name}`;
-    setWizardState(prev => ({
-      ...prev,
-      brandData: { ...prev.brandData, logoUrl: simulatedUrl }, // Save simulated URL
-      logoUploadProgress: 100,
-      currentStep: 'marketing' // Navigate on success
-    }));
-    console.log("Simulated upload complete. URL:", simulatedUrl);
+    // --- Placeholder Success Removed --- 
+    // console.log("Simulating logo upload for:", wizardState.logoFile.name);
+    // await new Promise(resolve => setTimeout(resolve, 1500)); 
+    // const simulatedUrl = `https://fake-storage.com/logos/${Date.now()}_${wizardState.logoFile.name}`;
+    // setWizardState(prev => ({
+    //   ...prev,
+    //   brandData: { ...prev.brandData, logoUrl: simulatedUrl }, // Save simulated URL
+    //   logoUploadProgress: 100,
+    //   currentStep: 'marketing' // Navigate on success
+    // }));
+    // console.log("Simulated upload complete. URL:", simulatedUrl);
     // --- End Placeholder Success ---
   };
+
+  // Navigate to next step AFTER successful upload and URL retrieval
+  const handleLogoStepComplete = () => {
+    if (wizardState.brandData.logoUrl) { 
+       setWizardState(prev => ({ ...prev, currentStep: 'marketing' }));
+    } else {
+       // This case should ideally be prevented by disabling the button
+       setWizardState(prev => ({ ...prev, logoUploadError: 'Please upload a logo successfully before continuing.'}));
+    }
+  }
 
   // Update navigation: Marketing -> Audience
   const handleMarketingComplete = (componentMarketingData: ComponentMarketingData) => {
@@ -450,8 +581,26 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
 
   // Renamed from handleGenerate - This is the final submission
   const handleSubmitRequest = async () => {
-    setWizardState(prev => ({ ...prev, isSubmitting: true, submitError: null }));
-    console.log('Submitting human-assisted design request with data:', wizardState);
+    setWizardState(prev => ({ 
+      ...prev, 
+      isSubmitting: true, 
+      submitError: null, 
+      processingMessage: 'Submitting your request...' // Initial message
+    }));
+
+    // --- Add check for authenticated user --- 
+    if (!user) {
+      setWizardState(prev => ({
+        ...prev,
+        isSubmitting: false,
+        submitError: 'You must be logged in to submit a design request.'
+      }));
+      console.error("User is not authenticated. Cannot submit request.");
+      return;
+    }
+    // --- End user check ---
+
+    console.log('Submitting human-assisted design request with data for user:', user.uid, wizardState);
 
     // Ensure logo is uploaded
     if (!wizardState.brandData.logoUrl) {
@@ -466,7 +615,7 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
     try {
       // 1. Prepare data for Firestore
       const requestData = {
-        userId: 'anonymous', // TODO: Replace with actual user ID if available
+        userId: user.uid, // Use the authenticated user's ID
         status: 'pending_prompt',
         userInputData: {
           brandData: wizardState.brandData,
@@ -484,40 +633,51 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
 
       // 2. Write initial data to Firestore
       const docRef = await addDoc(collection(db, "design_requests"), requestData);
-      console.log("Initial document written with ID: ", docRef.id);
+      const newRequestId = docRef.id;
+      console.log("Initial document written with ID: ", newRequestId);
+      
+      // --- Set the submittedRequestId to trigger the listener --- 
+      setWizardState(prev => ({
+        ...prev,
+        submittedRequestId: newRequestId,
+        processingMessage: 'Request submitted. Triggering AI processing...',
+      }));
+      // --- End set ID ---
 
-      // 3. Call the backend API route to trigger AI processing and notification
-      console.log(`Calling API route /api/generate-design-prompt for document ${docRef.id}`);
+      // 3. Call the backend API route
+      console.log(`Calling API route /api/generate-design-prompt for document ${newRequestId}`);
       const response = await fetch('/api/generate-design-prompt', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ documentId: docRef.id }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentId: newRequestId }),
       });
 
       const result = await response.json();
 
       if (!response.ok) {
         console.error("API route call failed:", result);
+        // Update Firestore status to failed if API call fails?
+        // Or just show error to user
         throw new Error(result.error || 'Failed to trigger prompt generation.');
       }
 
       console.log("API route call successful:", result);
-      // Optional: Show success message, navigate away, or update UI state further
-      // For now, just log success and stop submitting state
+      // API success doesn't mean completion, the listener will handle status updates
+      // The isSubmitting state can be set to false here, but the UI should show the processing message
+      setWizardState(prev => ({ 
+        ...prev, 
+        isSubmitting: false, // API call finished, now waiting on Firestore updates
+        processingMessage: 'AI processing initiated. Waiting for admin review...' // Update message
+      }));
       
-      // Maybe clear the form or navigate? For now, just stop loading.
-      setWizardState(prev => ({ ...prev, isSubmitting: false }));
-      
-      // Consider adding a success message state to display in the UI
-
     } catch (error) {
       console.error("Error submitting design request:", error);
       setWizardState(prev => ({
         ...prev,
         isSubmitting: false,
-        submitError: error instanceof Error ? error.message : 'An unknown error occurred.'
+        submitError: error instanceof Error ? error.message : 'An unknown error occurred.',
+        processingMessage: 'Submission failed.', // Update message on error
+        submittedRequestId: null, // Reset ID on failure
       }));
     }
   };
@@ -542,6 +702,69 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
 
   // Render the current step
   const renderStep = () => {
+    // --- Add condition to show processing/results view --- 
+    if (wizardState.submittedRequestId && wizardState.requestStatus !== 'completed') {
+      return (
+        <div className="p-8 bg-charcoal rounded-lg shadow-lg max-w-3xl mx-auto text-center">
+          <h2 className="text-2xl font-bold text-electric-teal mb-4">Processing Your Request</h2>
+          <div className="my-6">
+             {/* Optional: Add a spinner or animation */}
+             <svg className="animate-spin h-10 w-10 text-electric-teal mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+             </svg>
+          </div>
+          <p className="text-white mb-6">
+            {wizardState.processingMessage}
+          </p>
+          {wizardState.submitError && (
+            <p className="text-red-500 text-sm mt-4">Error: {wizardState.submitError}</p>
+          )}
+          <p className="text-sm text-gray-400">You can leave this page, your request is being processed. We&apos;ll notify you (or implement display on return later).</p>
+          {/* Optionally add a button to go back to dashboard or start new? */}
+        </div>
+      );
+    }
+    
+    if (wizardState.requestStatus === 'completed' && wizardState.finalImageUrls) {
+      return (
+        <div className="p-8 bg-charcoal rounded-lg shadow-lg max-w-3xl mx-auto">
+           <h2 className="text-2xl font-bold text-green-500 mb-4">Your Final Designs Are Ready!</h2>
+           <p className="text-white mb-6">
+             Our design team has completed your request. Please review the final postcard designs below.
+           </p>
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             {wizardState.finalImageUrls.map((url, index) => (
+                <div key={index} className="border border-gray-600 rounded-lg overflow-hidden">
+                  <img src={url} alt={`Final Design ${index + 1}`} className="w-full h-auto object-contain" />
+                  <a 
+                     href={url} 
+                     target="_blank" 
+                     rel="noopener noreferrer"
+                     className="block text-center bg-electric-teal text-charcoal py-2 hover:bg-electric-teal/90 text-sm font-medium"
+                  >
+                     View/Download Design {index + 1}
+                   </a>
+                </div>
+             ))}
+           </div>
+            {/* TODO: Add buttons for next steps (e.g., Proceed to Order/Payment) */}
+           <div className="mt-8 flex justify-end">
+              <motion.button
+                 whileHover={{ scale: 1.03 }}
+                 whileTap={{ scale: 0.98 }}
+                 // onClick={handleProceedToOrder} // Example next step 
+                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+               >
+                 Proceed to Order (Placeholder)
+               </motion.button>
+           </div>
+        </div>
+      );
+    }
+    // --- End condition --- 
+    
+    // Original switch statement for wizard steps
     switch (wizardState.currentStep) {
       // Removed 'method' case
       // Removed 'segmentation' case
@@ -564,7 +787,7 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
           <div className="p-8 bg-charcoal rounded-lg shadow-lg max-w-3xl mx-auto">
             <h2 className="text-2xl font-bold text-electric-teal mb-4">Upload Your Logo</h2>
             <p className="text-white mb-6">
-Please upload your company logo. Recommended formats: PNG, JPG, SVG. Max size: 5MB.
+Please upload your company logo. This will be shared with our designer. Recommended formats: PNG, JPG, SVG. Max size: 5MB.
             </p>
             
             <div className="space-y-4">
@@ -602,21 +825,35 @@ Please upload your company logo. Recommended formats: PNG, JPG, SVG. Max size: 5
               <motion.button
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={handleBack}
-                className="px-6 py-2 border border-electric-teal/50 text-electric-teal rounded-lg hover:border-electric-teal transition-colors"
+                onClick={handleBack} // Go back to Brand step
+                disabled={wizardState.isSubmitting} // Disable if uploading
+                className={`px-6 py-2 border border-electric-teal/50 text-electric-teal rounded-lg hover:border-electric-teal transition-colors ${wizardState.isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 ← Back
               </motion.button>
               
-              <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleUploadLogo} // Trigger upload OR confirmation to proceed
-                disabled={!wizardState.logoFile || (wizardState.logoUploadProgress !== null && wizardState.logoUploadProgress < 100)}
-                className={`px-6 py-2 rounded-lg ${!wizardState.logoFile || (wizardState.logoUploadProgress !== null && wizardState.logoUploadProgress < 100) ? 'bg-gray-500 cursor-not-allowed' : 'bg-electric-teal text-charcoal hover:bg-electric-teal/90'} transition-colors`}
-              >
-                {wizardState.logoUploadProgress === 100 ? 'Next →' : wizardState.logoUploadProgress !== null ? 'Uploading...' : 'Upload & Continue →'}
-              </motion.button>
+              {/* Button logic: Show Upload or Next depending on state */} 
+              {!wizardState.brandData.logoUrl ? (
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleUploadLogo} // Trigger upload 
+                  disabled={!wizardState.logoFile || wizardState.isSubmitting}
+                  className={`px-6 py-2 rounded-lg ${!wizardState.logoFile || wizardState.isSubmitting ? 'bg-gray-500 cursor-not-allowed' : 'bg-electric-teal text-charcoal hover:bg-electric-teal/90'} transition-colors`}
+                >
+                  {wizardState.isSubmitting ? 'Uploading...' : 'Upload Logo'}
+                </motion.button>
+              ) : (
+                 <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleLogoStepComplete} // Navigate to next step
+                  disabled={wizardState.isSubmitting} // Still disable if somehow submitting state is true
+                  className={`px-6 py-2 rounded-lg ${wizardState.isSubmitting ? 'bg-gray-500 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'} transition-colors`}
+                >
+                  Next →
+                </motion.button>
+              )}
             </div>
           </div>
         );
@@ -663,15 +900,20 @@ Please upload your company logo. Recommended formats: PNG, JPG, SVG. Max size: 5
         );
         
       case 'review':
-        // Needs a dedicated ReviewSubmit component
+        // Simplified Review step - assumes user just submits from here
         return (
            <div className="p-8 bg-charcoal rounded-lg shadow-lg max-w-3xl mx-auto text-white">
              <h2 className="text-2xl font-bold text-electric-teal mb-4">Review & Submit Request</h2>
-             <p className="mb-4">Please review the details below. When ready, submit your request for our design team to review.</p>
-             <pre className="bg-charcoal-light p-4 rounded overflow-x-auto text-sm mb-6">
-               {JSON.stringify(wizardState, (key, value) => key === 'logoFile' || key === 'isSubmitting' || key === 'submitError' ? undefined : value, 2)}
-             </pre>
-             <p className="text-sm text-amber-400 mb-6">Note: This request involves human review and image generation. This process may take up to [Specify Timeframe, e.g., 24 hours]. You will be notified when your designs are ready.</p>
+             {/* Consider showing a summary here instead of full JSON */}
+             <p className="text-sm text-gray-300 mb-4">Summary of your request:</p>
+             <ul className="list-disc list-inside mb-6 text-sm space-y-1">
+                <li>Brand Name: {wizardState.brandData.brandName}</li>
+                <li>Logo: {wizardState.brandData.logoUrl ? 'Uploaded' : 'Missing'}</li>
+                <li>Marketing Objective: {wizardState.marketingData.objectives.join(', ') || 'Not specified'}</li>
+                {/* Add more key details */} 
+             </ul>
+             
+             <p className="text-sm text-amber-400 mb-6">Note: This request involves human review and image generation. This process may take some time. You&apos;ll be shown progress updates after submission.</p>
              
              {wizardState.submitError && (
                <p className="text-red-500 mb-4">Error: {wizardState.submitError}</p>
@@ -682,34 +924,35 @@ Please upload your company logo. Recommended formats: PNG, JPG, SVG. Max size: 5
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleBackToEdit} // Use specific back to edit from review
-                  className="px-6 py-2 border border-electric-teal/50 text-electric-teal rounded-lg hover:border-electric-teal transition-colors"
+                  disabled={wizardState.isSubmitting} // Disable if submitting
+                  className={`px-6 py-2 border border-electric-teal/50 text-electric-teal rounded-lg hover:border-electric-teal transition-colors ${wizardState.isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                    ← Edit Details
                 </motion.button>
                 <motion.button
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={handleSubmitRequest} 
-                  disabled={wizardState.isSubmitting} // Disable button when submitting
-                  className={`px-6 py-2 rounded-lg ${wizardState.isSubmitting ? 'bg-gray-500 cursor-not-allowed' : 'bg-electric-teal text-charcoal hover:bg-electric-teal/90'} transition-colors`}
+                  onClick={handleSubmitRequest}
+                  disabled={wizardState.isSubmitting}
+                  className={`px-6 py-2 rounded-lg ${wizardState.isSubmitting ? 'bg-gray-500 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'} transition-colors`}
                 >
-                  {wizardState.isSubmitting ? 'Submitting...' : 'Submit Request'} 
+                   {wizardState.isSubmitting ? 'Submitting...' : 'Submit Request'}
                 </motion.button>
-             </div>
+              </div>
            </div>
-         );
+        );
         
       default:
         return null;
     }
   };
 
-  // Progress indicator setup - updated step order
+  // Calculate step order dynamically (only includes steps up to review)
   const stepOrder: WizardStep[] = ['brand', 'logo_upload', 'marketing', 'audience', 'business', 'visual', 'review'];
-    
   const currentStepIndex = stepOrder.indexOf(wizardState.currentStep);
-  // Ensure index is found before calculating progress
-  const progress = currentStepIndex !== -1 ? (currentStepIndex / (stepOrder.length - 1)) * 100 : 0;
+
+  // Conditionally render steps or processing/results view
+  const shouldShowWizardSteps = !wizardState.submittedRequestId || (wizardState.requestStatus === 'completed' && wizardState.finalImageUrls !== null); // Show steps initially OR when completed
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-charcoal to-charcoal-dark p-4 md:p-8">
@@ -729,12 +972,14 @@ Please upload your company logo. Recommended formats: PNG, JPG, SVG. Max size: 5
            </div>
           
           {/* Progress bar */}
-          <div className="w-full h-2 bg-charcoal-light rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-electric-teal rounded-full transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
+          {shouldShowWizardSteps && currentStepIndex !== -1 && (
+            <div className="w-full h-2 bg-charcoal-light rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-electric-teal rounded-full transition-all duration-300"
+                style={{ width: `${(currentStepIndex / (stepOrder.length - 1)) * 100}%` }}
+              />
+            </div>
+          )}
         </div>
         
         {/* Back button (global, for first step) - only show if onBack provided and we are on first step */}
@@ -752,7 +997,7 @@ Please upload your company logo. Recommended formats: PNG, JPG, SVG. Max size: 5
         {/* Current step content */}
         <AnimatePresence mode="wait">
           <motion.div
-            key={wizardState.currentStep}
+            key={wizardState.submittedRequestId ? (wizardState.requestStatus === 'completed' ? 'results' : 'processing') : wizardState.currentStep} // Key changes for processing/results
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}

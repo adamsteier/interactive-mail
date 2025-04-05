@@ -294,19 +294,40 @@ The store also contains key actions like:
 8. The system searches for leads matching the selected business types in the target area
 9. User can select leads of interest and export or save them for future marketing efforts
 10. User can navigate to the postcard designer to create marketing materials
-11. In the postcard designer, user can choose a design method (AI is the most sophisticated option)
-12. If using AI, the wizard guides user through various steps to collect necessary information:
-   - Design Method (single or multiple designs)
-   - Audience Segmentation (if multiple designs selected)
-   - Brand Identity (colors, style preferences, logo)
-   - Marketing Goals (objectives, call to action)
-   - Target Audience (industry, description)
-   - Business Details (tagline, contact info)
-   - Visual Elements (image style, source, layout)
-   - Review & Generate
-13. The system generates a postcard design based on all the collected information
-14. User can save the design and view it in the postcard preview page
-15. All saved designs are accessible in the postcard preview page for future reference
+11. In the postcard designer, user can choose a design method:
+    - Upload existing designs
+    - AI-generated designs (`AIDesignWizard` -> `PostcardGeneration`)
+    - Work with a human designer (Not fully implemented)
+    - AI Design + Expert Review (`HumanAssistedWizard`):
+        - Wizard collects Brand, Marketing, Audience, Business, Visual data.
+        - Requires logo upload (saved to Firebase Storage).
+        - On submit (`handleSubmitRequest`):
+            - Saves initial request data to Firestore (`design_requests/{id}`).
+            - Calls `/api/generate-design-prompt` API.
+            - **API Route (`/api/generate-design-prompt`):**
+                - Fetches full request data from Firestore.
+                - Calls OpenAI API for `aiGeneratedPrompt` and `aiSummary`.
+                - Updates Firestore document with AI results and status `pending_review`.
+                - Sends SendGrid email to admin (`adam@posttimely.com`) including:
+                    - AI Prompt & Summary
+                    - Logo URL
+                    - Link to the admin review page (`/admin/requests/{id}`)
+                - Updates Firestore document `notifiedAdmin: true`.
+            - User UI shows processing/waiting state.
+12. **Admin Workflow:**
+    - Admin receives email notification with a link.
+    - Link goes to `/admin/requests/{id}` page.
+    - **Admin Page (`src/app/admin/requests/[id]/page.tsx`):**
+        - Fetches and displays the full request details from Firestore (user inputs, logo, AI prompt/summary).
+        - (TODO) Provides interface for admin to review, add notes, change status, and upload final design images.
+        - (TODO) Once admin uploads final images and marks complete, Firestore status is updated to `completed` and `finalImageUrls` are saved.
+13. **User Results:**
+    - User's application (via listener/polling) detects the `completed` status.
+    - Fetches `finalImageUrls` from Firestore.
+    - Displays the final postcard designs uploaded by the admin.
+    - (TODO) User can proceed to payment/sending flow.
+14. (Previous Step) User can save AI-generated designs (from `PostcardGeneration`) and view them in the postcard preview page (`/postcard_preview`).
+15. All saved designs (and potentially completed human-assisted requests?) are accessible for future reference.
 
 This application combines market analysis, lead generation, and customized marketing material creation in one integrated workflow to help businesses reach their target audience effectively.
 

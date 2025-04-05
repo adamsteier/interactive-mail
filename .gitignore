@@ -48,3 +48,14 @@ next-env.d.ts
 
 .vercel
 .env*.local
+
+# Editor directories and files
+.vscode
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+git_ingest/
