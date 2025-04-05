@@ -571,8 +571,102 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
     setWizardState(prev => ({ ...prev, currentStep: 'visual' }));
   };
 
-  const handleVisualComplete = (visualData: VisualData) => {
+  const handleVisualComplete = async (visualData: VisualData) => { // Make async
+    // 1. Update local state first
     updateActiveCampaignData('visualData', visualData);
+
+    const { designScope, submittedRequestId, campaigns, activeDesignType, globalBrandData, uploadedLogoUrl } = wizardState;
+
+    // 2. Check if this is the FIRST campaign completion in MULTIPLE scope
+    if (designScope === 'multiple' && !submittedRequestId) {
+        console.log("Completing Visual step for the FIRST campaign in multi-design mode. Creating doc and notifying...");
+        setWizardState(prev => ({ 
+            ...prev, 
+            isSubmitting: true, 
+            submitError: null, 
+            processingMessage: 'Saving first campaign & notifying admin...'
+        }));
+
+        try {
+            if (!user) throw new Error("User not authenticated.");
+
+            // Create the initial Firestore document now
+            const initialRequestData = {
+                userId: user.uid,
+                status: 'draft_multiple', // Initial draft status
+                designScope: 'multiple',
+                globalBrandData: globalBrandData, // Save global brand data
+                // Save the current state of campaigns array (first one is complete)
+                campaigns: campaigns.map(c => 
+                    c.businessType === activeDesignType 
+                       ? { ...c, visualData: visualData } // Ensure latest visual data is included
+                       : c 
+                ),
+                logoUrl: uploadedLogoUrl || '',
+                createdAt: serverTimestamp(),
+                notifiedAdmin: false, // API will attempt notification
+            };
+            console.log("Creating initial Firestore doc for multi-design request...", initialRequestData);
+            const docRef = await addDoc(collection(db, "design_requests"), initialRequestData);
+            const newRequestId = docRef.id;
+            console.log("Initial multi-design doc created with ID:", newRequestId);
+
+            // Call API to trigger early notification
+            console.log(`Calling API route /api/generate-design-prompt for initial notification (doc ${newRequestId})`);
+            const apiResponse = await fetch('/api/generate-design-prompt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ documentId: newRequestId }),
+            });
+            const apiResult = await apiResponse.json();
+            if (!apiResponse.ok) {
+                console.warn("Initial notification API call failed:", apiResult);
+            } else {
+                console.log("Initial notification API call successful.");
+            }
+
+            // Update local state with the new ID and status
+            setWizardState(prev => ({
+                ...prev,
+                submittedRequestId: newRequestId,
+                requestStatus: 'draft_multiple',
+                isSubmitting: false,
+                processingMessage: '',
+            }));
+
+        } catch (error) {
+            console.error("Error during first campaign save & notify:", error);
+            setWizardState(prev => ({
+                ...prev,
+                isSubmitting: false,
+                submitError: `Failed to save first campaign: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                processingMessage: '',
+            }));
+            // Don't proceed to review if this failed?
+             return; 
+        }
+    }
+    // 3. If subsequent campaign completion in MULTIPLE scope, update existing doc
+    else if (designScope === 'multiple' && submittedRequestId) {
+         try {
+           console.log(`Updating Firestore doc ${submittedRequestId} - Visual data for type ${activeDesignType}`);
+           const docRef = doc(db, "design_requests", submittedRequestId);
+           const campaignIndex = campaigns.findIndex(c => c.businessType === activeDesignType);
+           if (campaignIndex !== -1) {
+               await updateDoc(docRef, {
+                   [`campaigns.${campaignIndex}.visualData`]: visualData // Update just this campaign's visual data
+               });
+               console.log("Firestore visual data updated successfully for subsequent campaign.");
+           } else {
+               console.warn("Could not find active campaign index to update Firestore visual data.");
+           }
+       } catch (error) {
+           console.error("Failed to update visual data in Firestore for subsequent campaign:", error);
+           // Optional: Show error message to user?
+       }
+    }
+
+    // 4. Navigate to next step (Review)
     setWizardState(prev => ({ ...prev, currentStep: 'review' }));
   };
   // --- End Update Step Completion Handlers ---
@@ -675,129 +769,56 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
   // --- End Restore Logo Handlers ---
 
   // --- Update Handler for Design Choice --- 
-  const handleDesignScopeChoice = async (scope: 'single' | 'multiple') => {
-    // Linter Hint: Explicitly log scope to ensure usage recognition if needed
-    // console.log(`Design scope choice made: ${scope}`); 
-
+  const handleDesignScopeChoice = (scope: 'single' | 'multiple') => { // No longer async
     const typesArray = Array.from(selectedBusinessTypes);
     const firstActiveType = typesArray.length > 0 ? typesArray[0] : null;
     const activeTypeForSingle = typesArray.length === 1 ? typesArray[0] : '__all__';
 
-    if (scope === 'multiple' && typesArray.length > 0) {
-      // --- Early Submission Logic for Multiple --- 
-    setWizardState(prev => ({
-      ...prev,
-        isSubmitting: true,
-        submitError: null,
-        processingMessage: 'Setting up your design projects & notifying admin...'
-      }));
-
-      try {
-        if (!user) throw new Error("User not authenticated.");
-
-        // Default data structures (No defaultBrandData needed here)
+    // Update local state only - No early submission/API call
+    setWizardState(prev => {
+        // Prepare initial campaign structure (needed for both paths now)
         const defaultMarketingData: WizardMarketingData = { objectives: [], callToAction: '', promotionDetails: '', eventDate: '', offerDetails: '', marketingObjectives: '' };
         const defaultAudienceData: AudienceData = { industry: '', targetDescription: '' };
         const defaultBusinessData: WizardBusinessData = { tagline: '', useAiTagline: true, contactInfo: { phone: '', email: '', website: '', address: '', includeQR: true }, disclaimer: '', includeDisclaimer: false, extraInfo: '' };
         const defaultVisualData: VisualData = { imageStyle: [], imageSource: 'ai', imagePrimarySubject: '', useCustomImage: false, customImageDescription: '', layoutStyle: 'clean', colorSchemeConfirmed: true, customColorNotes: '' };
 
-        const initialCampaigns: CampaignState[] = typesArray.map(type => ({
-          businessType: type,
-          marketingData: { ...defaultMarketingData },
-          audienceData: { ...defaultAudienceData },
-          businessData: { ...defaultBusinessData },
-          visualData: { ...defaultVisualData },
-        }));
-
-        // 1. Create Firestore document with 'draft_multiple' status
-        const initialRequestData = {
-          userId: user.uid,
-          status: 'draft_multiple', // <<< Use specific draft status
-          designScope: 'multiple',
-          campaigns: initialCampaigns,
-          logoUrl: wizardState.uploadedLogoUrl || '',
-          createdAt: serverTimestamp(),
-          notifiedAdmin: false, // API will attempt to set this
-        };
-        console.log("Creating initial Firestore doc for multi-design request...", initialRequestData);
-        const docRef = await addDoc(collection(db, "design_requests"), initialRequestData);
-        const newRequestId = docRef.id;
-        console.log("Initial multi-design doc created with ID:", newRequestId);
-
-        // 2. Immediately call API to trigger early notification
-        console.log(`Calling API route /api/generate-design-prompt for initial notification (doc ${newRequestId})`);
-        const apiResponse = await fetch('/api/generate-design-prompt', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ documentId: newRequestId }),
-        });
-        const apiResult = await apiResponse.json();
-        if (!apiResponse.ok) {
-            // Log warning but don't necessarily block user
-            console.warn("Initial notification API call failed:", apiResult);
-            // Optionally update local state to reflect notification failure?
+        let initialCampaigns: CampaignState[];
+        if (scope === 'multiple') {
+            initialCampaigns = typesArray.map(type => ({
+                businessType: type,
+                marketingData: { ...defaultMarketingData },
+                audienceData: { ...defaultAudienceData },
+                businessData: { ...defaultBusinessData },
+                visualData: { ...defaultVisualData },
+            }));
         } else {
-            console.log("Initial notification API call successful.");
+             const singleCampaignType = typesArray.length === 1 ? typesArray[0] : '__all__';
+             initialCampaigns = [{
+                businessType: singleCampaignType,
+                marketingData: { ...defaultMarketingData },
+                audienceData: { ...defaultAudienceData },
+                businessData: { ...defaultBusinessData },
+                visualData: { ...defaultVisualData },
+            }];
         }
 
-        // 3. Update local state AFTER setup
-    setWizardState(prev => ({
-      ...prev,
-          designScope: scope,
-          currentStep: 'brand',
-          activeDesignType: firstActiveType,
-          campaigns: initialCampaigns,
-          submittedRequestId: newRequestId,
-          isSubmitting: false,
-          processingMessage: '',
-          requestStatus: 'draft_multiple', // Sync status locally
-        }));
-
-      } catch (error) {
-        console.error("Error during early submission for multiple scope:", error);
-    setWizardState(prev => ({
-      ...prev,
-          isSubmitting: false,
-          submitError: `Failed to setup multi-design request: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          processingMessage: '',
-        }));
-        return; // Don't proceed if setup failed
-      }
-
-    } else {
-      // Single scope - just update local state
-      console.log("Setting scope to single, proceeding to brand step.");
-      // Default data (No defaultBrandData needed here)
-      const defaultMarketingData: WizardMarketingData = { objectives: [], callToAction: '', promotionDetails: '', eventDate: '', offerDetails: '', marketingObjectives: '' };
-      const defaultAudienceData: AudienceData = { industry: '', targetDescription: '' };
-      const defaultBusinessData: WizardBusinessData = { tagline: '', useAiTagline: true, contactInfo: { phone: '', email: '', website: '', address: '', includeQR: true }, disclaimer: '', includeDisclaimer: false, extraInfo: '' };
-      const defaultVisualData: VisualData = { imageStyle: [], imageSource: 'ai', imagePrimarySubject: '', useCustomImage: false, customImageDescription: '', layoutStyle: 'clean', colorSchemeConfirmed: true, customColorNotes: '' };
-      const singleCampaignType = typesArray.length === 1 ? typesArray[0] : '__all__';
-      const singleCampaign: CampaignState[] = [{
-          businessType: singleCampaignType,
-          marketingData: { ...defaultMarketingData },
-          audienceData: { ...defaultAudienceData },
-          businessData: { ...defaultBusinessData },
-          visualData: { ...defaultVisualData },
-      }];
-
-    setWizardState(prev => ({
-      ...prev,
-        designScope: scope,
-        currentStep: 'brand',
-        activeDesignType: activeTypeForSingle,
-        campaigns: prev.campaigns.length > 0 && prev.designScope === 'single' ? prev.campaigns : singleCampaign, // Preserve if already single, otherwise init
-        submittedRequestId: null, // Ensure no ID is carried over if switched to single
-        requestStatus: null,
-        isSubmitting: false,
-        submitError: null,
-        processingMessage: '',
-      }));
-    }
+        return {
+            ...prev,
+            designScope: scope,
+            currentStep: 'brand', // Always start at brand after choice
+            activeDesignType: scope === 'multiple' ? firstActiveType : activeTypeForSingle,
+            campaigns: initialCampaigns, // Set the initialized campaigns
+            submittedRequestId: null, // Explicitly ensure no ID is set here
+            requestStatus: null,
+            isSubmitting: false,
+            submitError: null,
+            processingMessage: '',
+        };
+    });
   };
   // --- End Handler for Design Choice ---
 
-  // --- Modify Final Submission Handler ---
+  // --- Modify Final Submission Handler --- 
   const handleSubmitRequest = async () => {
     setWizardState(prev => ({ 
       ...prev, 
@@ -809,77 +830,83 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
     if (!user) { /* ... user check ... */ return; }
 
     try {
+      // Destructure state needed
       const { designScope, campaigns, uploadedLogoUrl, submittedRequestId, globalBrandData } = wizardState;
-      
-      // Linter Hint: Conditional log to ensure globalBrandData usage recognition
-      if (!globalBrandData) { console.warn("Global Brand Data missing during submit!"); } 
-
       let finalRequestId = submittedRequestId;
-      const needsApiCall = true; // Use const
+      let docNeedsCreation = false;
 
       if (designScope === 'single') {
-        // --- Single Scope: Create document now --- 
-        console.log("Submitting single-design request...");
-      const requestData = {
-          userId: user.uid,
-        status: 'pending_prompt',
-          designScope: 'single',
-          globalBrandData: globalBrandData, // Used here
-          campaigns: campaigns, 
-          logoUrl: uploadedLogoUrl || '',
-        createdAt: serverTimestamp(),
-          notifiedAdmin: false,
-      };
-        console.log("Writing single request data to Firestore...", requestData);
-      const docRef = await addDoc(collection(db, "design_requests"), requestData);
-        finalRequestId = docRef.id;
-        console.log("Single request document written with ID:", finalRequestId);
-        setWizardState(prev => ({ ...prev, submittedRequestId: finalRequestId, requestStatus: 'pending_prompt' })); // Store ID and status
+        // --- Single Scope: Document needs creation --- 
+        if (finalRequestId) {
+            console.warn("Unexpected existing document ID found for single scope submission. Overwriting may occur if logic proceeds.");
+            // Decide how to handle - overwrite or throw error? Let's proceed but be aware.
+        }
+        docNeedsCreation = true;
 
       } else if (designScope === 'multiple' && finalRequestId) {
-        // --- Multiple Scope: Update existing document status --- 
-        console.log(`Finalizing multi-design request, updating doc ${finalRequestId}...`);
+        // --- Multiple Scope: Document should exist, just update status --- 
+        console.log(`Finalizing multi-design request, updating doc ${finalRequestId} status...`);
         const docRef = doc(db, "design_requests", finalRequestId);
         await updateDoc(docRef, {
-          status: 'pending_prompt',
-          globalBrandData: globalBrandData, // Used here
-          campaigns: campaigns, 
-          logoUrl: uploadedLogoUrl || '',
+          status: 'pending_prompt', // Set status to trigger AI processing
+          globalBrandData: globalBrandData, // Ensure latest global data is saved
+          campaigns: campaigns, // Save the final state of all campaigns
+          logoUrl: uploadedLogoUrl || '', // Ensure latest logo URL is saved
+          // optionally add submittedAt: serverTimestamp()
         });
         console.log(`Doc ${finalRequestId} status updated to pending_prompt.`);
         setWizardState(prev => ({ ...prev, requestStatus: 'pending_prompt' })); // Update local status
         // API call will happen below
 
+      } else if (designScope === 'multiple' && !finalRequestId) {
+          // This case shouldn't happen if handleVisualComplete worked correctly
+          console.error("Multi-design scope submission attempted without a document ID!");
+          throw new Error("Cannot finalize multi-design request: document not found.");
       } else {
-        throw new Error(`Invalid state for submission: scope=${designScope}, id=${finalRequestId}`);
+          throw new Error(`Invalid state for submission: scope=${designScope}, id=${finalRequestId}`);
       }
 
-      // --- Call the main processing API --- 
-      if (needsApiCall && finalRequestId) {
-        console.log(`Calling main API route /api/generate-design-prompt for document ${finalRequestId}`);
-      const response = await fetch('/api/generate-design-prompt', {
+      // Create document if needed (only for single scope now)
+      if (docNeedsCreation) {
+          console.log("Creating document for single-design request...");
+          const requestData = {
+              userId: user.uid,
+              status: 'pending_prompt',
+              designScope: 'single',
+              globalBrandData: globalBrandData, 
+              campaigns: campaigns,
+              logoUrl: uploadedLogoUrl || '',
+              createdAt: serverTimestamp(),
+              notifiedAdmin: false,
+          };
+          const docRef = await addDoc(collection(db, "design_requests"), requestData);
+          finalRequestId = docRef.id;
+          console.log("Single request document created with ID:", finalRequestId);
+          setWizardState(prev => ({ ...prev, submittedRequestId: finalRequestId, requestStatus: 'pending_prompt' }));
+      }
+
+      // --- Call the main processing API (for both scopes now) --- 
+      if (!finalRequestId) {
+         throw new Error("Failed to get document ID for API call.");
+      }
+      console.log(`Calling main API route /api/generate-design-prompt for document ${finalRequestId}`);
+      const response = await fetch('/api/generate-design-prompt', { // Use the main API
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ documentId: finalRequestId }),
+        body: JSON.stringify({ documentId: finalRequestId }),
       });
       const result = await response.json();
       if (!response.ok) {
-          // Even if API fails, the doc exists/was updated. Listener might still pick up changes?
-          // Log error prominently.
-          console.error("Main API call failed after Firestore operation:", result);
-          throw new Error(result.error || 'Failed to trigger prompt generation API.');
-        }
-        console.log("Main API route call successful:", result);
-      } else if (!finalRequestId) {
-         throw new Error("Failed to get document ID for API call.");
+        console.error("Main API call failed:", result);
+        // Update status to failed? Let listener handle maybe?
+        throw new Error(result.error || 'Failed to trigger prompt generation API.');
       }
+      console.log("Main API route call successful:", result);
 
-      // Update local state - Listener will take over for status updates
+      // Update local state - Listener will take over
       setWizardState(prev => ({ 
         ...prev, 
         isSubmitting: false,
-        // processingMessage is controlled by listener effect
-        // requestStatus was set above or will be updated by listener
       }));
       
     } catch (error) {
