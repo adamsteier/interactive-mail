@@ -227,10 +227,13 @@ export default function AdminRequestPage() {
     }
   };
 
-  // Check if all campaigns (in multi-design mode) have designs
-  const canMarkComplete = requestData?.designScope === 'multiple' 
-     ? requestData.campaigns.every(c => c.finalDesigns && c.finalDesigns.length > 0)
-     : (requestData?.campaigns[0]?.finalDesigns && requestData.campaigns[0].finalDesigns.length > 0); // Check first campaign for single
+  // Check if all campaigns (in multi-design mode) have designs - ADD SAFETY CHECKS
+  const canMarkComplete = requestData?.campaigns && Array.isArray(requestData.campaigns) && requestData.campaigns.length > 0
+     ? (requestData.designScope === 'multiple' 
+        ? requestData.campaigns.every(c => c.finalDesigns && c.finalDesigns.length > 0)
+        : (requestData.campaigns[0]?.finalDesigns && requestData.campaigns[0].finalDesigns.length > 0)
+       )
+     : false; // Default to false if campaigns array is missing, empty, or not an array
 
   const handleMarkComplete = async () => {
     if (!requestId || !canMarkComplete) {
