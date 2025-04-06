@@ -655,91 +655,120 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
           return newMap;
       });
       
-      // Create storage reference
-      const storageRef = ref(storage, `campaignImages/${user.uid}/${campaignType}/${fileId}_${file.name}`);
-      const uploadTask = uploadBytesResumable(storageRef, file);
-      
-      // Handle upload states
-      uploadTask.on('state_changed',
-          (snapshot) => {
-              // Track progress
-              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-              setCampaignImageUploadProgress(prev => {
-                  const newMap = new Map(prev);
-                  const campaignProgressMap = newMap.get(campaignType) || new Map();
-                  campaignProgressMap.set(fileId, progress);
-                  newMap.set(campaignType, campaignProgressMap);
-                  return newMap;
-              });
-          },
-          (error) => {
-              // Handle error
-              console.error(`Error uploading campaign image for ${campaignType}:`, error);
-              setCampaignImageUploadError(prev => {
-                  const newMap = new Map(prev);
-                  newMap.set(campaignType, `Upload failed: ${error.code || 'Unknown error'}`);
-                  return newMap;
-              });
-              setIsUploadingCampaignImage(prev => {
-                  const newMap = new Map(prev);
-                  newMap.set(campaignType, false);
-                  return newMap;
-              });
-          },
-          async () => {
-              try {
-                  // Get download URL
-                  const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                  
-                  // Add URL to the list
-                  setUploadedCampaignImageUrls(prev => {
+      try {
+          // Create storage reference - ensure folder path is URL safe
+          const sanitizedCampaignType = encodeURIComponent(campaignType.replace(/[^a-zA-Z0-9-_]/g, '_'));
+          const storageRef = ref(storage, `campaignImages/${user.uid}/${sanitizedCampaignType}/${fileId}_${file.name}`);
+          const uploadTask = uploadBytesResumable(storageRef, file);
+          
+          // Handle upload states
+          uploadTask.on('state_changed',
+              (snapshot) => {
+                  // Track progress
+                  const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                  setCampaignImageUploadProgress(prev => {
                       const newMap = new Map(prev);
-                      const currentUrls = newMap.get(campaignType) || [];
-                      newMap.set(campaignType, [...currentUrls, downloadURL]);
+                      const campaignProgressMap = newMap.get(campaignType) || new Map();
+                      campaignProgressMap.set(fileId, progress);
+                      newMap.set(campaignType, campaignProgressMap);
                       return newMap;
                   });
-                  
-                  // Update campaign form data to include the uploaded image
-                  setCampaignFormDataMap(prev => {
+              },
+              (error) => {
+                  // Handle error
+                  console.error(`Error uploading campaign image for ${campaignType}:`, error);
+                  setCampaignImageUploadError(prev => {
                       const newMap = new Map(prev);
-                      const formData = newMap.get(campaignType) || { ...initialCampaignFormData };
-                      newMap.set(campaignType, {
-                          ...formData,
-                          uploadedImageUrls: [...(formData.uploadedImageUrls || []), downloadURL],
-                          imageryType: 'upload' // Set type to upload when images are present
+                      newMap.set(campaignType, `Upload failed: ${error.code || 'Storage permission error'}`);
+                      return newMap;
+                  });
+                  setIsUploadingCampaignImage(prev => {
+                      const newMap = new Map(prev);
+                      newMap.set(campaignType, false);
+                      return newMap;
+                  });
+              },
+              async () => {
+                  try {
+                      // Get download URL
+                      const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                      
+                      // Add URL to the list
+                      setUploadedCampaignImageUrls(prev => {
+                          const newMap = new Map(prev);
+                          const currentUrls = newMap.get(campaignType) || [];
+                          newMap.set(campaignType, [...currentUrls, downloadURL]);
+                          return newMap;
                       });
-                      return newMap;
-                  });
-                  
-                  console.log(`Campaign image uploaded successfully for ${campaignType}:`, downloadURL);
-                  
-                  // Check if all uploads are complete
-                  const progressMap = campaignImageUploadProgress.get(campaignType) || new Map();
-                  const allComplete = Array.from(progressMap.values()).every(p => p === 100);
-                  if (allComplete) {
+                      
+                      // Update campaign form data to include the uploaded image - but don't set undefined values
+                      setCampaignFormDataMap(prev => {
+                          const newMap = new Map(prev);
+                          const formData = newMap.get(campaignType) || { ...initialCampaignFormData };
+                          
+                          const updatedData = {
+                              ...formData,
+                              uploadedImageUrls: [...(formData.uploadedImageUrls || []), downloadURL],
+                          };
+                          
+                          // Only set imageryType if we have uploads
+                          if (downloadURL) {
+                              updatedData.imageryType = 'upload';
+                          }
+                          
+                          newMap.set(campaignType, updatedData);
+                          return newMap;
+                      });
+                      
+                      console.log(`Campaign image uploaded successfully for ${campaignType}:`, downloadURL);
+                      
+                      // Check if all uploads are complete
+                      const progressMap = campaignImageUploadProgress.get(campaignType) || new Map();
+                      const allComplete = Array.from(progressMap.values()).every(p => p === 100);
+                      if (allComplete) {
+                          setIsUploadingCampaignImage(prev => {
+                              const newMap = new Map(prev);
+                              newMap.set(campaignType, false);
+                              return newMap;
+                          });
+                      }
+                      
+                      // Mark form as incomplete when uploads complete
+                      setCompletedCampaignForms(prev => {
+                          const newSet = new Set(prev);
+                          newSet.delete(campaignType);
+                          return newSet;
+                      });
+                  } catch (error) {
+                      console.error(`Error getting download URL for ${campaignType}:`, error);
+                      setCampaignImageUploadError(prev => {
+                          const newMap = new Map(prev);
+                          newMap.set(campaignType, 'Upload completed but failed to get download URL.');
+                          return newMap;
+                      });
+                      
                       setIsUploadingCampaignImage(prev => {
                           const newMap = new Map(prev);
                           newMap.set(campaignType, false);
                           return newMap;
                       });
                   }
-                  
-                  // Mark form as incomplete when uploads complete
-                  setCompletedCampaignForms(prev => {
-                      const newSet = new Set(prev);
-                      newSet.delete(campaignType);
-                      return newSet;
-                  });
-              } catch (error) {
-                  console.error(`Error getting download URL for ${campaignType}:`, error);
-                  setCampaignImageUploadError(prev => {
-                      const newMap = new Map(prev);
-                      newMap.set(campaignType, 'Upload completed but failed to get download URL.');
-                      return newMap;
-                  });
               }
-          }
-      );
+          );
+      } catch (error) {
+          console.error(`Error setting up upload for ${campaignType}:`, error);
+          setCampaignImageUploadError(prev => {
+              const newMap = new Map(prev);
+              newMap.set(campaignType, `Upload setup failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+              return newMap;
+          });
+          
+          setIsUploadingCampaignImage(prev => {
+              const newMap = new Map(prev);
+              newMap.set(campaignType, false);
+              return newMap;
+          });
+      }
   };
   
   const handleRemoveCampaignImage = (campaignType: string, imageUrl: string) => {
@@ -759,12 +788,27 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
           const formData = newMap.get(campaignType) || { ...initialCampaignFormData };
           const updatedUrls = (formData.uploadedImageUrls || []).filter(url => url !== imageUrl);
           
-          newMap.set(campaignType, {
+          // Create updated data without directly setting 'undefined' values
+          const updatedData = {
               ...formData,
-              uploadedImageUrls: updatedUrls,
-              // If no more images, clear the imagery type if it was 'upload'
-              imageryType: formData.imageryType === 'upload' && updatedUrls.length === 0 ? undefined : formData.imageryType
-          });
+              uploadedImageUrls: updatedUrls
+          };
+          
+          // If no more images remain, decide what to do with imageryType
+          if (updatedUrls.length === 0) {
+              // If there's an imagery description, keep 'describe' type
+              if (formData.imageryDescription?.trim()) {
+                  updatedData.imageryType = 'describe';
+              } else {
+                  // Otherwise, delete the property entirely instead of setting to undefined
+                  delete updatedData.imageryType;
+              }
+          } else {
+              // Still have images, keep 'upload' type
+              updatedData.imageryType = 'upload';
+          }
+          
+          newMap.set(campaignType, updatedData);
           return newMap;
       });
       
@@ -882,10 +926,18 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
               additionalInfo: formData.additionalInfo?.trim() || '',
               imageryDescription: formData.imageryDescription?.trim() || '',
               uploadedImageUrls: uploadedCampaignImageUrls.get(type) || [],
-              imageryType: (uploadedCampaignImageUrls.get(type)?.length ? 'upload' : 
-                           formData.imageryDescription?.trim() ? 'describe' : undefined) as 'upload' | 'describe' | undefined,
               status: 'processing'
           };
+          
+          // Conditionally add imageryType only when needed (Firestore doesn't accept undefined values)
+          if (uploadedCampaignImageUrls.get(type)?.length) {
+              // If we have uploaded images, set type to 'upload'
+              dataToSave.imageryType = 'upload';
+          } else if (formData.imageryDescription?.trim()) {
+              // If we have a description but no uploads, set type to 'describe'
+              dataToSave.imageryType = 'describe';
+          }
+          // If neither condition is met, we don't include the field at all
 
           if (campaignId) {
               // Update existing document
@@ -1756,13 +1808,18 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                                         'Save & Request Design' // Updated text
                                     )}
                                 </button>
-                                <p className="text-xs text-gray-400">
+                                <div className="text-xs text-gray-400">
                                     {completedCampaignForms.has(currentCampaignTypeKey) 
                                         ? 'AI design generation initiated. You can move to the next step when ready.'
-                                        : 'Click to save details and trigger AI design generation.'
+                                        : (
+                                          <div>
+                                            <p>Only Design Name and Primary Goal are required.</p>
+                                            <p>Click to save details and trigger AI design generation.</p>
+                                          </div>
+                                        )
                                     } 
                                     {isProcessingApiCallMap.get(currentCampaignTypeKey) && " (This may take a moment...)"}
-                                </p>
+                                </div>
                             </div>
                          )}
                        </>
