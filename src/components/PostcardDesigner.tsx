@@ -23,11 +23,15 @@ const PostcardDesigner = () => {
   const [isLoading, setIsLoading] = useState(true); // Add loading state
 
   useEffect(() => {
+    // ADD THIS LOG:
+    console.log('PostcardDesigner Guard Check: selectedBusinessTypes.size =', selectedBusinessTypes.size);
+
     // Guard: Check if leads are selected. If not, redirect.
     if (selectedBusinessTypes.size === 0) {
       console.log('PostcardDesigner: No leads found in store, redirecting to home.');
       router.replace('/'); // Or redirect to leads selection page e.g., '/leads'
     } else {
+      console.log('PostcardDesigner Guard Check: Leads found, setting isLoading to false.'); // ADDED FOR CLARITY
       setIsLoading(false); // Leads are present, allow rendering
     }
   }, [selectedBusinessTypes, router]);
