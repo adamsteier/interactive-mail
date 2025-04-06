@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import SelectionSummary from './SelectionSummary';
 import { useMarketingStore } from '@/store/marketingStore';
+import { useLeadsStore } from '@/store/leadsStore';
 import LoadingBar from './LoadingBar';
 import type { GooglePlace } from '@/types/places';
 import { useRouter } from 'next/navigation';
@@ -13,12 +14,12 @@ interface PlacesLeadsCollectionProps {
 }
 
 const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
-  // Subscribe to specific fields we need
+  // Subscribe to specific fields we need from marketingStore
   const places = useMarketingStore(state => state.searchResults.places);
   const isLoading = useMarketingStore(state => state.searchResults.isLoading);
   const progress = useMarketingStore(state => state.searchResults.progress);
-  const setCollectedLeads = useMarketingStore(state => state.setCollectedLeads);
-  const setSelectedBusinessTypes = useMarketingStore(state => state.setSelectedBusinessTypes);
+  // Get the action from leadsStore
+  const processSelectedLeads = useLeadsStore(state => state.processSelectedLeads);
 
   const [selectedPlaces, setSelectedPlaces] = useState<Set<string>>(new Set());
   const [activeFilter, setActiveFilter] = useState<string>('all');
@@ -124,23 +125,17 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
     });
   };
 
-  // Handle starting the campaign
+  // Handle starting the campaign - Updated to use leadsStore
   const handleStartCampaign = () => {
-    // Prepare the data for the store regardless of authentication
-    const selectedBusinesses = filteredPlaces.filter(place => 
+    // Get the currently selected place objects
+    const selectedBusinesses = places.filter(place => 
       selectedPlaces.has(place.place_id)
     );
     
-    // Get unique business types from selected places
-    const businessTypes = new Set(
-      selectedBusinesses.map(place => place.businessType)
-    );
+    // Call the action from the leadsStore to process and store them
+    processSelectedLeads(selectedBusinesses);
     
-    // Update both leads and business types in store
-    setCollectedLeads(selectedBusinesses);
-    setSelectedBusinessTypes(businessTypes);
-    
-    // Navigate to design page since user should already be authenticated at this point
+    // Navigate to design page
     router.push('/design');
   };
 

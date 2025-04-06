@@ -9,7 +9,8 @@ import {
   signOut,
   GoogleAuthProvider,
   signInWithPopup,
-  UserCredential
+  UserCredential,
+  updateProfile
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { getSessionId, updateSessionStatus } from '@/lib/sessionService';
@@ -23,7 +24,7 @@ interface AuthContextType {
   showAuthOverlay: boolean;
   setShowAuthOverlay: (show: boolean) => void;
   signIn: (email: string, password: string) => Promise<UserCredential>;
-  signUp: (email: string, password: string) => Promise<UserCredential>;
+  signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<UserCredential>;
   signInWithGoogle: () => Promise<UserCredential>;
   logout: () => Promise<void>;
   refreshUserData: () => Promise<void>;
@@ -90,18 +91,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Helper function to convert anonymous session after authentication
-  const handlePostAuthentication = async (user: User) => {
+  const handlePostAuthentication = async (user: User, firstName?: string, lastName?: string) => {
     try {
-      // This creates or updates the user document in Firestore
-      // It also automatically converts any anonymous session data
-      const userData = await createOrUpdateUser(user);
+      // Pass names to createOrUpdateUser
+      const userData = await createOrUpdateUser(user, firstName, lastName);
       setUserData(userData);
       
-      // Load user's businesses into the store
       await loadUserBusinesses(user.uid);
       
-      // If user has recently converted an anonymous session, the business
-      // will be in their businesses array
       if (userData.businesses.length > 0) {
         console.log('User has businesses after auth:', userData.businesses);
       }
@@ -115,22 +112,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     const credential = await signInWithEmailAndPassword(auth, email, password);
-    // Handle post-authentication tasks
+    // No names passed on regular sign-in
     await handlePostAuthentication(credential.user);
     return credential;
   };
 
-  const signUp = async (email: string, password: string) => {
+  const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
     const credential = await createUserWithEmailAndPassword(auth, email, password);
-    // Handle post-authentication tasks
-    await handlePostAuthentication(credential.user);
+    
+    // Update Firebase Auth user profile
+    try {
+      if (auth.currentUser) { // Check if currentUser is available
+          await updateProfile(auth.currentUser, { 
+              displayName: `${firstName} ${lastName}` 
+          });
+          // Refresh user state locally after profile update
+          setUser(auth.currentUser);
+          console.log("Firebase Auth profile updated with displayName.");
+      } else {
+          console.warn("auth.currentUser is null after signup, cannot update profile immediately.");
+      }
+    } catch (profileError) {
+        console.error("Error updating Firebase Auth profile:", profileError);
+        // Proceed even if profile update fails, Firestore update might still work
+    }
+
+    // Handle post-authentication tasks, passing names
+    await handlePostAuthentication(credential.user, firstName, lastName);
     return credential;
   };
 
   const signInWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
     const credential = await signInWithPopup(auth, provider);
-    // Handle post-authentication tasks
+    // Google sign-in automatically provides displayName, etc.
+    // No need to pass separate first/last names here
     await handlePostAuthentication(credential.user);
     return credential;
   };

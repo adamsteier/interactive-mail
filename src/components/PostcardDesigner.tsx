@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import AIDesignWizard from './AIDesignWizard';
 import DesignGuideModal from './DesignGuideModal';
-// Import the actual HumanAssistedWizard
-import HumanAssistedWizard from './HumanAssistedWizard';
+
+import AIHumanWizard from './AIHumanWizard'; // Import the new wizard
 
 // Update DesignOption type
 type DesignOption = 'upload' | 'ai' | 'human' | 'ai_human' | null;
@@ -14,15 +14,21 @@ const PostcardDesigner = () => {
   const [selectedOption, setSelectedOption] = useState<DesignOption>(null);
   const [showAIWizard, setShowAIWizard] = useState(false);
   const [showDesignGuide, setShowDesignGuide] = useState(false);
-  // Add state for the new wizard
-  const [showHumanAssistedWizard, setShowHumanAssistedWizard] = useState(false);
+  // Replace state for the old wizard with the new one
+  // const [showHumanAssistedWizard, setShowHumanAssistedWizard] = useState(false); 
+  const [showAIHumanWizard, setShowAIHumanWizard] = useState(false); // State for the new wizard
 
   if (showAIWizard) {
     return <AIDesignWizard onBack={() => setShowAIWizard(false)} />;
   }
 
-  if (showHumanAssistedWizard) {
-    return <HumanAssistedWizard onBack={() => setShowHumanAssistedWizard(false)} />;
+  // Replace check for old wizard with the new one
+  // if (showHumanAssistedWizard) {
+  //   return <HumanAssistedWizard onBack={() => setShowHumanAssistedWizard(false)} />;
+  // }
+  if (showAIHumanWizard) {
+    // Render the new wizard
+    return <AIHumanWizard onBack={() => setShowAIHumanWizard(false)} />;
   }
 
   const designOptions = [
@@ -59,13 +65,11 @@ const PostcardDesigner = () => {
         </svg>
       )
     },
-    // Add the new option
     {
       id: 'ai_human',
       title: 'AI Design + Expert Review',
       description: 'Use AI for ideas, then have our expert finalize the design for you. Best of both worlds!',
       icon: (
-        // Example Icon (Combination of AI and Human?) - Consider replacing with a better one
         <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           {/* Simple combination: Robot head + Pencil */}
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 0l-3-3m3 3l-3 3m-1.886 3.944A8.5 8.5 0 113.1 10M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -86,10 +90,10 @@ const PostcardDesigner = () => {
       console.log('Starting human designer flow (Not Implemented Yet)');
       // Potentially show a modal or different UI here
     } else if (selectedOption === 'ai_human') {
-      // Trigger the new wizard flow
-      console.log('Starting AI + Human wizard flow');
-      setShowHumanAssistedWizard(true); // This will trigger the display when the component is created
-      // Currently, this will do nothing visible until HumanAssistedWizard is implemented and uncommented above
+      // Trigger the NEW wizard flow
+      console.log('Starting NEW AI + Human wizard flow');
+      // setShowHumanAssistedWizard(true); // Old wizard
+      setShowAIHumanWizard(true); // Trigger the NEW wizard display
     }
   };
 
@@ -99,9 +103,12 @@ const PostcardDesigner = () => {
         {/* Conditionally render the correct component or the selection UI */}
         {showAIWizard ? (
           <AIDesignWizard onBack={() => setShowAIWizard(false)} />
-        ) : showHumanAssistedWizard ? (
-          // Render HumanAssistedWizard directly here, not in a modal
-          <HumanAssistedWizard onBack={() => setShowHumanAssistedWizard(false)} />
+        // Replace check for old wizard with the new one
+        // ) : showHumanAssistedWizard ? (
+        //   <HumanAssistedWizard onBack={() => setShowHumanAssistedWizard(false)} />
+        ) : showAIHumanWizard ? (
+          // Render the NEW wizard
+          <AIHumanWizard onBack={() => setShowAIHumanWizard(false)} />
         ) : (
           // Render the design method selection UI if no wizard is active
           <>
@@ -144,7 +151,7 @@ const PostcardDesigner = () => {
                     selectedOption === 'upload' ? 'Upload' :
                     selectedOption === 'ai' ? 'AI Design' :
                     selectedOption === 'human' ? 'Designer' :
-                    'AI Design + Expert Review'
+                    'AI Design + Expert Review' // Keep label consistent
                   }
                 </button>
               </div>

@@ -49,6 +49,8 @@ const AuthOverlay = ({ isOpen, onClose, className = '' }: AuthOverlayProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -140,6 +142,9 @@ const AuthOverlay = ({ isOpen, onClose, className = '' }: AuthOverlayProps) => {
     setIsLoading(true);
     
     try {
+      if (mode === 'signup' && (!firstName || !lastName)) {
+        throw new Error('First name and last name are required');
+      }
       if (!email || !password) {
         throw new Error('Email and password are required');
       }
@@ -148,7 +153,7 @@ const AuthOverlay = ({ isOpen, onClose, className = '' }: AuthOverlayProps) => {
         throw new Error('Passwords do not match');
       }
       
-      await signUp(email, password);
+      await signUp(email, password, firstName, lastName);
       // Only close after successful sign-up
       onClose();
     } catch (err: unknown) {
@@ -172,6 +177,10 @@ const AuthOverlay = ({ isOpen, onClose, className = '' }: AuthOverlayProps) => {
     }
     
     if (mode === 'signup') {
+      if (!firstName || !lastName) {
+        setError('First name and last name are required');
+        return false;
+      }
       if (password !== confirmPassword) {
         setError('Passwords do not match');
         return false;
@@ -310,6 +319,48 @@ const AuthOverlay = ({ isOpen, onClose, className = '' }: AuthOverlayProps) => {
             {/* Auth Form */}
             {enabledAuthMethods.emailPassword && (
               <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Add First Name and Last Name for Sign Up */}
+                {mode === 'signup' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label 
+                        htmlFor="firstName" 
+                        className="block mb-1 text-sm font-medium text-electric-teal"
+                      >
+                        First Name
+                      </label>
+                      <input
+                        id="firstName"
+                        type="text"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        className="w-full p-3 rounded-md bg-charcoal-light border border-electric-teal/50 text-white 
+                          focus:border-electric-teal focus:outline-none focus:ring-1 focus:ring-electric-teal"
+                        placeholder="Ada"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label 
+                        htmlFor="lastName" 
+                        className="block mb-1 text-sm font-medium text-electric-teal"
+                      >
+                        Last Name
+                      </label>
+                      <input
+                        id="lastName"
+                        type="text"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        className="w-full p-3 rounded-md bg-charcoal-light border border-electric-teal/50 text-white 
+                          focus:border-electric-teal focus:outline-none focus:ring-1 focus:ring-electric-teal"
+                        placeholder="Lovelace"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+                
                 <div>
                   <label 
                     htmlFor="email" 

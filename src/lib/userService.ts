@@ -19,34 +19,56 @@ export interface UserData {
   email: string;
   createdAt: Timestamp | FieldValue;
   lastLogin: Timestamp | FieldValue;
-  displayName?: string;
-  photoURL?: string;
-  businesses: string[]; // Array of business IDs
-  activeCampaigns: string[]; // Array of active campaign IDs
+  firstName?: string;
+  lastName?: string;
+  displayName?: string | null;
+  photoURL?: string | null;
+  businesses: string[];
+  activeCampaigns: string[];
 }
 
 /**
  * Create or update a user document in Firestore
  * @param user The Firebase auth user object
+ * @param firstName Optional first name, usually provided during sign up
+ * @param lastName Optional last name, usually provided during sign up
  * @returns The created or updated user data
  */
-export const createOrUpdateUser = async (user: User): Promise<UserData> => {
+export const createOrUpdateUser = async (
+    user: User, 
+    firstName?: string, 
+    lastName?: string
+): Promise<UserData> => {
   try {
     const userRef = doc(db, 'users', user.uid);
     const userSnap = await getDoc(userRef);
     
     if (userSnap.exists()) {
-      // User exists, update last login
-      await updateDoc(userRef, {
+      // User exists, update last login and potentially profile info
+      const updateData: Partial<UserData> & { lastLogin: FieldValue } = {
         lastLogin: serverTimestamp(),
-        email: user.email,
-        displayName: user.displayName || undefined,
-        photoURL: user.photoURL || undefined
-      });
+        email: user.email || '',
+        displayName: user.displayName || `${firstName || ''} ${lastName || ''}`.trim() || userSnap.data()?.displayName || null,
+        photoURL: user.photoURL || userSnap.data()?.photoURL || null,
+      };
+      if (firstName) updateData.firstName = firstName;
+      if (lastName) updateData.lastName = lastName;
       
+      await updateDoc(userRef, updateData);
+      
+      const existingData = userSnap.data() as Partial<UserData>; 
       return {
         id: user.uid,
-        ...userSnap.data()
+        ...existingData,
+        lastLogin: updateData.lastLogin,
+        email: updateData.email ?? existingData.email ?? '',
+        displayName: updateData.displayName ?? existingData.displayName ?? null,
+        photoURL: updateData.photoURL ?? existingData.photoURL ?? null,
+        firstName: updateData.firstName ?? existingData.firstName ?? '',
+        lastName: updateData.lastName ?? existingData.lastName ?? '',
+        businesses: existingData.businesses || [],
+        activeCampaigns: existingData.activeCampaigns || [],
+        createdAt: existingData.createdAt || updateData.lastLogin,
       } as UserData;
     } else {
       // New user, create document
@@ -55,8 +77,10 @@ export const createOrUpdateUser = async (user: User): Promise<UserData> => {
         email: user.email || '',
         createdAt: serverTimestamp(),
         lastLogin: serverTimestamp(),
-        displayName: user.displayName || undefined,
-        photoURL: user.photoURL || undefined,
+        firstName: firstName || '',
+        lastName: lastName || '',
+        displayName: user.displayName || `${firstName || ''} ${lastName || ''}`.trim() || null,
+        photoURL: user.photoURL || null,
         businesses: [],
         activeCampaigns: []
       };
