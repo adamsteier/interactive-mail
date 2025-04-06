@@ -1,9 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import AIDesignWizard from './AIDesignWizard';
 import DesignGuideModal from './DesignGuideModal';
+import { useRouter } from 'next/navigation';
+import { useLeadsStore } from '@/store/leadsStore';
 
 import AIHumanWizard from './AIHumanWizard'; // Import the new wizard
 
@@ -14,18 +16,36 @@ const PostcardDesigner = () => {
   const [selectedOption, setSelectedOption] = useState<DesignOption>(null);
   const [showAIWizard, setShowAIWizard] = useState(false);
   const [showDesignGuide, setShowDesignGuide] = useState(false);
-  // Replace state for the old wizard with the new one
-  // const [showHumanAssistedWizard, setShowHumanAssistedWizard] = useState(false); 
-  const [showAIHumanWizard, setShowAIHumanWizard] = useState(false); // State for the new wizard
+  const [showAIHumanWizard, setShowAIHumanWizard] = useState(false);
+
+  const router = useRouter();
+  const selectedBusinessTypes = useLeadsStore(state => state.selectedBusinessTypes);
+  const [isLoading, setIsLoading] = useState(true); // Add loading state
+
+  useEffect(() => {
+    // Guard: Check if leads are selected. If not, redirect.
+    if (selectedBusinessTypes.size === 0) {
+      console.log('PostcardDesigner: No leads found in store, redirecting to home.');
+      router.replace('/'); // Or redirect to leads selection page e.g., '/leads'
+    } else {
+      setIsLoading(false); // Leads are present, allow rendering
+    }
+  }, [selectedBusinessTypes, router]);
+
+  // Prevent rendering until the check is complete
+  if (isLoading) {
+    return (
+        <div className="min-h-screen bg-charcoal flex items-center justify-center">
+            <p className="text-electric-teal">Loading Designer...</p> 
+            {/* Or a spinner component */}
+        </div>
+    );
+  }
 
   if (showAIWizard) {
     return <AIDesignWizard onBack={() => setShowAIWizard(false)} />;
   }
 
-  // Replace check for old wizard with the new one
-  // if (showHumanAssistedWizard) {
-  //   return <HumanAssistedWizard onBack={() => setShowHumanAssistedWizard(false)} />;
-  // }
   if (showAIHumanWizard) {
     // Render the new wizard
     return <AIHumanWizard onBack={() => setShowAIHumanWizard(false)} />;
@@ -92,7 +112,6 @@ const PostcardDesigner = () => {
     } else if (selectedOption === 'ai_human') {
       // Trigger the NEW wizard flow
       console.log('Starting NEW AI + Human wizard flow');
-      // setShowHumanAssistedWizard(true); // Old wizard
       setShowAIHumanWizard(true); // Trigger the NEW wizard display
     }
   };
@@ -103,9 +122,6 @@ const PostcardDesigner = () => {
         {/* Conditionally render the correct component or the selection UI */}
         {showAIWizard ? (
           <AIDesignWizard onBack={() => setShowAIWizard(false)} />
-        // Replace check for old wizard with the new one
-        // ) : showHumanAssistedWizard ? (
-        //   <HumanAssistedWizard onBack={() => setShowHumanAssistedWizard(false)} />
         ) : showAIHumanWizard ? (
           // Render the NEW wizard
           <AIHumanWizard onBack={() => setShowAIHumanWizard(false)} />
