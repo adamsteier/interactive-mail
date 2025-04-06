@@ -619,24 +619,36 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
       // A. If it's the FIRST campaign submission in multi-scope
       if (designScope === 'multiple' && !finalRequestId) {
         console.log(`Visual Complete: First campaign (${currentActiveType}). Creating doc...`);
-        const initialRequestData = {
-          userId: user.uid,
-          status: 'processing_campaign', // Overall status
-          designScope: 'multiple',
-          globalBrandData: globalBrandData,
-          campaigns: campaignsForWrite,
-          logoUrl: uploadedLogoUrl || '',
-          createdAt: serverTimestamp(),
-          notifiedAdmin: false, // API will handle this
-        };
-        const docRef = await addDoc(collection(db, "design_requests"), initialRequestData);
-        finalRequestId = docRef.id;
-        console.log("Initial doc created with ID:", finalRequestId);
-        // Update local state with new ID immediately
-        setWizardState(prev => ({ ...prev, submittedRequestId: finalRequestId, requestStatus: 'processing_campaign' }));
+        try {
+          if (!user) throw new Error("User not authenticated.");
+          const initialRequestData = {
+            userId: user.uid,
+            status: 'processing_campaign', 
+            designScope: 'multiple',
+            globalBrandData: globalBrandData,
+            campaigns: campaignsForWrite, 
+            logoUrl: uploadedLogoUrl || '',
+            createdAt: serverTimestamp(),
+            notifiedAdmin: false, 
+          };
+          
+          // --- Add detailed log before saving --- 
+          console.log("Attempting to addDoc with data:", JSON.stringify(initialRequestData, null, 2));
+          // --- End log ---
+          
+          const docRef = await addDoc(collection(db, "design_requests"), initialRequestData);
+          finalRequestId = docRef.id;
+          console.log("Initial doc created with ID:", finalRequestId);
+          // Update local state with new ID immediately
+          setWizardState(prev => ({ ...prev, submittedRequestId: finalRequestId, requestStatus: 'processing_campaign' }));
+        } catch (error) {
+          console.error("Failed to create initial document:", error);
+          throw error;
+        }
+      }
 
       // B. If it's a SUBSEQUENT campaign submission in multi-scope
-      } else if (designScope === 'multiple' && finalRequestId) {
+      else if (designScope === 'multiple' && finalRequestId) {
         console.log(`Visual Complete: Subsequent campaign (${currentActiveType}). Updating doc ${finalRequestId}...`);
         const docRef = doc(db, "design_requests", finalRequestId);
         // Update only the specific campaign's status and data + overall timestamp
