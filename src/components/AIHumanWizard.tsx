@@ -1,12 +1,17 @@
 'use client';
 
-import React, { useState, useEffect, ChangeEvent, FormEvent, useMemo } from 'react';
+import React, { useState, useEffect, ChangeEvent, FormEvent, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext'; // To get the logged-in user
 import { useLeadsStore } from '@/store/leadsStore'; // Import the new leads store
+import { useMarketingStore } from '@/store/marketingStore'; // Import Marketing Store
 import { BrandingData, CampaignDesignData } from '@/types/firestoreTypes'; // Types
 import { getBrandDataForUser, addBrandData } from '@/lib/brandingService'; // Service functions
 import { addCampaignDesign } from '@/lib/campaignDesignService'; // Import for submit
+
+// Firebase Storage imports
+import { storage } from '@/lib/firebase'; // Import storage instance
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
 
 // Define the steps
@@ -38,7 +43,9 @@ interface AIHumanWizardProps {
 const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
   const { user } = useAuth(); // Get user authentication status
   const selectedBusinessTypes = useLeadsStore(state => state.selectedBusinessTypes);
+  const storeBusinessName = useMarketingStore(state => state.businessInfo.businessName); // Get name from store
   const businessTypesArray = useMemo(() => Array.from(selectedBusinessTypes), [selectedBusinessTypes]);
+  const fileInputRef = useRef<HTMLInputElement>(null); // Ref for file input
   
   // --- Core Wizard State ---
   const [currentStep, setCurrentStep] = useState<WizardStep>('brand'); 
@@ -51,22 +58,34 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
   const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
   const [showNewBrandForm, setShowNewBrandForm] = useState(false);
   const initialBrandFormData: Partial<Omit<BrandingData, 'id' | 'createdAt' | 'updatedAt'>> = {
-      businessName: '',
-      address: '', // Initialize address as string
+      businessName: '', // Will be populated by useEffect
+      address: '', 
       email: '',
       website: '',
       logoUrl: '', 
-      socialMediaHandles: {}, // Initialize as empty object
+      socialMediaHandles: { // Initialize specific keys
+          instagram: '',
+          facebook: '',
+          twitter: '',
+          linkedin: ''
+      }, 
       brandIdentity: '',
-      styleComponents: { // Initialize nested object
-          primaryColor: '#00c2a8', // Use initial color
-          secondaryColor: '#00858a', // Use initial color (matches type definition)
+      styleComponents: { 
+          primaryColor: '#00c2a8',
+          secondaryColor: '#00858a',
       }
   };
   const [newBrandData, setNewBrandData] = useState(initialBrandFormData);
   const [brandError, setBrandError] = useState<string | null>(null);
   const [isSavingBrand, setIsSavingBrand] = useState(false);
-  // --- End State for Brand Step ---
+
+  // --- NEW State for Logo Upload in Brand Step ---
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
+  const [logoUploadProgress, setLogoUploadProgress] = useState<number | null>(null);
+  const [logoUploadError, setLogoUploadError] = useState<string | null>(null);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  // --- End Logo Upload State ---
 
   // --- State for Campaign Design Step ---
   const [activeCampaignType, setActiveCampaignType] = useState<string | null>(null); // Track active tab/type in multi-mode
@@ -148,6 +167,24 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
       }
   }, [currentStep, isLoadingBrands, userBrands]);
 
+  // Populate business name from store
+  useEffect(() => {
+      if (storeBusinessName && !newBrandData.businessName) {
+          setNewBrandData(prev => ({ ...prev, businessName: storeBusinessName }));
+      }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeBusinessName]); // Run when store name is available
+
+  // --- Cleanup effect for logo preview URL --- 
+  useEffect(() => {
+    // Revoke the object URL when component unmounts or preview URL changes
+    return () => {
+      if (logoPreviewUrl) {
+        URL.revokeObjectURL(logoPreviewUrl);
+      }
+    };
+  }, [logoPreviewUrl]);
+
   // --- Handler for Design Scope Choice (Step 0) ---
   const handleDesignScopeChoice = (scope: 'single' | 'multiple') => {
     setDesignScope(scope);
@@ -174,96 +211,155 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
     setBrandError(null);
   };
 
+  // Update handleNewBrandInputChange for nested social handles
   const handleNewBrandInputChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    // Handle nested state for styleComponents
-    if (name === 'primaryColor' || name === 'secondaryColor') {
-        setNewBrandData(prev => ({
-            ...prev,
-            styleComponents: {
-                ...prev.styleComponents,
-                [name]: value
-            }
-        }));
-    } 
-    // Treat address, socialMediaHandles, styleComponents textareas as simple string inputs
-    // Parsing/structure handled on save
-    else {
-        setNewBrandData(prev => ({ ...prev, [name]: value }));
+      const { name, value } = e.target;
+      if (name === 'logoUrl') return;
+      
+      if (name === 'primaryColor' || name === 'secondaryColor') {
+          setNewBrandData(prev => ({
+              ...prev,
+              styleComponents: { ...prev.styleComponents, [name]: value }
+          }));
+      } else if (['instagram', 'facebook', 'twitter', 'linkedin'].includes(name)) {
+           setNewBrandData(prev => ({
+              ...prev,
+              socialMediaHandles: { ...prev.socialMediaHandles, [name]: value }
+          }));
+      } else {
+          setNewBrandData(prev => ({ ...prev, [name]: value }));
+      }
+  };
+
+  // --- NEW Logo Handling Functions --- 
+  const handleLogoSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    if (logoPreviewUrl) {
+      URL.revokeObjectURL(logoPreviewUrl);
+    }
+    setLogoFile(null);
+    setLogoPreviewUrl(null);
+    setLogoUploadError(null);
+    setLogoUploadProgress(null);
+    setIsUploadingLogo(false);
+    // Clear the previously uploaded URL from the main data if a new file is selected
+    setNewBrandData(prev => ({...prev, logoUrl: ''})); 
+
+    if (event.target.files && event.target.files[0]) {
+      const file = event.target.files[0];
+      // Validation (example: type and size)
+      if (!file.type.startsWith('image/') || file.size > 5 * 1024 * 1024) { // 5MB limit
+        setLogoUploadError(!file.type.startsWith('image/') ? 'Please select an image file.' : 'File size must be under 5MB.');
+        return;
+      }
+      
+      const previewUrl = URL.createObjectURL(file);
+      setLogoFile(file);
+      setLogoPreviewUrl(previewUrl);
     }
   };
 
+  const handleUploadLogo = async () => {
+    if (!logoFile) {
+      setLogoUploadError('No file selected.');
+      return;
+    }
+
+    if (logoPreviewUrl) {
+        URL.revokeObjectURL(logoPreviewUrl); // Clean up preview before upload
+        setLogoPreviewUrl(null);
+    }
+    setIsUploadingLogo(true);
+    setLogoUploadProgress(0);
+    setLogoUploadError(null);
+
+    const storageRef = ref(storage, `logos/${user?.uid || 'unknown'}/${Date.now()}_${logoFile.name}`);
+    const uploadTask = uploadBytesResumable(storageRef, logoFile);
+
+    uploadTask.on('state_changed',
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        setLogoUploadProgress(progress);
+      },
+      (error) => {
+        console.error("Logo upload failed:", error);
+        setLogoUploadError(`Upload failed: ${error.code}`);
+        setIsUploadingLogo(false);
+        setLogoUploadProgress(null);
+        setLogoFile(null); // Clear the file on error
+      },
+      () => {
+        // Upload completed successfully, now get the download URL
+        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+          console.log('File available at', downloadURL);
+          // IMPORTANT: Update the main brand data state with the final URL
+          setNewBrandData(prev => ({ ...prev, logoUrl: downloadURL }));
+          // Update UI state
+          setLogoUploadProgress(100); // Indicate completion
+          setIsUploadingLogo(false);
+          setLogoFile(null); // Clear the file object
+          // Keep logoUrl in newBrandData, maybe clear preview? Preview already cleared.
+          
+        }).catch((error) => {
+          console.error("Failed to get download URL:", error);
+          setLogoUploadError('Upload succeeded but failed to get URL.');
+          setIsUploadingLogo(false);
+          setLogoUploadProgress(null);
+          setLogoFile(null);
+        });
+      }
+    );
+  };
+  // --- End Logo Handling Functions ---
+
+  // Update handleSaveNewBrand for structured social handles
   const handleSaveNewBrand = async (e: FormEvent) => {
     e.preventDefault();
     if (!user) { setBrandError("You must be logged in..."); return; }
     if (!newBrandData.businessName) { setBrandError("Business Name required."); return; }
+    
     setIsSavingBrand(true);
     setBrandError(null);
+    setLogoUploadError(null); 
     try {
-      // Construct object carefully, omitting empty optional fields
       const dataToSave: Partial<Omit<BrandingData, 'id' | 'createdAt' | 'updatedAt'>> = {
-        businessName: newBrandData.businessName, // Required
+        businessName: newBrandData.businessName, 
       };
-      // Address is saved as string from input handler
-      if (newBrandData.address) {
-          dataToSave.address = newBrandData.address;
-      } 
+      if (newBrandData.address) dataToSave.address = newBrandData.address;
       if (newBrandData.email) dataToSave.email = newBrandData.email;
       if (newBrandData.website) dataToSave.website = newBrandData.website;
-      if (newBrandData.logoUrl) dataToSave.logoUrl = newBrandData.logoUrl;
+      if (newBrandData.logoUrl) dataToSave.logoUrl = newBrandData.logoUrl; 
       if (newBrandData.brandIdentity) dataToSave.brandIdentity = newBrandData.brandIdentity;
       
-       // Handle styleComponents object
-      const styleComponentsToSave: { [key: string]: string | undefined } = {}; // Allow undefined
-      if (newBrandData.styleComponents?.primaryColor) {
-          styleComponentsToSave.primaryColor = newBrandData.styleComponents.primaryColor;
-      }
-      if (newBrandData.styleComponents?.secondaryColor) { // Use secondaryColor
-          styleComponentsToSave.secondaryColor = newBrandData.styleComponents.secondaryColor;
-      }
-      // Add potential text area notes for style components if we add that field
-      // if (newBrandData.styleComponents && typeof newBrandData.styleComponents === 'string') {
-      //    styleComponentsToSave.notes = newBrandData.styleComponents;
-      // }
-      if (Object.keys(styleComponentsToSave).length > 0) {
-           dataToSave.styleComponents = styleComponentsToSave; // Type should align now
-      }
+      // Handle styleComponents
+      const styleComponentsToSave: { [key: string]: string | undefined } = {};
+      if (newBrandData.styleComponents?.primaryColor) styleComponentsToSave.primaryColor = newBrandData.styleComponents.primaryColor;
+      if (newBrandData.styleComponents?.secondaryColor) styleComponentsToSave.secondaryColor = newBrandData.styleComponents.secondaryColor;
+      if (Object.keys(styleComponentsToSave).length > 0) dataToSave.styleComponents = styleComponentsToSave;
 
-      // Handle socialMediaHandles object (revised parsing logic with type assertion)
-      let handles: object | null = null; // Declare outside try
-      if (newBrandData.socialMediaHandles) {
-          const handlesInput = newBrandData.socialMediaHandles;
-          try {
-              // Use explicit type assertion for the trim check
-              if (typeof handlesInput === 'string' && (handlesInput as string).trim().startsWith('{')) {
-                  handles = JSON.parse(handlesInput);
-              } else if (typeof handlesInput === 'object' && handlesInput !== null) {
-                  handles = handlesInput; // Already an object
-              }
-              // else: input is a non-JSON string or invalid type, ignore for structured data
-              
-          } catch (parseError) {
-              console.error("Could not parse socialMediaHandles input as JSON:", parseError);
-              setBrandError('Social Media Handles format is invalid. Please use JSON like {"twitter": "handle"}.');
-              setIsSavingBrand(false);
-              return; 
+      // Handle socialMediaHandles - Save only non-empty values
+      const socialHandlesToSave: { [key: string]: string } = {};
+      for (const [key, value] of Object.entries(newBrandData.socialMediaHandles || {})) {
+          if (value && typeof value === 'string' && value.trim() !== '') {
+              socialHandlesToSave[key] = value.trim();
           }
       }
-       // Only save if handles became a non-empty object
-      if (handles && typeof handles === 'object' && Object.keys(handles).length > 0) {
-          dataToSave.socialMediaHandles = handles;
+      if (Object.keys(socialHandlesToSave).length > 0) { 
+          dataToSave.socialMediaHandles = socialHandlesToSave;
       }
      
-      // Note: styleComponents text area input is not parsed here, assumed handled by color pickers or needs separate logic
-
-      console.log("Data being sent to addBrandData:", dataToSave);
-
+      console.log("Saving Brand Data:", dataToSave);
       const savedBrand = await addBrandData(user.uid, dataToSave as Omit<BrandingData, 'id' | 'createdAt' | 'updatedAt'>);
       setUserBrands(prev => [...prev, savedBrand]); 
-      setSelectedBrandId(savedBrand.id!);
+      setSelectedBrandId(savedBrand.id!); 
       setShowNewBrandForm(false); 
-      setNewBrandData(initialBrandFormData); 
-    } catch (error) {
+      // Reset form, keep business name if pre-populated?
+      setNewBrandData(prev => ({...initialBrandFormData, businessName: prev.businessName})); 
+      setLogoFile(null);
+      setLogoPreviewUrl(null);
+      setLogoUploadProgress(null);
+      setLogoUploadError(null);
+      setIsUploadingLogo(false);
+    } catch (error) { 
       console.error("Error saving brand:", error);
       setBrandError("Failed to save brand profile. Please try again.");
     } finally {
@@ -624,44 +720,84 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                         </div>
                     </div>
                      <div>
-                        <label htmlFor="logoUrl" className="block text-sm font-medium text-gray-300 mb-1">Logo URL (Optional)</label>
-                        <input 
-                            type="url" id="logoUrl" name="logoUrl"
-                            value={newBrandData.logoUrl || ''} onChange={handleNewBrandInputChange}
-                            placeholder="https://example.com/logo.png" 
-                            className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"
-                        />
-                        <p className="text-xs text-gray-400 mt-1">Direct link to your logo image file. Upload may be handled later.</p>
+                        <label className="block text-sm font-medium text-gray-300 mb-1">Logo (Optional)</label>
+                        <div className="mt-1 flex items-center gap-4">
+                            {/* File Input Trigger Button */} 
+                            <button 
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isUploadingLogo}
+                                className="px-3 py-2 rounded border border-gray-500 text-gray-300 hover:border-electric-teal hover:text-electric-teal text-sm transition-colors disabled:opacity-50"
+                            >
+                                {logoFile ? 'Change Logo' : 'Select Logo'}
+                            </button>
+                            <input 
+                                type="file"
+                                accept="image/*" 
+                                ref={fileInputRef}
+                                onChange={handleLogoSelect} 
+                                className="hidden" 
+                            />
+                            {/* Preview Area */} 
+                            {logoPreviewUrl && (
+                                <img src={logoPreviewUrl} alt="Logo Preview" className="h-10 w-auto rounded border border-gray-600" />
+                            )}
+                            {/* Display Final Uploaded Logo if no preview */} 
+                            {!logoPreviewUrl && newBrandData.logoUrl && (
+                                 <img src={newBrandData.logoUrl} alt="Uploaded Logo" className="h-10 w-auto rounded border border-green-500" />
+                            )}
+                            {/* Upload Button */} 
+                            {logoFile && !isUploadingLogo && logoUploadProgress !== 100 && (
+                                <button 
+                                    type="button"
+                                    onClick={handleUploadLogo}
+                                    className="px-3 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm"
+                                >
+                                    Upload Logo
+                                </button>
+                            )}
+                            {/* Progress Indicator */} 
+                            {isUploadingLogo && logoUploadProgress !== null && (
+                                <div className="text-sm text-gray-400 w-20 text-center">{(logoUploadProgress).toFixed(0)}%</div>
+                            )}
+                            {logoUploadProgress === 100 && !isUploadingLogo && (
+                                 <span className="text-sm text-green-400">✓ Uploaded</span>
+                            )}
+                        </div>
+                         {/* Error Message */} 
+                         {logoUploadError && <p className="text-xs text-red-400 mt-1">{logoUploadError}</p>}
+                         <p className="text-xs text-gray-400 mt-1">Max 5MB. PNG, JPG, SVG recommended.</p>
                     </div>
                      <div>
-                        <label htmlFor="socialMediaHandles" className="block text-sm font-medium text-gray-300 mb-1">Social Media Handles (Optional)</label>
-                        <textarea 
-                            id="socialMediaHandles" name="socialMediaHandles" rows={3}
-                            value={newBrandData.socialMediaHandles ? JSON.stringify(newBrandData.socialMediaHandles, null, 2) : ''}
-                            onChange={handleNewBrandInputChange}
-                            placeholder={'{\n  "twitter": "yourhandle",\n  "facebook": "yourpage"\n}'} 
-                            className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal font-mono text-sm"
-                        />
-                         <p className="text-xs text-gray-400 mt-1">Enter as JSON or key-value pairs for now (e.g., twitter: myhandle).</p>
-                    </div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Social Media Handles (Optional)</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                           <div>
+                              <label htmlFor="instagram" className="block text-xs font-medium text-gray-400 mb-1">Instagram</label>
+                              <input type="text" id="instagram" name="instagram" placeholder="your_handle" value={newBrandData.socialMediaHandles?.instagram || ''} onChange={handleNewBrandInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 text-sm"/>
+                           </div>
+                           <div>
+                              <label htmlFor="facebook" className="block text-xs font-medium text-gray-400 mb-1">Facebook</label>
+                              <input type="text" id="facebook" name="facebook" placeholder="YourPageName" value={newBrandData.socialMediaHandles?.facebook || ''} onChange={handleNewBrandInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 text-sm"/>
+                           </div>
+                           <div>
+                              <label htmlFor="twitter" className="block text-xs font-medium text-gray-400 mb-1">Twitter (X)</label>
+                              <input type="text" id="twitter" name="twitter" placeholder="YourHandle" value={newBrandData.socialMediaHandles?.twitter || ''} onChange={handleNewBrandInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 text-sm"/>
+                           </div>
+                           <div>
+                              <label htmlFor="linkedin" className="block text-xs font-medium text-gray-400 mb-1">LinkedIn</label>
+                              <input type="text" id="linkedin" name="linkedin" placeholder="company/your-company" value={newBrandData.socialMediaHandles?.linkedin || ''} onChange={handleNewBrandInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 text-sm"/>
+                           </div>
+                        </div>
+                     </div>
                      <div>
-                        <label htmlFor="styleComponents" className="block text-sm font-medium text-gray-300 mb-1">Style Components/Notes (Optional)</label>
+                        <label htmlFor="brandIdentity" className="block text-sm font-medium text-gray-300 mb-1">Brand Identity/Overall Notes</label>
                         <textarea 
-                            id="styleComponents" name="styleComponents" rows={3}
-                            value={newBrandData.styleComponents ? JSON.stringify(newBrandData.styleComponents, null, 2) : ''}
-                            onChange={handleNewBrandInputChange}
-                            placeholder="Describe fonts, patterns, imagery preferences, etc." 
-                            className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"
+                          id="brandIdentity" name="brandIdentity" rows={3}
+                          value={newBrandData.brandIdentity || ''} onChange={handleNewBrandInputChange}
+                          placeholder="e.g., We are a modern, tech-focused accounting firm targeting startups. Friendly, approachable, and expert tone. Clean and minimalist visual style."
+                          className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"
                         />
-                    </div>
-                    <div>
-                      <label htmlFor="brandIdentity" className="block text-sm font-medium text-gray-300 mb-1">Brand Identity/Overall Notes</label>
-                      <textarea 
-                        id="brandIdentity" name="brandIdentity" rows={3}
-                        value={newBrandData.brandIdentity || ''} onChange={handleNewBrandInputChange}
-                        className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"
-                      />
-                    </div>
+                     </div>
 
                     <div className="flex items-center gap-4 pt-2">
                       <button 
