@@ -1,14 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, ChangeEvent, FormEvent } from 'react';
+import React, { useState, useEffect, ChangeEvent, FormEvent, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext'; // To get the logged-in user
 import { useLeadsStore } from '@/store/leadsStore'; // Import the new leads store
 import { BrandingData, CampaignDesignData } from '@/types/firestoreTypes'; // Types
 import { getBrandDataForUser, addBrandData } from '@/lib/brandingService'; // Service functions
 import { addCampaignDesign } from '@/lib/campaignDesignService'; // Import for submit
-import { collection, addDoc, serverTimestamp, Timestamp } from "firebase/firestore"; 
-import { db } from '@/lib/firebase';
+
 
 // Define the steps
 type WizardStep = 'design_choice' | 'brand' | 'campaign' | 'review';
@@ -39,7 +38,7 @@ interface AIHumanWizardProps {
 const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
   const { user } = useAuth(); // Get user authentication status
   const selectedBusinessTypes = useLeadsStore(state => state.selectedBusinessTypes);
-  const businessTypesArray = Array.from(selectedBusinessTypes); // Memoize later if needed
+  const businessTypesArray = useMemo(() => Array.from(selectedBusinessTypes), [selectedBusinessTypes]);
   
   // --- Core Wizard State ---
   const [currentStep, setCurrentStep] = useState<WizardStep>('brand'); 
@@ -209,35 +208,33 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
   // --- End Handlers for Brand Step ---
 
   // --- Handlers for Campaign Step ---
-  const handleCampaignInputChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    if (!activeCampaignType) return; // Should not happen if form is visible
-    
-    const { name, value, type } = e.target;
-    let processedValue: string | string[] = value;
+  const handleCampaignInputChange = (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+    businessType: string
+  ) => {
+    const { name, value } = event.target;
+    setCampaignFormDataMap(prevForms => {
+      const updatedForms = new Map(prevForms);
+      const currentFormData = updatedForms.get(businessType) || { ...initialCampaignFormData };
 
-    // Handle multi-select later when component is implemented
-    // if (type === 'select-multiple') {
-    //    processedValue = Array.from((e.target as HTMLSelectElement).selectedOptions, option => option.value);
-    // }
+      let processedValue: string | string[] = value;
+      if (name === 'keySellingPoints') {
+        processedValue = value.split(',').map(s => s.trim()).filter(s => s !== '');
+      }
 
-    // Handle simple comma-separated input for keySellingPoints for now
-    if (name === 'keySellingPoints' && typeof value === 'string') {
-        processedValue = value.split(',').map(s => s.trim()).filter(Boolean);
-    }
+      updatedForms.set(businessType, {
+        ...currentFormData,
+        [name]: processedValue,
+      });
 
-    setCampaignFormDataMap(prevMap => {
-      const newMap = new Map(prevMap);
-      const currentData = newMap.get(activeCampaignType) || {};
-      newMap.set(activeCampaignType, { ...currentData, [name]: processedValue });
-      return newMap;
+      // If user edits, remove from completed set
+      setCompletedCampaignForms(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(businessType);
+          return newSet;
+      });
+      return updatedForms;
     });
-    // Optionally clear completion status for this type if user edits again
-    setCompletedCampaignForms(prevSet => {
-        const newSet = new Set(prevSet);
-        newSet.delete(activeCampaignType);
-        return newSet;
-    });
-    setCampaignError(null); // Clear error on input change
   };
 
   const handleMarkCampaignFormComplete = (type: string) => {
@@ -353,7 +350,6 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
     try {
         const savedDesignData: CampaignDesignData[] = [];
         const designPromises: Promise<CampaignDesignData>[] = [];
-        const timestamp = serverTimestamp() as Timestamp; // Use server timestamp
 
         for (const [typeKey, formData] of campaignFormDataMap.entries()) {
             // Ensure all required fields are present and add brand ID
@@ -625,45 +621,45 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                             <label htmlFor="designName" className="block text-sm font-medium text-gray-300 mb-1">Design Name *</label>
                             <input type="text" id="designName" name="designName" 
                                 value={currentCampaignData.designName || ''}
-                                onChange={handleCampaignInputChange} required 
+                                onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} required 
                                 className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
                         <div>
                             <label htmlFor="primaryGoal" className="block text-sm font-medium text-gray-300 mb-1">Primary Goal</label>
                             <input type="text" id="primaryGoal" name="primaryGoal" 
                                 value={currentCampaignData.primaryGoal || ''}
-                                onChange={handleCampaignInputChange} 
+                                onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} 
                                 className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
                         <div>
                             <label htmlFor="callToAction" className="block text-sm font-medium text-gray-300 mb-1">Call To Action</label>
                             <input type="text" id="callToAction" name="callToAction" 
                                 value={currentCampaignData.callToAction || ''}
-                                onChange={handleCampaignInputChange} 
+                                onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} 
                                 className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
                         <div>
                             <label htmlFor="targetAudience" className="block text-sm font-medium text-gray-300 mb-1">Target Audience Description</label>
                             <textarea id="targetAudience" name="targetAudience" rows={3} 
                                 value={currentCampaignData.targetAudience || ''}
-                                onChange={handleCampaignInputChange} 
+                                onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} 
                                 className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
                         <div>
                             <label htmlFor="offer" className="block text-sm font-medium text-gray-300 mb-1">Specific Offer / Promotion</label>
-                            <input type="text" id="offer" name="offer" value={currentCampaignData.offer || ''} onChange={handleCampaignInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
+                            <input type="text" id="offer" name="offer" value={currentCampaignData.offer || ''} onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
                         <div>
                             <label htmlFor="keySellingPoints" className="block text-sm font-medium text-gray-300 mb-1">Key Selling Points (comma-separated)</label>
-                            <input type="text" id="keySellingPoints" name="keySellingPoints" value={(currentCampaignData.keySellingPoints || []).join(', ')} onChange={handleCampaignInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
+                            <input type="text" id="keySellingPoints" name="keySellingPoints" value={(currentCampaignData.keySellingPoints || []).join(', ')} onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
                         <div>
                             <label htmlFor="targetMarketDescription" className="block text-sm font-medium text-gray-300 mb-1">Target Market Description (Optional)</label>
-                            <textarea id="targetMarketDescription" name="targetMarketDescription" rows={2} value={currentCampaignData.targetMarketDescription || ''} onChange={handleCampaignInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
+                            <textarea id="targetMarketDescription" name="targetMarketDescription" rows={2} value={currentCampaignData.targetMarketDescription || ''} onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
                         <div>
                             <label htmlFor="tagline" className="block text-sm font-medium text-gray-300 mb-1">Tagline (Optional)</label>
-                            <input type="text" id="tagline" name="tagline" value={currentCampaignData.tagline || ''} onChange={handleCampaignInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
+                            <input type="text" id="tagline" name="tagline" value={currentCampaignData.tagline || ''} onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
@@ -679,7 +675,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                         </div>
                         <div>
                             <label htmlFor="additionalInfo" className="block text-sm font-medium text-gray-300 mb-1">Additional Information (Optional)</label>
-                            <textarea id="additionalInfo" name="additionalInfo" rows={3} value={currentCampaignData.additionalInfo || ''} onChange={handleCampaignInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
+                            <textarea id="additionalInfo" name="additionalInfo" rows={3} value={currentCampaignData.additionalInfo || ''} onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
 
                         {/* Save Button for Multi-Scope */} 
