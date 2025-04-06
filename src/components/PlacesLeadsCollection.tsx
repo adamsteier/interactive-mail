@@ -7,7 +7,6 @@ import { useMarketingStore } from '@/store/marketingStore';
 import { useLeadsStore } from '@/store/leadsStore';
 import LoadingBar from './LoadingBar';
 import type { GooglePlace } from '@/types/places';
-import { useRouter } from 'next/navigation';
 
 interface PlacesLeadsCollectionProps {
   onClose: () => void;
@@ -24,8 +23,6 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
   const [selectedPlaces, setSelectedPlaces] = useState<Set<string>>(new Set());
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
-
-  const router = useRouter();
 
   // Get unique business types for filtering
   const businessTypes = useMemo(() => {
@@ -125,7 +122,7 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
     });
   };
 
-  // Handle starting the campaign - Updated to use leadsStore
+  // Handle starting the campaign - Updated to use direct location change
   const handleStartCampaign = () => {
     // Get the currently selected place objects
     const selectedBusinesses = places.filter(place => 
@@ -138,11 +135,9 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
         processSelectedLeads(selectedBusinesses);
         console.log("Successfully processed leads in store.");
 
-        console.log("Attempting to navigate to /design...");
-        // Navigate to design page
-        router.push('/design');
-        console.log("Navigation call successful.");
-
+        console.log("Navigating directly to /design...");
+        // Use direct location change instead of router.push
+        window.location.href = '/design';
       } catch (error) {
         console.error("!!! Error during processSelectedLeads or navigation !!!", error); 
         alert("An error occurred while preparing the campaign. Please check the console."); 
