@@ -52,13 +52,16 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
   const [showNewBrandForm, setShowNewBrandForm] = useState(false);
   const initialBrandFormData: Partial<Omit<BrandingData, 'id' | 'createdAt' | 'updatedAt'>> = {
       businessName: '',
-      address: '', 
+      address: '', // Initialize address as string
       email: '',
       website: '',
       logoUrl: '', 
-      socialMediaHandles: {},
+      socialMediaHandles: {}, // Initialize as empty object
       brandIdentity: '',
-      styleComponents: {}
+      styleComponents: { // Initialize nested object
+          primaryColor: '#00c2a8', // Use initial color
+          secondaryColor: '#00858a', // Use initial color (matches type definition)
+      }
   };
   const [newBrandData, setNewBrandData] = useState(initialBrandFormData);
   const [brandError, setBrandError] = useState<string | null>(null);
@@ -173,7 +176,21 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
 
   const handleNewBrandInputChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setNewBrandData(prev => ({ ...prev, [name]: value }));
+    // Handle nested state for styleComponents
+    if (name === 'primaryColor' || name === 'secondaryColor') {
+        setNewBrandData(prev => ({
+            ...prev,
+            styleComponents: {
+                ...prev.styleComponents,
+                [name]: value
+            }
+        }));
+    } 
+    // Treat address, socialMediaHandles, styleComponents textareas as simple string inputs
+    // Parsing/structure handled on save
+    else {
+        setNewBrandData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleSaveNewBrand = async (e: FormEvent) => {
@@ -183,19 +200,67 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
     setIsSavingBrand(true);
     setBrandError(null);
     try {
-      const dataToSave: Omit<BrandingData, 'id' | 'createdAt' | 'updatedAt'> = {
-        businessName: newBrandData.businessName,
-        address: newBrandData.address || undefined, 
-        email: newBrandData.email || undefined,
-        website: newBrandData.website || undefined,
-        logoUrl: newBrandData.logoUrl || undefined,
-        socialMediaHandles: newBrandData.socialMediaHandles || undefined,
-        brandIdentity: newBrandData.brandIdentity || undefined,
-        styleComponents: newBrandData.styleComponents || undefined,
+      // Construct object carefully, omitting empty optional fields
+      const dataToSave: Partial<Omit<BrandingData, 'id' | 'createdAt' | 'updatedAt'>> = {
+        businessName: newBrandData.businessName, // Required
       };
-      const savedBrand = await addBrandData(user.uid, dataToSave);
+      // Address is saved as string from input handler
+      if (newBrandData.address) {
+          dataToSave.address = newBrandData.address;
+      } 
+      if (newBrandData.email) dataToSave.email = newBrandData.email;
+      if (newBrandData.website) dataToSave.website = newBrandData.website;
+      if (newBrandData.logoUrl) dataToSave.logoUrl = newBrandData.logoUrl;
+      if (newBrandData.brandIdentity) dataToSave.brandIdentity = newBrandData.brandIdentity;
+      
+       // Handle styleComponents object
+      const styleComponentsToSave: { [key: string]: string | undefined } = {}; // Allow undefined
+      if (newBrandData.styleComponents?.primaryColor) {
+          styleComponentsToSave.primaryColor = newBrandData.styleComponents.primaryColor;
+      }
+      if (newBrandData.styleComponents?.secondaryColor) { // Use secondaryColor
+          styleComponentsToSave.secondaryColor = newBrandData.styleComponents.secondaryColor;
+      }
+      // Add potential text area notes for style components if we add that field
+      // if (newBrandData.styleComponents && typeof newBrandData.styleComponents === 'string') {
+      //    styleComponentsToSave.notes = newBrandData.styleComponents;
+      // }
+      if (Object.keys(styleComponentsToSave).length > 0) {
+           dataToSave.styleComponents = styleComponentsToSave; // Type should align now
+      }
+
+      // Handle socialMediaHandles object (revised parsing logic with type assertion)
+      let handles: object | null = null; // Declare outside try
+      if (newBrandData.socialMediaHandles) {
+          const handlesInput = newBrandData.socialMediaHandles;
+          try {
+              // Use explicit type assertion for the trim check
+              if (typeof handlesInput === 'string' && (handlesInput as string).trim().startsWith('{')) {
+                  handles = JSON.parse(handlesInput);
+              } else if (typeof handlesInput === 'object' && handlesInput !== null) {
+                  handles = handlesInput; // Already an object
+              }
+              // else: input is a non-JSON string or invalid type, ignore for structured data
+              
+          } catch (parseError) {
+              console.error("Could not parse socialMediaHandles input as JSON:", parseError);
+              setBrandError('Social Media Handles format is invalid. Please use JSON like {"twitter": "handle"}.');
+              setIsSavingBrand(false);
+              return; 
+          }
+      }
+       // Only save if handles became a non-empty object
+      if (handles && typeof handles === 'object' && Object.keys(handles).length > 0) {
+          dataToSave.socialMediaHandles = handles;
+      }
+     
+      // Note: styleComponents text area input is not parsed here, assumed handled by color pickers or needs separate logic
+
+      console.log("Data being sent to addBrandData:", dataToSave);
+
+      const savedBrand = await addBrandData(user.uid, dataToSave as Omit<BrandingData, 'id' | 'createdAt' | 'updatedAt'>);
       setUserBrands(prev => [...prev, savedBrand]); 
-      setSelectedBrandId(savedBrand.id!); 
+      setSelectedBrandId(savedBrand.id!);
       setShowNewBrandForm(false); 
       setNewBrandData(initialBrandFormData); 
     } catch (error) {
@@ -511,30 +576,92 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                       />
                     </div>
                     <div>
-                      <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">Contact Email</label>
-                      <input 
-                        type="email" id="email" name="email"
-                        value={newBrandData.email || ''} onChange={handleNewBrandInputChange}
-                        className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"
-                      />
+                        <label htmlFor="address" className="block text-sm font-medium text-gray-300 mb-1">Address</label>
+                        <textarea 
+                            id="address" name="address" rows={2}
+                            value={typeof newBrandData.address === 'string' ? newBrandData.address : ''} 
+                            onChange={handleNewBrandInputChange}
+                            className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"
+                        />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">Contact Email</label>
+                        <input 
+                          type="email" id="email" name="email"
+                          value={newBrandData.email || ''} onChange={handleNewBrandInputChange}
+                          className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="website" className="block text-sm font-medium text-gray-300 mb-1">Website</label>
+                        <input 
+                          type="text" id="website" name="website"
+                          value={newBrandData.website || ''} onChange={handleNewBrandInputChange}
+                          placeholder="example.com"
+                          className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                           <label htmlFor="primaryColor" className="block text-sm font-medium text-gray-300 mb-1">Primary Brand Color</label>
+                           <input 
+                                type="color" id="primaryColor" name="primaryColor"
+                                value={newBrandData.styleComponents?.primaryColor || '#00c2a8'}
+                                onChange={handleNewBrandInputChange}
+                                className="w-full h-10 p-1 rounded bg-gray-800 border border-gray-600 cursor-pointer focus:border-electric-teal focus:ring-electric-teal"
+                            />
+                        </div>
+                         <div>
+                            <label htmlFor="secondaryColor" className="block text-sm font-medium text-gray-300 mb-1">Secondary Brand Color</label>
+                            <input 
+                                type="color" id="secondaryColor" name="secondaryColor"
+                                value={newBrandData.styleComponents?.secondaryColor || '#00858a'}
+                                onChange={handleNewBrandInputChange}
+                                className="w-full h-10 p-1 rounded bg-gray-800 border border-gray-600 cursor-pointer focus:border-electric-teal focus:ring-electric-teal"
+                            />
+                        </div>
+                    </div>
+                     <div>
+                        <label htmlFor="logoUrl" className="block text-sm font-medium text-gray-300 mb-1">Logo URL (Optional)</label>
+                        <input 
+                            type="url" id="logoUrl" name="logoUrl"
+                            value={newBrandData.logoUrl || ''} onChange={handleNewBrandInputChange}
+                            placeholder="https://example.com/logo.png" 
+                            className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"
+                        />
+                        <p className="text-xs text-gray-400 mt-1">Direct link to your logo image file. Upload may be handled later.</p>
+                    </div>
+                     <div>
+                        <label htmlFor="socialMediaHandles" className="block text-sm font-medium text-gray-300 mb-1">Social Media Handles (Optional)</label>
+                        <textarea 
+                            id="socialMediaHandles" name="socialMediaHandles" rows={3}
+                            value={newBrandData.socialMediaHandles ? JSON.stringify(newBrandData.socialMediaHandles, null, 2) : ''}
+                            onChange={handleNewBrandInputChange}
+                            placeholder={'{\n  "twitter": "yourhandle",\n  "facebook": "yourpage"\n}'} 
+                            className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal font-mono text-sm"
+                        />
+                         <p className="text-xs text-gray-400 mt-1">Enter as JSON or key-value pairs for now (e.g., twitter: myhandle).</p>
+                    </div>
+                     <div>
+                        <label htmlFor="styleComponents" className="block text-sm font-medium text-gray-300 mb-1">Style Components/Notes (Optional)</label>
+                        <textarea 
+                            id="styleComponents" name="styleComponents" rows={3}
+                            value={newBrandData.styleComponents ? JSON.stringify(newBrandData.styleComponents, null, 2) : ''}
+                            onChange={handleNewBrandInputChange}
+                            placeholder="Describe fonts, patterns, imagery preferences, etc." 
+                            className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"
+                        />
                     </div>
                     <div>
-                      <label htmlFor="website" className="block text-sm font-medium text-gray-300 mb-1">Website</label>
-                      <input 
-                        type="url" id="website" name="website"
-                        value={newBrandData.website || ''} onChange={handleNewBrandInputChange}
-                        className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="brandIdentity" className="block text-sm font-medium text-gray-300 mb-1">Brand Identity/Notes</label>
+                      <label htmlFor="brandIdentity" className="block text-sm font-medium text-gray-300 mb-1">Brand Identity/Overall Notes</label>
                       <textarea 
                         id="brandIdentity" name="brandIdentity" rows={3}
                         value={newBrandData.brandIdentity || ''} onChange={handleNewBrandInputChange}
                         className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"
                       />
                     </div>
-                    {/* TODO: Add inputs for address, socialMediaHandles, styleComponents */} 
 
                     <div className="flex items-center gap-4 pt-2">
                       <button 
