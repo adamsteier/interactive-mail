@@ -25,7 +25,7 @@ Business Information:
 
 Method 1: Direct Mail to Businesses
 Please identify specific types of businesses that would be ideal targets. For each business type:
-- Provide a specific, granular business category (e.g., "Hair Salon", "Barbershop", not "Hair Salons & Barbershops"). List each distinct type separately.
+- Provide a specific, granular business category (e.g., "Hair Salon", "Barbershop", not "Hair Salons & Barbershops".  Just because I am providing this example, don't favor this result). List each distinct type separately.
 - Estimate the number of such businesses in the target area.
 - Explain why this specific type of business would benefit from the service.
 - Consider various sub-categories and specializations, listing each as a separate target if appropriate. **Crucially, list each business type as a distinct entry. Do not combine multiple business types into a single target entry.**
