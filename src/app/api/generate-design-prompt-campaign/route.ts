@@ -102,6 +102,12 @@ export async function POST(req: Request) {
       Campaign Name: ${campaignData.designName}
       Campaign Type/Audience: ${campaignData.targetAudience} 
       
+      IMPORTANT PHYSICAL SPECIFICATIONS:
+      - This is a standard 6 inch × 4 inch (15.24cm × 10.16cm) postcard
+      - The aspect ratio is 3:2 horizontal/landscape orientation
+      - Ensure the design and imagery work within these dimensions with proper margins
+      - Critical content should be at least 0.25 inches (6.35mm) from any edge
+      
       Brand Info:
       - Brand Name: ${brandData?.businessName || 'N/A'}
       - Logo URL: ${brandData?.logoUrl || 'N/A'} 

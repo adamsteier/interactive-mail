@@ -11,7 +11,7 @@ import { addCampaignDesign, updateCampaignDesign } from '@/lib/campaignDesignSer
 
 // Firebase Storage imports
 import { storage } from '@/lib/firebase'; // Import storage instance
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"; // Removed deleteObject
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage"; // Removed deleteObject
 
 import Image from 'next/image'; // Import next/image
 
@@ -61,7 +61,8 @@ const initialCampaignFormData: Partial<Omit<CampaignDesignData, 'id' | 'associat
   keySellingPoints: [],
   tone: '',
   visualStyle: '',
-  additionalInfo: ''
+  additionalInfo: '',
+  imageryDescription: '' // Add imagery description field
 };
 
 // Props expected by the wizard, including the callback to close it
@@ -80,6 +81,9 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
   const [currentStep, setCurrentStep] = useState<WizardStep>('brand'); 
   const [designScope, setDesignScope] = useState<DesignScope>('single'); 
   const [isLoadingInitial, setIsLoadingInitial] = useState(true); 
+
+  // Define a consistent style for placeholder text
+  const placeholderStyle = "placeholder-muted-pink";
 
   // --- State for Brand Step ---
   const [userBrands, setUserBrands] = useState<BrandingData[]>([]);
@@ -130,6 +134,13 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   // State for the Key Selling Points input string (now textarea content)
   const [keySellingPointsInput, setKeySellingPointsInput] = useState('');
+  // --- NEW: Imagery State ---
+  const [isImageryExpanded, setIsImageryExpanded] = useState<Map<string, boolean>>(new Map()); // Track accordion expansion
+  const [campaignImageUploadProgress, setCampaignImageUploadProgress] = useState<Map<string, Map<string, number>>>(new Map()); // Progress for each file
+  const [campaignImageUploadError, setCampaignImageUploadError] = useState<Map<string, string>>(new Map());
+  const [isUploadingCampaignImage, setIsUploadingCampaignImage] = useState<Map<string, boolean>>(new Map());
+  const [uploadedCampaignImageUrls, setUploadedCampaignImageUrls] = useState<Map<string, string[]>>(new Map());
+  // --- END: Imagery State ---
   // --- NEW: State for Info Modal ---
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
   const [infoModalContent, setInfoModalContent] = useState<{ title: string; content: React.ReactNode } | null>(null);
@@ -236,8 +247,8 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
     const currentCampaignTypeKey = activeCampaignType || (designScope === 'single' ? '__single__' : null);
     if (currentCampaignTypeKey) {
       const pointsArray = campaignFormDataMap.get(currentCampaignTypeKey)?.keySellingPoints || [];
-      // Join with newline for textarea display
-      setKeySellingPointsInput(pointsArray.join('\\n'));
+      // Join with commas for text input display
+      setKeySellingPointsInput(pointsArray.join(', '));
     }
     // If there's no active type (e.g., switching from multi to single with no selection yet),
     // clear the input to avoid showing stale data.
@@ -546,11 +557,233 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
        // This ensures consistency if the user stays on the same tab
        const updatedSourceData = campaignFormDataMap.get(activeCampaignType);
         if (updatedSourceData?.keySellingPoints) {
-             setKeySellingPointsInput(updatedSourceData.keySellingPoints.join('\\n'));
+             setKeySellingPointsInput(updatedSourceData.keySellingPoints.join(', '));
         }
 
   };
   // --- END: Handler for Copying Campaign Details ---
+
+  // --- NEW: Handlers for Campaign Image Upload ---
+  const toggleImageryAccordion = (type: string) => {
+      setIsImageryExpanded(prev => {
+          const newMap = new Map(prev);
+          const isCurrentlyExpanded = prev.get(type) || false;
+          newMap.set(type, !isCurrentlyExpanded);
+          return newMap;
+      });
+  };
+  
+  const handleCampaignImageSelect = (event: ChangeEvent<HTMLInputElement>, campaignType: string) => {
+      if (!event.target.files || !event.target.files.length || !user) return;
+      
+      const files = Array.from(event.target.files);
+      const validFiles: File[] = [];
+      const errors: string[] = [];
+      
+      // Validate files
+      for (const file of files) {
+          // Check file size (5MB limit)
+          if (file.size > 5 * 1024 * 1024) {
+              errors.push(`File ${file.name} exceeds 5MB limit.`);
+              continue;
+          }
+          
+          // Check if it's an image
+          if (!file.type.startsWith('image/')) {
+              errors.push(`File ${file.name} is not an image.`);
+              continue;
+          }
+          
+          validFiles.push(file);
+      }
+      
+      // Set error if any
+      if (errors.length > 0) {
+          setCampaignImageUploadError(prev => {
+              const newMap = new Map(prev);
+              newMap.set(campaignType, errors.join(' '));
+              return newMap;
+          });
+      } else {
+          setCampaignImageUploadError(prev => {
+              const newMap = new Map(prev);
+              newMap.delete(campaignType);
+              return newMap;
+          });
+      }
+      
+      // Upload each valid file
+      for (const file of validFiles) {
+          handleUploadCampaignImage(campaignType, file);
+      }
+      
+      // Clear file input
+      if (event.target) {
+          event.target.value = '';
+      }
+      
+      // Mark form as incomplete when files are selected
+      setCompletedCampaignForms(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(campaignType);
+          return newSet;
+      });
+  };
+  
+  const handleUploadCampaignImage = async (campaignType: string, file: File) => {
+      if (!user) return;
+      
+      // Generate a unique ID for this file
+      const fileId = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+      
+      // Set uploading state
+      setIsUploadingCampaignImage(prev => {
+          const newMap = new Map(prev);
+          newMap.set(campaignType, true);
+          return newMap;
+      });
+      
+      // Initialize progress for this file
+      setCampaignImageUploadProgress(prev => {
+          const newMap = new Map(prev);
+          const campaignProgressMap = newMap.get(campaignType) || new Map();
+          campaignProgressMap.set(fileId, 0);
+          newMap.set(campaignType, campaignProgressMap);
+          return newMap;
+      });
+      
+      // Create storage reference
+      const storageRef = ref(storage, `campaignImages/${user.uid}/${campaignType}/${fileId}_${file.name}`);
+      const uploadTask = uploadBytesResumable(storageRef, file);
+      
+      // Handle upload states
+      uploadTask.on('state_changed',
+          (snapshot) => {
+              // Track progress
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              setCampaignImageUploadProgress(prev => {
+                  const newMap = new Map(prev);
+                  const campaignProgressMap = newMap.get(campaignType) || new Map();
+                  campaignProgressMap.set(fileId, progress);
+                  newMap.set(campaignType, campaignProgressMap);
+                  return newMap;
+              });
+          },
+          (error) => {
+              // Handle error
+              console.error(`Error uploading campaign image for ${campaignType}:`, error);
+              setCampaignImageUploadError(prev => {
+                  const newMap = new Map(prev);
+                  newMap.set(campaignType, `Upload failed: ${error.code || 'Unknown error'}`);
+                  return newMap;
+              });
+              setIsUploadingCampaignImage(prev => {
+                  const newMap = new Map(prev);
+                  newMap.set(campaignType, false);
+                  return newMap;
+              });
+          },
+          async () => {
+              try {
+                  // Get download URL
+                  const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                  
+                  // Add URL to the list
+                  setUploadedCampaignImageUrls(prev => {
+                      const newMap = new Map(prev);
+                      const currentUrls = newMap.get(campaignType) || [];
+                      newMap.set(campaignType, [...currentUrls, downloadURL]);
+                      return newMap;
+                  });
+                  
+                  // Update campaign form data to include the uploaded image
+                  setCampaignFormDataMap(prev => {
+                      const newMap = new Map(prev);
+                      const formData = newMap.get(campaignType) || { ...initialCampaignFormData };
+                      newMap.set(campaignType, {
+                          ...formData,
+                          uploadedImageUrls: [...(formData.uploadedImageUrls || []), downloadURL],
+                          imageryType: 'upload' // Set type to upload when images are present
+                      });
+                      return newMap;
+                  });
+                  
+                  console.log(`Campaign image uploaded successfully for ${campaignType}:`, downloadURL);
+                  
+                  // Check if all uploads are complete
+                  const progressMap = campaignImageUploadProgress.get(campaignType) || new Map();
+                  const allComplete = Array.from(progressMap.values()).every(p => p === 100);
+                  if (allComplete) {
+                      setIsUploadingCampaignImage(prev => {
+                          const newMap = new Map(prev);
+                          newMap.set(campaignType, false);
+                          return newMap;
+                      });
+                  }
+                  
+                  // Mark form as incomplete when uploads complete
+                  setCompletedCampaignForms(prev => {
+                      const newSet = new Set(prev);
+                      newSet.delete(campaignType);
+                      return newSet;
+                  });
+              } catch (error) {
+                  console.error(`Error getting download URL for ${campaignType}:`, error);
+                  setCampaignImageUploadError(prev => {
+                      const newMap = new Map(prev);
+                      newMap.set(campaignType, 'Upload completed but failed to get download URL.');
+                      return newMap;
+                  });
+              }
+          }
+      );
+  };
+  
+  const handleRemoveCampaignImage = (campaignType: string, imageUrl: string) => {
+      if (!user) return;
+      
+      // Remove from uploaded URLs
+      setUploadedCampaignImageUrls(prev => {
+          const newMap = new Map(prev);
+          const currentUrls = newMap.get(campaignType) || [];
+          newMap.set(campaignType, currentUrls.filter(url => url !== imageUrl));
+          return newMap;
+      });
+      
+      // Remove from form data
+      setCampaignFormDataMap(prev => {
+          const newMap = new Map(prev);
+          const formData = newMap.get(campaignType) || { ...initialCampaignFormData };
+          const updatedUrls = (formData.uploadedImageUrls || []).filter(url => url !== imageUrl);
+          
+          newMap.set(campaignType, {
+              ...formData,
+              uploadedImageUrls: updatedUrls,
+              // If no more images, clear the imagery type if it was 'upload'
+              imageryType: formData.imageryType === 'upload' && updatedUrls.length === 0 ? undefined : formData.imageryType
+          });
+          return newMap;
+      });
+      
+      // Try to delete from Firebase Storage
+      try {
+          const storageRef = ref(storage, imageUrl);
+          deleteObject(storageRef).catch(error => {
+              console.error(`Error deleting image from storage: ${error.message}`);
+              // Don't block the UI flow if deletion fails
+          });
+      } catch (error) {
+          console.error('Error creating reference to delete image:', error);
+      }
+      
+      // Mark form as incomplete
+      setCompletedCampaignForms(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(campaignType);
+          return newSet;
+      });
+  };
+  // --- END: Handlers for Campaign Image Upload ---
 
   // --- Handlers for Campaign Step ---
   const handleCampaignInputChange = (
@@ -610,6 +843,14 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
       setIsProcessingApiCallMap(prev => new Map(prev).set(type, true));
 
       try {
+          // Check if there are any images being uploaded for this campaign
+          const isCurrentlyUploading = isUploadingCampaignImage.get(type);
+          if (isCurrentlyUploading) {
+              setCampaignError(`Please wait for image uploads to complete for the ${type} design.`);
+              setIsProcessingApiCallMap(prev => new Map(prev).set(type, false));
+              return false;
+          }
+
           let campaignId = campaignDesignIdsMap.get(type) || null;
 
           // Prepare data for saving/updating
@@ -620,12 +861,15 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
               callToAction: formData.callToAction || '',
               targetAudience: formData.targetAudience || '',
               targetMarketDescription: formData.targetMarketDescription || undefined,
-              tagline: formData.tagline || undefined,
+              tagline: formData.tagline || undefined, // Include offer only if it has a value
               offer: formData.offer || undefined, // Include offer only if it has a value
               keySellingPoints: formData.keySellingPoints || [],
               tone: formData.tone || '',
               visualStyle: formData.visualStyle || '',
               additionalInfo: formData.additionalInfo || undefined,
+              imageryDescription: formData.imageryDescription || undefined, // Add imagery description
+              uploadedImageUrls: uploadedCampaignImageUrls.get(type) || undefined, // Add uploaded image URLs
+              imageryType: uploadedCampaignImageUrls.get(type)?.length ? 'upload' : formData.imageryDescription ? 'describe' : undefined, // Set imagery type based on content
               status: 'processing' // Set status to processing for the API call
           };
 
@@ -852,29 +1096,29 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 50 }}
             transition={{ duration: 0.3 }}
-            className="p-4 sm:p-8 bg-gray-800/50 rounded-lg shadow-lg max-w-3xl mx-auto border border-electric-teal/30"
+            className="p-4 sm:p-8 bg-charcoal/80 rounded-lg shadow-glow max-w-3xl mx-auto border border-electric-teal/30 backdrop-blur-sm"
           >
             <h2 className="text-xl sm:text-2xl font-bold text-electric-teal mb-4">Design Scope</h2>
-            <p className="text-electric-teal/70 mb-6">
+            <p className="text-gray-300 mb-6">
               You&apos;ve selected leads from multiple business types: <strong className="text-electric-teal">{typesArray.join(', ')}</strong>.
             </p>
-            <p className="text-electric-teal/70 mb-6">
+            <p className="text-gray-300 mb-6">
               How would you like to proceed with the design?
             </p>
             <div className="space-y-4">
               <button
                 onClick={() => handleDesignScopeChoice('single')}
-                className="w-full text-left p-4 rounded-lg border-2 border-electric-teal/50 hover:border-electric-teal hover:bg-electric-teal/10 transition-colors duration-200"
+                className="w-full text-left p-4 rounded-lg border-2 border-electric-teal/50 hover:border-electric-teal hover:bg-electric-teal/10 hover:shadow-glow transition-all duration-200"
               >
                 <h3 className="text-lg font-medium text-electric-teal">Create ONE Design</h3>
-                <p className="text-sm text-electric-teal/60">Generate a single postcard design suitable for all selected business types.</p>
+                <p className="text-sm text-gray-300">Generate a single postcard design suitable for all selected business types.</p>
               </button>
               <button
                 onClick={() => handleDesignScopeChoice('multiple')}
-                className="w-full text-left p-4 rounded-lg border-2 border-electric-teal/50 hover:border-electric-teal hover:bg-electric-teal/10 transition-colors duration-200"
+                className="w-full text-left p-4 rounded-lg border-2 border-electric-teal/50 hover:border-electric-teal hover:bg-electric-teal/10 hover:shadow-glow transition-all duration-200"
               >
                 <h3 className="text-lg font-medium text-electric-teal">Create MULTIPLE Designs</h3>
-                <p className="text-sm text-electric-teal/60">Generate a separate, tailored postcard design for each selected business type.</p>
+                <p className="text-sm text-gray-300">Generate a separate, tailored postcard design for each selected business type.</p>
               </button>
             </div>
           </motion.div>
@@ -897,13 +1141,17 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
               <>
                 {userBrands.length > 0 && !showNewBrandForm && (
                   <div className="mb-6">
-                    <h3 className="text-lg font-semibold mb-3 text-electric-teal/90">Select an Existing Brand Profile:</h3>
+                    <h3 className="text-xl font-semibold mb-4 text-electric-teal">Select an Existing Brand Profile</h3>
                     <div className="space-y-2">
                       {userBrands.map((brand) => (
                         <div
                           key={brand.id}
                           onClick={() => handleSelectBrand(brand.id!)}
-                          className={`p-4 rounded border-2 cursor-pointer transition-colors ${selectedBrandId === brand.id ? 'border-electric-teal bg-gray-700' : 'border-gray-600 hover:border-electric-teal/70 hover:bg-gray-700/50'}`}
+                          className={`p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
+                            selectedBrandId === brand.id 
+                              ? 'border-electric-teal bg-charcoal/70 shadow-glow-sm' 
+                              : 'border-gray-600 hover:border-electric-teal/70 hover:bg-charcoal/50 hover:shadow-glow-sm'
+                          }`}
                         >
                           <p className="font-medium text-white">{brand.businessName}</p>
                         </div>
@@ -911,7 +1159,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                     </div>
                     <button
                       onClick={handleShowNewBrandForm}
-                      className="mt-4 text-sm text-electric-teal hover:text-electric-teal/80"
+                      className="mt-4 text-sm text-electric-teal hover:text-electric-teal/80 hover:underline transition-colors"
                     >
                       + Add New Brand Profile
                     </button>
@@ -919,77 +1167,80 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                 )}
 
                 {showNewBrandForm && (
-                  <form onSubmit={handleSaveNewBrand} className="space-y-4 bg-gray-700 p-4 rounded-lg">
-                    <h3 className="text-lg font-semibold mb-3 text-electric-teal/90">
+                  <form onSubmit={handleSaveNewBrand} className="space-y-5 bg-charcoal/60 backdrop-blur-sm p-6 rounded-lg border border-electric-teal/20 shadow-glow-sm">
+                    <h3 className="text-xl font-semibold mb-4 text-electric-teal">
                       {userBrands.length === 0 
-                        ? "Let's start with the foundation! Getting your brand details right ensures your postcard truly represents your business." 
+                        ? "Let's start with the foundation!" 
                         : "Add New Brand Profile"}
                     </h3>
+                    <p className="text-gray-300 mb-4">
+                      {userBrands.length === 0 && "Getting your brand details right ensures your postcard truly represents your business."}
+                    </p>
                     <div>
-                      <label htmlFor="businessName" className="block text-sm font-medium text-gray-300 mb-1">Business Name *</label>
+                      <label htmlFor="businessName" className="block text-sm font-medium text-electric-teal mb-1">Business Name *</label>
                       <input 
                         type="text" id="businessName" name="businessName"
                         value={newBrandData.businessName || ''} onChange={handleNewBrandInputChange} required
-                        className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"
+                        className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}
                       />
                     </div>
                     <div>
-                        <label htmlFor="address" className="block text-sm font-medium text-gray-300 mb-1">Address</label>
+                        <label htmlFor="address" className="block text-sm font-medium text-electric-teal mb-1">Address</label>
                         <textarea 
                             id="address" name="address" rows={2}
                             value={typeof newBrandData.address === 'string' ? newBrandData.address : ''} 
                             onChange={handleNewBrandInputChange}
-                            className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"
+                            className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}
                         />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">Contact Email</label>
+                        <label htmlFor="email" className="block text-sm font-medium text-electric-teal mb-1">Contact Email</label>
                         <input 
                           type="email" id="email" name="email"
                           value={newBrandData.email || ''} onChange={handleNewBrandInputChange}
-                          className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"
+                          className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}
                         />
                       </div>
                       <div>
-                        <label htmlFor="website" className="block text-sm font-medium text-gray-300 mb-1">Website</label>
+                        <label htmlFor="website" className="block text-sm font-medium text-electric-teal mb-1">Website</label>
                         <input 
                           type="text" id="website" name="website"
                           value={newBrandData.website || ''} onChange={handleNewBrandInputChange}
                           placeholder="example.com"
-                          className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"
+                          className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}
                         />
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                           <label htmlFor="primaryColor" className="block text-sm font-medium text-gray-300 mb-1">Primary Brand Color</label>
+                           <label htmlFor="primaryColor" className="block text-sm font-medium text-electric-teal mb-1">Primary Brand Color</label>
                            <input 
                                 type="color" id="primaryColor" name="primaryColor"
                                 value={newBrandData.styleComponents?.primaryColor || '#00c2a8'}
                                 onChange={handleNewBrandInputChange}
-                                className="w-full h-10 p-1 rounded bg-gray-800 border border-gray-600 cursor-pointer focus:border-electric-teal focus:ring-electric-teal"
+                                className="w-full h-10 p-1 rounded-md bg-charcoal/80 border border-gray-600 cursor-pointer focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200"
                             />
                         </div>
                          <div>
-                            <label htmlFor="secondaryColor" className="block text-sm font-medium text-gray-300 mb-1">Secondary Brand Color</label>
+                            <label htmlFor="secondaryColor" className="block text-sm font-medium text-electric-teal mb-1">Secondary Brand Color</label>
                             <input 
                                 type="color" id="secondaryColor" name="secondaryColor"
                                 value={newBrandData.styleComponents?.secondaryColor || '#00858a'}
                                 onChange={handleNewBrandInputChange}
-                                className="w-full h-10 p-1 rounded bg-gray-800 border border-gray-600 cursor-pointer focus:border-electric-teal focus:ring-electric-teal"
+                                className="w-full h-10 p-1 rounded-md bg-charcoal/80 border border-gray-600 cursor-pointer focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200"
                             />
                         </div>
                     </div>
                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">Logo (Optional)</label>
+                        <label className="block text-sm font-medium text-electric-teal mb-1">Logo (Optional)</label>
                         <div className="mt-1 flex items-center gap-4 flex-wrap">
                             {/* File Input Trigger Button */} 
                             <button 
                                 type="button"
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={isUploadingLogo}
-                                className="px-3 py-2 rounded border border-gray-500 text-gray-300 hover:border-electric-teal hover:text-electric-teal text-sm transition-colors disabled:opacity-50 shrink-0"
+                                className="px-3 py-2 rounded-md border-2 border-electric-teal/60 text-electric-teal hover:border-electric-teal hover:bg-electric-teal/10 hover:shadow-glow-sm text-sm transition-all disabled:opacity-50 shrink-0"
                             >
                                 {newBrandData.logoUrl || logoPreviewUrl || logoFile ? 'Change Logo' : 'Select Logo'}
                             </button>
@@ -1004,19 +1255,19 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                             {/* Preview Area */} 
                             {logoPreviewUrl && (
                                 // Use next/image for preview - NOTE: May need loader config for blob URLs if issues arise
-                                <Image src={logoPreviewUrl} alt="Logo Preview" width={100} height={40} className="h-10 w-auto rounded border border-gray-600 shrink-0" />
+                                <Image src={logoPreviewUrl} alt="Logo Preview" width={100} height={40} className="h-10 w-auto rounded-md border border-gray-600 shrink-0" />
                             )}
                             {/* Display Final Uploaded Logo if no preview */} 
                             {!logoPreviewUrl && newBrandData.logoUrl && (
                                  // Use next/image for uploaded URL
-                                 <Image src={newBrandData.logoUrl} alt="Uploaded Logo" width={100} height={40} className="h-10 w-auto rounded border border-green-500 shrink-0" />
+                                 <Image src={newBrandData.logoUrl} alt="Uploaded Logo" width={100} height={40} className="h-10 w-auto rounded-md border border-green-500 shrink-0" />
                             )}
                             {/* Progress Indicator */} 
                             {isUploadingLogo && logoUploadProgress !== null && (
                                 <div className="flex items-center gap-2 text-sm text-gray-400 shrink-0">
                                     <span>Uploading...</span>
                                      <div className="w-20 h-2 bg-gray-600 rounded-full overflow-hidden">
-                                         <div className="bg-blue-500 h-full rounded-full" style={{width: `${logoUploadProgress}%`}}></div>
+                                         <div className="bg-electric-teal h-full rounded-full" style={{width: `${logoUploadProgress}%`}}></div>
                                      </div>
                                      <span>{(logoUploadProgress).toFixed(0)}%</span>
                                  </div>
@@ -1031,23 +1282,24 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                          <p className="text-xs text-gray-400 mt-1">Max 5MB. PNG, JPG, SVG recommended.</p>
                     </div>
                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Social Media Handles (Optional)</label>
+                        <label className="block text-sm font-medium text-electric-teal mb-2">Social Media Handles (Optional)</label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                            <div>
-                              <label htmlFor="instagram" className="block text-xs font-medium text-gray-400 mb-1">Instagram</label>
-                              <input type="text" id="instagram" name="instagram" placeholder="your_handle" value={newBrandData.socialMediaHandles?.instagram || ''} onChange={handleNewBrandInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 text-sm"/>
+                              <label htmlFor="instagram" className="block text-xs font-medium text-gray-300 mb-1">Instagram</label>
+                              <input type="text" id="instagram" name="instagram" placeholder="your_handle" value={newBrandData.socialMediaHandles?.instagram || ''} onChange={handleNewBrandInputChange} className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 text-sm focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}/>
                            </div>
                            <div>
+                              <label htmlFor="facebook" className="block text-xs font-medium text-gray-300 mb-1">Facebook</label>
                               <label htmlFor="facebook" className="block text-xs font-medium text-gray-400 mb-1">Facebook</label>
-                              <input type="text" id="facebook" name="facebook" placeholder="YourPageName" value={newBrandData.socialMediaHandles?.facebook || ''} onChange={handleNewBrandInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 text-sm"/>
+                              <input type="text" id="facebook" name="facebook" placeholder="YourPageName" value={newBrandData.socialMediaHandles?.facebook || ''} onChange={handleNewBrandInputChange} className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 text-sm focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}/>
                            </div>
                            <div>
                               <label htmlFor="twitter" className="block text-xs font-medium text-gray-400 mb-1">Twitter (X)</label>
-                              <input type="text" id="twitter" name="twitter" placeholder="YourHandle" value={newBrandData.socialMediaHandles?.twitter || ''} onChange={handleNewBrandInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 text-sm"/>
+                              <input type="text" id="twitter" name="twitter" placeholder="YourHandle" value={newBrandData.socialMediaHandles?.twitter || ''} onChange={handleNewBrandInputChange} className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 text-sm focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}/>
                            </div>
                            <div>
                               <label htmlFor="linkedin" className="block text-xs font-medium text-gray-400 mb-1">LinkedIn</label>
-                              <input type="text" id="linkedin" name="linkedin" placeholder="company/your-company" value={newBrandData.socialMediaHandles?.linkedin || ''} onChange={handleNewBrandInputChange} className="w-full p-2 rounded bg-gray-800 border border-gray-600 text-sm"/>
+                              <input type="text" id="linkedin" name="linkedin" placeholder="company/your-company" value={newBrandData.socialMediaHandles?.linkedin || ''} onChange={handleNewBrandInputChange} className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 text-sm focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}/>
                            </div>
                         </div>
                      </div>
@@ -1057,21 +1309,21 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                           id="brandIdentity" name="brandIdentity" rows={3}
                           value={newBrandData.brandIdentity || ''} onChange={handleNewBrandInputChange}
                           placeholder="e.g., We are a modern, tech-focused accounting firm targeting startups. Friendly, approachable, and expert tone. Clean and minimalist visual style."
-                          className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"
+                          className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}
                         />
                      </div>
 
                     <div className="flex items-center gap-4 pt-2">
                       <button 
                         type="submit" disabled={isSavingBrand}
-                        className="px-4 py-2 rounded bg-electric-teal text-charcoal hover:bg-electric-teal/90 disabled:bg-gray-500 disabled:cursor-not-allowed"
+                        className="px-4 py-2 rounded-md bg-electric-teal text-charcoal shadow-glow hover:shadow-glow-strong disabled:bg-gray-500 disabled:cursor-not-allowed transition-all duration-300"
                       >
                         {isSavingBrand ? 'Saving...' : 'Save Brand Profile'}
                       </button>
                       {userBrands.length > 0 && (
                         <button 
                           type="button" onClick={() => setShowNewBrandForm(false)} 
-                          className="text-sm text-gray-400 hover:text-gray-200"
+                          className="text-sm text-gray-400 hover:text-gray-200 hover:underline transition-colors"
                         >
                           Cancel
                         </button>
@@ -1094,13 +1346,13 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
         // But useEffect to sync it is still needed if it depends on activeCampaignTypeKey
         
         // *** Handler specifically for the Key Selling Points input ***
-        const handleKeySellingPointsChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const handleKeySellingPointsChange = (event: React.ChangeEvent<HTMLInputElement>) => {
             const rawValue = event.target.value;
             setKeySellingPointsInput(rawValue); // Update local input state immediately
 
             // Update the underlying array state in the main map
-            // Split by newline, trim, and filter empty lines
-            const pointsArray = rawValue.split('\\n').map(s => s.trim()).filter(s => s !== '');
+            // Split by commas, trim, and filter empty items
+            const pointsArray = rawValue.split(',').map(s => s.trim()).filter(s => s !== '');
             
             if (currentCampaignTypeKey) {
                  setCampaignFormDataMap(prevForms => {
@@ -1132,7 +1384,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
           >
              {/* Conditional Tabs for Multiple Scope */} 
              {designScope === 'multiple' && (
-                <div className="flex space-x-1 border-b border-gray-700 mb-4 overflow-x-auto pb-2">
+                <div className="flex space-x-1 border-b border-gray-700 mb-6 pt-3 px-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-electric-teal/20 scrollbar-track-transparent">
                     {businessTypesArray.map(type => {
                         const isProcessing = isProcessingApiCallMap.get(type);
                         const isComplete = completedCampaignForms.has(type);
@@ -1143,22 +1395,22 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                             <button
                                 key={type}
                                 onClick={() => handleTabClick(type)}
-                                className={`flex items-center gap-2 px-3 py-2 rounded-t-md text-sm font-medium transition-colors whitespace-nowrap ${ 
+                                className={`flex items-center gap-2 px-4 py-2 mb-0.5 rounded-t-md text-sm font-medium transition-all duration-200 whitespace-nowrap ${ 
                                     isActive 
-                                    ? 'bg-gray-700 text-electric-teal border-b-2 border-electric-teal' 
-                                    : 'text-gray-400 hover:text-electric-teal hover:bg-gray-700/50'
+                                    ? 'bg-charcoal text-electric-teal border-b-2 border-electric-teal tab-glow z-10 relative' 
+                                    : 'text-gray-400 hover:text-electric-teal hover:bg-charcoal/50'
                                 }`}
                             >
                                 {/* Status Indicator - Show check only if complete and NOT active processing */}
                                 {!showSpinner && (
                                     <span className={`w-2 h-2 rounded-full ${ 
-                                        isComplete ? 'bg-green-500' : isActive ? 'bg-yellow-500' : 'bg-gray-500' 
+                                        isComplete ? 'bg-green-500' : isActive ? 'bg-electric-teal' : 'bg-gray-500' 
                                     }`} /> 
                                 )}
                                 {type}
                                 {/* Processing Spinner for Tab */} 
                                 {showSpinner && (
-                                    <svg className="animate-spin h-3 w-3 text-blue-400 ml-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <svg className="animate-spin h-3 w-3 text-electric-teal ml-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
@@ -1171,26 +1423,26 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
 
             {/* Campaign Form Area */} 
             <div>
-+                {/* --- NEW: Welcome Text --- */}
-+                <div className="mb-6 p-4 bg-gradient-to-r from-gray-700 to-gray-700/80 rounded-lg border border-electric-teal/20 shadow-sm">
-+                    <h3 className="text-lg font-semibold text-electric-teal mb-2">
-+                        Let&apos;s Craft Your <span className="text-electric-teal/80">{activeCampaignType !== '__single__' ? activeCampaignType : (businessTypesArray[0] || 'Business')}</span> Postcard!
-+                    </h3>
-+                    <p className="text-sm text-gray-300 mb-2">
-+                        Welcome! We&apos;re about to create a tailor-made postcard for your campaign—completely aligned with your brand guidelines. To make sure our AI-driven design captures your unique style and messaging, please fill out the details below.
-+                    </p>
-+                    <p className="text-xs text-gray-400">
-+                        Think of this as your creative brief: you&apos;ll provide the key campaign info (like goals, offers, and the vibe you want) so we can craft a polished, on-brand postcard that resonates with your target audience. The more specifics you share—like your key selling points, tone, or preferred visuals—the easier it is for us to deliver a stunning final design.
-+                    </p>
-+                </div>
-+                {/* --- End Welcome Text --- */}
-+
-                 <h3 className="text-lg font-semibold mb-3 text-electric-teal/90">
+                {/* --- NEW: Welcome Text --- */}
+                <div className="mb-6 p-6 bg-gradient-to-r from-charcoal/70 to-charcoal/50 backdrop-blur-sm rounded-lg border border-electric-teal/20 shadow-glow-sm">
+                    <h3 className="text-lg font-semibold text-electric-teal mb-2">
+                        Let&apos;s Craft Your <span className="text-electric-teal">{activeCampaignType !== '__single__' ? activeCampaignType : (businessTypesArray[0] || 'Business')}</span> Postcard!
+                    </h3>
+                    <p className="text-sm text-gray-300 mb-2">
+                        Welcome! We&apos;re about to create a tailor-made postcard for your campaign—completely aligned with your brand guidelines. To make sure our AI-driven design captures your unique style and messaging, please fill out the details below.
+                    </p>
+                    <p className="text-xs text-gray-400">
+                        Think of this as your creative brief: you&apos;ll provide the key campaign info (like goals, offers, and the vibe you want) so we can craft a polished, on-brand postcard that resonates with your target audience. The more specifics you share—like your key selling points, tone, or preferred visuals—the easier it is for us to deliver a stunning final design.
+                    </p>
+                </div>
+                {/* --- End Welcome Text --- */}
+
+                 <h3 className="text-xl font-semibold mb-3 text-electric-teal">
                      Define Campaign Design Details 
                      {designScope === 'multiple' && activeCampaignType && ` for: ${activeCampaignType}`}
                  </h3>
-                 <p className="text-sm text-gray-400 mb-4">
-                     Using Brand: <span className="text-gray-200">{selectedBrandName}</span>
+                 <p className="text-sm text-gray-300 mb-4">
+                     Using Brand: <span className="text-electric-teal">{selectedBrandName}</span>
                  </p>
 
                   {/* --- NEW: Copy Button (only in multi-mode) --- */}
@@ -1199,7 +1451,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                          <button
                             type="button"
                             onClick={handleCopyCampaignDetails}
-                            className="px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-xs"
+                            className="px-4 py-2 rounded-md bg-indigo-600 hover:bg-indigo-500 hover:shadow-glow-blue text-white text-sm transition-all duration-200"
                          >
                             Copy These Details to Other Designs
                          </button>
@@ -1210,82 +1462,86 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
 
                 {campaignError && <p className="text-red-400 mb-4">{campaignError}</p>} 
 
-                <div className="bg-gray-700 p-4 rounded-lg space-y-4">
+                <div className="bg-charcoal/60 backdrop-blur-sm p-6 rounded-lg border border-electric-teal/20 space-y-4 shadow-glow-sm">
                     {currentCampaignTypeKey ? (
                        <> 
                         <div>
-                            <label htmlFor="designName" className="block text-sm font-medium text-gray-300 mb-1">Design Name *</label>
+                            <label htmlFor="designName" className="block text-sm font-medium text-electric-teal mb-1">Design Name *</label>
                             <input type="text" id="designName" name="designName" 
                                 value={currentCampaignData.designName || ''}
                                 onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} required 
-                                className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
+                                className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}
+                            />
                         </div>
                         <div>
-                            <label htmlFor="primaryGoal" className="block text-sm font-medium text-gray-300 mb-1">Primary Goal</label>
+                            <label htmlFor="primaryGoal" className="block text-sm font-medium text-electric-teal mb-1">Primary Goal</label>
                             <input type="text" id="primaryGoal" name="primaryGoal" 
                                 value={currentCampaignData.primaryGoal || ''}
                                 placeholder={`e.g., Get more ${activeCampaignType || 'customers'} to book consultations`}
                                 onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} 
-                                className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
+                                className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}
+                            />
                         </div>
                         <div>
-                            <label htmlFor="callToAction" className="block text-sm font-medium text-gray-300 mb-1">Call To Action</label>
+                            <label htmlFor="callToAction" className="block text-sm font-medium text-electric-teal mb-1">Call To Action</label>
                             <input type="text" id="callToAction" name="callToAction" 
                                 value={currentCampaignData.callToAction || ''}
                                 placeholder={`e.g., Visit ${selectedBrandName}.com, Call Now for a Quote, Book Your Appointment`}
                                 onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} 
-                                className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
+                                className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}
+                            />
                         </div>
                         <div>
-                            <label htmlFor="targetAudience" className="block text-sm font-medium text-gray-300 mb-1">Target Audience Description</label>
+                            <label htmlFor="targetAudience" className="block text-sm font-medium text-electric-teal mb-1">Target Audience Description</label>
                             <textarea id="targetAudience" name="targetAudience" rows={3} 
                                 value={currentCampaignData.targetAudience || ''}
                                 placeholder={designScope === 'multiple' ? `Describe the ideal ${activeCampaignType || 'customer'} (e.g., homeowners needing tax help, local restaurants seeking bookkeeping).` : 'Describe the ideal customer across all types (e.g., small business owners in St. Albert).'}
                                 onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} 
-                                className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
-                        </div>
-                        <div>
-                            <label htmlFor="offer" className="block text-sm font-medium text-gray-300 mb-1">Specific Offer / Promotion</label>
-                            <input type="text" id="offer" name="offer" value={currentCampaignData.offer || ''} placeholder="e.g., 10% Off First Service, Free Initial Consultation, Mention This Card for..." onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
-                        </div>
-                        <div>
-                            <label htmlFor="keySellingPoints" className="block text-sm font-medium text-gray-300 mb-1">Key Selling Points (one per line)</label>
-                            <textarea 
-                                id="keySellingPoints" 
-                                name="keySellingPoints" 
-                                rows={4} // Adjust rows as needed
-                                value={keySellingPointsInput} 
-                                onChange={handleKeySellingPointsChange} 
-                                placeholder="e.g., Saves Time\\nReduces Errors\\nExpert Advice\\nLocal & Trusted" 
-                                className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"
+                                className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}
                             />
                         </div>
                         <div>
-                            <label htmlFor="targetMarketDescription" className="block text-sm font-medium text-gray-300 mb-1">Target Market Description (Optional)</label>
-                            <textarea id="targetMarketDescription" name="targetMarketDescription" rows={2} value={currentCampaignData.targetMarketDescription || ''} placeholder={`e.g., Focus on ${activeCampaignType || 'businesses'} in the downtown core, Target new homeowners in the area`} onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
+                            <label htmlFor="offer" className="block text-sm font-medium text-electric-teal mb-1">Specific Offer / Promotion</label>
+                            <input type="text" id="offer" name="offer" value={currentCampaignData.offer || ''} placeholder="e.g., 10% Off First Service, Free Initial Consultation, Mention This Card for..." onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}/>
                         </div>
                         <div>
-                            <label htmlFor="tagline" className="block text-sm font-medium text-gray-300 mb-1">Tagline (Optional)</label>
-                            <input type="text" id="tagline" name="tagline" value={currentCampaignData.tagline || ''} placeholder="Your catchy business slogan" onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
+                            <label htmlFor="keySellingPoints" className="block text-sm font-medium text-electric-teal mb-1">Key Selling Points (comma-separated)</label>
+                            <input 
+                                id="keySellingPoints" 
+                                name="keySellingPoints" 
+                                value={keySellingPointsInput} 
+                                onChange={handleKeySellingPointsChange} 
+                                placeholder="e.g., Saves Time, Reduces Errors, Expert Advice, Local & Trusted" 
+                                className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}
+                            />
+                            <p className="text-xs text-gray-400 mt-1">Enter your key benefits separated by commas</p>
+                        </div>
+                        <div>
+                            <label htmlFor="targetMarketDescription" className="block text-sm font-medium text-electric-teal mb-1">Target Market Description (Optional)</label>
+                            <textarea id="targetMarketDescription" name="targetMarketDescription" rows={2} value={currentCampaignData.targetMarketDescription || ''} placeholder={`e.g., Focus on ${activeCampaignType || 'businesses'} in the downtown core, Target new homeowners in the area`} onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}/>
+                        </div>
+                        <div>
+                            <label htmlFor="tagline" className="block text-sm font-medium text-electric-teal mb-1">Tagline (Optional)</label>
+                            <input type="text" id="tagline" name="tagline" value={currentCampaignData.tagline || ''} placeholder="Your catchy business slogan" onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}/>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="relative">
-                                <label htmlFor="tone" className="block text-sm font-medium text-gray-300 mb-1">Tone (Optional)</label>
+                                <label htmlFor="tone" className="block text-sm font-medium text-electric-teal mb-1">Tone (Optional)</label>
                                 <p className="text-xs text-gray-400 mb-1">(Keywords help the AI)</p>
-                                <input type="text" name="tone" placeholder="e.g., Professional, Friendly, Urgent, Calm, Humorous" value={currentCampaignData.tone || ''} onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} className="w-full p-2 rounded bg-gray-800 border border-gray-600"/>
+                                <input type="text" name="tone" placeholder="e.g., Professional, Friendly, Urgent, Calm, Humorous" value={currentCampaignData.tone || ''} onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}/>
                                 {/* NEW: Info Icon */}
-                                <button type="button" onClick={() => openInfoModal('tone')} className="absolute top-0 right-0 mt-1 mr-1 text-gray-400 hover:text-electric-teal">
+                                <button type="button" onClick={() => openInfoModal('tone')} className="absolute top-0 right-0 mt-1 mr-1 text-gray-400 hover:text-electric-teal transition-colors">
                                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                   </svg>
                                 </button>
                             </div>
                             <div className="relative">
-                                <label htmlFor="visualStyle" className="block text-sm font-medium text-gray-300 mb-1">Visual Style/Aesthetic (Optional)</label>
+                                <label htmlFor="visualStyle" className="block text-sm font-medium text-electric-teal mb-1">Visual Style/Aesthetic (Optional)</label>
                                 <p className="text-xs text-gray-400 mb-1">(Keywords help the AI)</p>
-                                <input type="text" name="visualStyle" placeholder="e.g., Modern, Minimalist, Bold, Vintage, Playful, Elegant" value={currentCampaignData.visualStyle || ''} onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} className="w-full p-2 rounded bg-gray-800 border border-gray-600"/>
+                                <input type="text" name="visualStyle" placeholder="e.g., Modern, Minimalist, Bold, Vintage, Playful, Elegant" value={currentCampaignData.visualStyle || ''} onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}/>
                                 {/* NEW: Info Icon */}
-                                <button type="button" onClick={() => openInfoModal('visualStyle')} className="absolute top-0 right-0 mt-1 mr-1 text-gray-400 hover:text-electric-teal">
+                                <button type="button" onClick={() => openInfoModal('visualStyle')} className="absolute top-0 right-0 mt-1 mr-1 text-gray-400 hover:text-electric-teal transition-colors">
                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                    </svg>
@@ -1293,10 +1549,110 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                             </div>
                         </div>
                         <div>
-                            <label htmlFor="additionalInfo" className="block text-sm font-medium text-gray-300 mb-1">Additional Information (Optional)</label>
-                            <textarea id="additionalInfo" name="additionalInfo" rows={3} value={currentCampaignData.additionalInfo || ''} placeholder="Anything else? e.g., Must include our phone number prominently. Use image of happy clients. Avoid red color." onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
+                            <label htmlFor="additionalInfo" className="block text-sm font-medium text-electric-teal mb-1">Additional Information (Optional)</label>
+                            <textarea id="additionalInfo" name="additionalInfo" rows={3} value={currentCampaignData.additionalInfo || ''} placeholder="Anything else? e.g., Must include our phone number prominently. Use image of happy clients. Avoid red color." onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}/>
                         </div>
-
+                        {/* Imagery Accordion Section */}
+                        <div className="pt-4 border-t border-gray-600/50 mt-4">
+                            <div className="flex items-center justify-between cursor-pointer group p-2 rounded-md hover:bg-electric-teal/5 transition-all duration-200" 
+                                 onClick={() => currentCampaignTypeKey && toggleImageryAccordion(currentCampaignTypeKey)}>
+                                <h4 className="text-sm font-medium text-electric-teal group-hover:text-electric-teal">Imagery Options (Optional)</h4>
+                                <span className="w-6 h-6 flex items-center justify-center rounded-full bg-charcoal/80 text-electric-teal border border-electric-teal/30 group-hover:border-electric-teal group-hover:shadow-glow-sm transition-all duration-200">
+                                    {isImageryExpanded.get(currentCampaignTypeKey) ? '−' : '+'}
+                                </span>
+                            </div>
+                            
+                            {/* Accordion Content */}
+                            {currentCampaignTypeKey && (
+                                <motion.div 
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ 
+                                        height: isImageryExpanded.get(currentCampaignTypeKey) ? 'auto' : 0,
+                                        opacity: isImageryExpanded.get(currentCampaignTypeKey) ? 1 : 0
+                                    }}
+                                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                                    className="overflow-hidden"
+                                >
+                                    <div className="mt-3 space-y-4 bg-charcoal/40 p-4 rounded-md border border-electric-teal/10">
+                                        {/* Description Option */}
+                                        <div>
+                                            <label htmlFor="imageryDescription" className="block text-sm font-medium text-electric-teal mb-1">Imagery Description</label>
+                                            <textarea 
+                                                id="imageryDescription" 
+                                                name="imageryDescription" 
+                                                rows={3} 
+                                                value={currentCampaignData.imageryDescription || ''} 
+                                                placeholder="Describe the imagery you want in your postcard. e.g., Happy clients, modern office, product showcase." 
+                                                onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} 
+                                                className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 text-sm ${placeholderStyle}`}
+                                            />
+                                        </div>
+                                        
+                                        {/* Upload Option */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-electric-teal mb-1">Image Upload</label>
+                                            <div className="space-y-3">
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    multiple
+                                                    onChange={(e) => handleCampaignImageSelect(e, currentCampaignTypeKey)}
+                                                    className="block w-full text-sm text-gray-400 file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-electric-teal/20 file:text-electric-teal hover:file:bg-electric-teal/30 file:transition-colors file:cursor-pointer"
+                                                />
+                                                <p className="text-xs text-gray-400 mt-1">Upload images to use in your postcard design (Max 5MB per image)</p>
+                                                
+                                                {/* Display Uploaded Images */}
+                                                {(uploadedCampaignImageUrls.get(currentCampaignTypeKey)?.length ?? 0) > 0 && (
+                                                    <div className="mt-2">
+                                                        <p className="text-xs text-gray-300 mb-2">Uploaded Images:</p>
+                                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                                            {(uploadedCampaignImageUrls.get(currentCampaignTypeKey) || []).map((url, index) => (
+                                                                <div key={`img-${index}`} className="relative aspect-square group overflow-hidden rounded-md border border-gray-600">
+                                                                    <Image 
+                                                                        src={url} 
+                                                                        alt={`Uploaded ${index+1}`}
+                                                                        fill
+                                                                        sizes="(max-width: 640px) 50vw, 33vw"
+                                                                        className="object-cover transition-transform duration-200 group-hover:scale-105"
+                                                                    />
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleRemoveCampaignImage(currentCampaignTypeKey, url);
+                                                                        }}
+                                                                        className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                                                                    >
+                                                                        ×
+                                                                    </button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                
+                                                {/* Upload Progress */}
+                                                {isUploadingCampaignImage.get(currentCampaignTypeKey) && (
+                                                    <div className="mt-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-4 h-4 rounded-full border-2 border-electric-teal border-t-transparent animate-spin"></div>
+                                                            <p className="text-xs text-gray-300">Uploading images...</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                
+                                                {/* Error Message */}
+                                                {campaignImageUploadError.get(currentCampaignTypeKey) && (
+                                                    <p className="text-xs text-red-400 mt-1">
+                                                        {campaignImageUploadError.get(currentCampaignTypeKey)}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </div>
                         {/* Validation Button Area - Updated */} 
                          {(designScope === 'multiple' || designScope === 'single') && currentCampaignTypeKey && (
                             <div className="pt-4 border-t border-gray-600/50 mt-4 flex items-center gap-3">
@@ -1306,12 +1662,12 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                                     onClick={() => handleValidateAndProcessCampaign(currentCampaignTypeKey)}
                                     // Disable if already complete OR currently processing this specific campaign
                                     disabled={completedCampaignForms.has(currentCampaignTypeKey) || isProcessingApiCallMap.get(currentCampaignTypeKey)}
-                                    className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm disabled:bg-gray-500 disabled:cursor-not-allowed transition-opacity"
+                                    className="px-4 py-2 rounded-md bg-electric-teal/90 hover:bg-electric-teal text-charcoal text-sm shadow-glow hover:shadow-glow-strong disabled:bg-gray-500 disabled:cursor-not-allowed disabled:shadow-none transition-all duration-300"
                                 >
                                     {isProcessingApiCallMap.get(currentCampaignTypeKey) ? (
                                         // Simple processing indicator
                                         <span className="flex items-center gap-1">
-                                            <svg className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <svg className="animate-spin h-3 w-3 text-charcoal" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                             </svg>
@@ -1320,13 +1676,13 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                                     ) : completedCampaignForms.has(currentCampaignTypeKey) ? (
                                         '✓ Prompt Requested' // Updated text
                                     ) : (
-                                        'Save & Request AI Prompt' // Updated text
+                                        'Save & Request Design' // Updated text
                                     )}
                                 </button>
                                 <p className="text-xs text-gray-400">
                                     {completedCampaignForms.has(currentCampaignTypeKey) 
-                                        ? 'AI prompt generation initiated. You can move to the next step when ready.'
-                                        : 'Click to save details and trigger AI prompt generation.'
+                                        ? 'AI design generation initiated. You can move to the next step when ready.'
+                                        : 'Click to save details and trigger AI design generation.'
                                     } 
                                     {isProcessingApiCallMap.get(currentCampaignTypeKey) && " (This may take a moment...)"}
                                 </p>
@@ -1334,7 +1690,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                          )}
                        </>
                     ) : (
-                        <p className="text-center text-gray-500">(Select a campaign type above or check configuration)</p>
+                        <p className="text-center text-gray-400">(Select a campaign type above or check configuration)</p>
                     )}
                 </div>
             </div>
@@ -1352,39 +1708,122 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
              exit={{ opacity: 0, y: -20 }}
              transition={{ duration: 0.3 }}
           >
-            <h3 className="text-lg font-semibold mb-3 text-electric-teal/90">Review and Submit</h3>
-            <p className="text-gray-300 mb-2">
-              Review the details below before submitting the request.
+            <h3 className="text-xl font-semibold mb-4 text-electric-teal">Review and Submit</h3>
+            <p className="text-gray-300 mb-4">
+              Review the details below before submitting your design request.
             </p>
             {/* Informational Text Added */} 
-            <p className="text-xs text-yellow-300 bg-yellow-900/30 p-2 rounded mb-4 border border-yellow-700/50">
+            <p className="text-yellow-300 bg-yellow-900/30 p-4 rounded-md mb-6 border border-yellow-700/50 text-sm">
                 Please ensure you have clicked &quot;Save & Request AI Prompt&quot; for {designScope === 'multiple' ? 'all designs' : 'the current design'} above. Once submitted, our team will work on generating the final designs based on the details provided and the AI-generated prompts. You will be able to view the completed designs later.
             </p>
-            <div className="bg-gray-700 p-4 rounded-lg space-y-3">
-                <p><span className="font-medium text-gray-300">Selected Brand:</span> {userBrands.find(b => b.id === selectedBrandId)?.businessName || 'N/A'}</p>
-                <p><span className="font-medium text-gray-300">Design Scope:</span> {designScope}</p>
+            <div className="bg-charcoal/60 backdrop-blur-sm p-6 rounded-lg border border-electric-teal/20 space-y-5 shadow-glow-sm">
+                <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 border-b border-gray-700 pb-4">
+                    <div>
+                        <p className="text-sm text-gray-400">Selected Brand:</p>
+                        <p className="text-lg text-electric-teal">{userBrands.find(b => b.id === selectedBrandId)?.businessName || 'N/A'}</p>
+                    </div>
+                    <div>
+                        <p className="text-sm text-gray-400">Design Scope:</p>
+                        <p className="text-lg text-electric-teal capitalize">{designScope}</p>
+                    </div>
+                </div>
                 
                 {/* Display summary of CampaignDesignData */} 
-                <h4 className="text-md font-semibold text-gray-200 pt-2 border-t border-gray-600">Campaign Details:</h4>
-                {Array.from(campaignFormDataMap.entries()).map(([type, formData]) => (
-                    <div key={type} className="pl-4 border-l-2 border-gray-600">
-                        <p className="font-medium text-gray-300">{designScope === 'multiple' ? type : 'General Design'}:</p>
-                        <ul className="list-disc list-inside text-sm text-gray-400">
-                            <li>Name: {formData.designName || '(Not set)'}</li>
-                            <li>Goal: {formData.primaryGoal || '(Not set)'}</li>
-                            <li>CTA: {formData.callToAction || '(Not set)'}</li>
-                            <li>Offer: {formData.offer || '(Not set)'}</li>
-                            <li>Selling Points: {(formData.keySellingPoints || []).join('; ') || '(Not set)'}</li> {/* Join with semicolon for review display */}
-                            <li>Audience: {formData.targetAudience || '(Not set)'}</li>
-                            <li>Market Notes: {formData.targetMarketDescription || '(Not set)'}</li>
-                            <li>Tagline: {formData.tagline || '(Not set)'}</li>
-                            <li>Tone: {formData.tone || '(Not set)'}</li>
-                            <li>Visual Style: {formData.visualStyle || '(Not set)'}</li>
-                            <li>Additional Info: {formData.additionalInfo || '(Not set)'}</li>
-                        </ul>
-                    </div>
-                ))}
+                <h4 className="text-md font-semibold text-gray-200 pt-2">Campaign Details:</h4>
+                <div className="space-y-6">
+                    {Array.from(campaignFormDataMap.entries()).map(([type, formData]) => (
+                        <div key={type} className="pl-4 border-l-2 border-electric-teal/40 hover:border-electric-teal transition-colors">
+                            <h5 className="font-medium text-electric-teal text-lg mb-2">{designScope === 'multiple' ? type : 'General Design'}:</h5>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                                <div>
+                                    <p className="text-gray-400">Name:</p>
+                                    <p className="text-gray-200">{formData.designName || '(Not set)'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-400">Goal:</p>
+                                    <p className="text-gray-200">{formData.primaryGoal || '(Not set)'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-400">Call to Action:</p>
+                                    <p className="text-gray-200">{formData.callToAction || '(Not set)'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-400">Offer:</p>
+                                    <p className="text-gray-200">{formData.offer || '(Not set)'}</p>
+                                </div>
+                                <div className="col-span-2">
+                                    <p className="text-gray-400">Selling Points:</p>
+                                    <p className="text-gray-200">{(formData.keySellingPoints || []).join('; ') || '(Not set)'}</p>
+                                </div>
+                                <div className="col-span-2">
+                                    <p className="text-gray-400">Target Audience:</p>
+                                    <p className="text-gray-200">{formData.targetAudience || '(Not set)'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-400">Market Description:</p>
+                                    <p className="text-gray-200">{formData.targetMarketDescription || '(Not set)'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-400">Tagline:</p>
+                                    <p className="text-gray-200">{formData.tagline || '(Not set)'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-400">Tone:</p>
+                                    <p className="text-gray-200">{formData.tone || '(Not set)'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-gray-400">Visual Style:</p>
+                                    <p className="text-gray-200">{formData.visualStyle || '(Not set)'}</p>
+                                </div>
+                                <div className="col-span-2">
+                                    <p className="text-gray-400">Additional Info:</p>
+                                    <p className="text-gray-200">{formData.additionalInfo || '(Not set)'}</p>
+                                </div>
+                                <div className="col-span-2">
+                                    <p className="text-gray-400">Imagery Description:</p>
+                                    <p className="text-gray-200">{formData.imageryDescription || '(Not set)'}</p>
+                                </div>
+                                {/* Display uploaded images if any */}
+                                {(uploadedCampaignImageUrls.get(type)?.length ?? 0) > 0 && (
+                                    <div className="col-span-2 mt-2">
+                                        <p className="text-gray-400 mb-2">Uploaded Images:</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {(uploadedCampaignImageUrls.get(type) || []).map((url, i) => (
+                                                <div key={i} className="w-16 h-16 relative rounded-md overflow-hidden border border-gray-600">
+                                                    <Image 
+                                                        src={url} 
+                                                        alt={`Image ${i+1}`} 
+                                                        fill 
+                                                        className="object-cover"
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
                 
+                <div className="pt-4 border-t border-gray-700 mt-4 text-center">
+                    <p className="text-electric-teal mb-3">Ready to create your amazing postcard designs?</p>
+                    <button 
+                        onClick={handleSubmit} 
+                        disabled={isSubmitting} 
+                        className="px-6 py-3 rounded-md bg-green-500 hover:bg-green-400 text-white shadow-glow hover:shadow-glow-strong transition-all duration-300 disabled:opacity-50 disabled:shadow-none text-lg font-medium"
+                    >
+                        {isSubmitting ? (
+                            <span className="flex items-center justify-center gap-2">
+                                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Submitting...
+                            </span>
+                        ) : 'Submit Request'}
+                    </button>
+                </div>
             </div>
           </motion.div>
         );
@@ -1433,7 +1872,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
   }, [currentStep, selectedBrandId, designScope, completedCampaignForms, businessTypesArray, activeCampaignType]);
 
   return (
-    <div className="max-w-4xl mx-auto p-4 sm:p-6 bg-gray-800 rounded-lg shadow-xl text-white">
+    <div className="max-w-4xl mx-auto p-4 sm:p-6 bg-charcoal rounded-lg shadow-xl text-white">
       {/* Header & Progress (Show only after initial loading) */} 
       {!isLoadingInitial && currentStep !== 'design_choice' && (
          <div className="mb-8">
@@ -1470,7 +1909,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
              {(currentStep !== 'design_choice') && ( // Always show back unless on first step
                <button 
                  onClick={handlePrevious} 
-                 className="px-4 py-2 rounded bg-gray-600 hover:bg-gray-500 transition-colors">
+                 className="px-4 py-2 rounded bg-charcoal border-2 border-electric-teal text-electric-teal shadow-glow hover:shadow-glow-strong hover:bg-electric-teal/10 transition-all duration-300">
                  {currentStep === 'brand' && designScope === 'single' ? 'Back to Options' : 'Previous'}
                </button>
              )}
@@ -1482,7 +1921,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                    <button 
                      onClick={handleNext} 
                      disabled={isNextDisabled} // Use the memoized check
-                     className={`px-4 py-2 rounded bg-electric-teal text-charcoal hover:bg-electric-teal/90 transition-colors ${
+                     className={`px-4 py-2 rounded bg-electric-teal shadow-glow text-charcoal hover:shadow-glow-strong hover:bg-electric-teal/90 transition-all duration-300 ${
                          isNextDisabled ? 'opacity-50 cursor-not-allowed' : ''
                      }`}
                    >
@@ -1495,7 +1934,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                    <button 
                      onClick={handleSubmit} 
                      disabled={isSubmitting} 
-                     className="px-4 py-2 rounded bg-green-500 hover:bg-green-400 transition-colors disabled:opacity-50">
+                     className="px-4 py-2 rounded bg-green-500 hover:bg-green-400 shadow-glow hover:shadow-glow-strong transition-all duration-300 disabled:opacity-50">
                      {isSubmitting ? 'Submitting...' : 'Submit Request'}
                    </button>
                  )}
@@ -1522,7 +1961,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
             transition={{ duration: 0.2 }}
-            className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto relative border border-electric-teal/30"
+            className="bg-charcoal rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto relative border border-electric-teal/30 shadow-glow"
             onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside modal
           >
             <h3 className="text-xl font-semibold text-electric-teal mb-4">{infoModalContent.title}</h3>
@@ -1540,7 +1979,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
             </button>
              <button
                 onClick={closeInfoModal}
-                className="mt-4 px-4 py-2 rounded bg-electric-teal text-charcoal hover:bg-electric-teal/90 transition-colors"
+                className="mt-4 px-4 py-2 rounded bg-electric-teal text-charcoal shadow-glow hover:shadow-glow-strong hover:bg-electric-teal/90 transition-all duration-300"
               >
                 Got it
               </button>

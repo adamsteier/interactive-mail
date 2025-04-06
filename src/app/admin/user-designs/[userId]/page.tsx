@@ -13,7 +13,8 @@ const UserDesignsPage = () => {
     const userId = params.userId as string;
     const highlightedCampaignId = searchParams.get('campaignId');
 
-    const [brandData, setBrandData] = useState<BrandingData | null>(null); 
+    // Changed from a single brand to a map of brands
+    const [brandMap, setBrandMap] = useState<Map<string, BrandingData>>(new Map());
     const [campaignDesigns, setCampaignDesigns] = useState<CampaignDesignData[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -38,15 +39,19 @@ const UserDesignsPage = () => {
             setIsLoading(true);
             setError(null);
             try {
-                // Fetch Brand Data (assuming only one brand document per user for now)
+                // Fetch ALL Brand Data into a map
                 const brandQuerySnapshot = await getDocs(collection(db, 'users', userId, 'branding'));
-                if (!brandQuerySnapshot.empty) {
-                    // Get the first brand document found
-                    const brandDoc = brandQuerySnapshot.docs[0];
-                    setBrandData({ id: brandDoc.id, ...brandDoc.data() } as BrandingData);
-                } else {
+                const newBrandMap = new Map<string, BrandingData>();
+                
+                brandQuerySnapshot.docs.forEach(doc => {
+                    newBrandMap.set(doc.id, { id: doc.id, ...doc.data() } as BrandingData);
+                });
+                
+                setBrandMap(newBrandMap);
+                if (brandQuerySnapshot.empty) {
                     console.warn(`No branding data found for user: ${userId}`);
-                    // Handle case where brand data might be missing but campaigns exist
+                } else {
+                    console.log(`Loaded ${newBrandMap.size} brand(s) for user: ${userId}`);
                 }
 
                 // Fetch Campaign Designs
@@ -147,6 +152,12 @@ const UserDesignsPage = () => {
     };
     // --- END: Upload Handlers ---
 
+    // Helper function to get brand data for a specific campaign
+    const getBrandForCampaign = (campaign: CampaignDesignData): BrandingData | null => {
+        if (!campaign.associatedBrandId) return null;
+        return brandMap.get(campaign.associatedBrandId) || null;
+    };
+
     return (
         <div className="container mx-auto p-4 sm:p-6 bg-gray-900 text-white min-h-screen">
             <h1 className="text-2xl sm:text-3xl font-bold text-electric-teal mb-6">
@@ -158,37 +169,7 @@ const UserDesignsPage = () => {
 
             {!isLoading && !error && (
                 <div className="space-y-8">
-                    {/* Brand Information Section */}
-                    <section className="bg-gray-800 p-4 rounded-lg shadow">
-                        <h2 className="text-xl font-semibold text-electric-teal/90 mb-3">Brand Profile</h2>
-                        {brandData ? (
-                            <div className="space-y-2 text-sm">
-                                <p><span className="font-medium text-gray-400">Brand Name:</span> {brandData.businessName}</p>
-                                <p><span className="font-medium text-gray-400">Email:</span> {brandData.email || 'N/A'}</p>
-                                <p><span className="font-medium text-gray-400">Website:</span> {brandData.website || 'N/A'}</p>
-                                <p><span className="font-medium text-gray-400">Primary Color:</span> 
-                                    <span style={{ backgroundColor: brandData.styleComponents?.primaryColor, padding: '2px 8px', marginLeft: '5px', borderRadius: '3px', border: '1px solid gray' }}>
-                                        {brandData.styleComponents?.primaryColor}
-                                    </span>
-                                </p>
-                                <p><span className="font-medium text-gray-400">Secondary Color:</span> 
-                                     <span style={{ backgroundColor: brandData.styleComponents?.secondaryColor, padding: '2px 8px', marginLeft: '5px', borderRadius: '3px', border: '1px solid gray' }}>
-                                         {brandData.styleComponents?.secondaryColor}
-                                    </span>
-                                </p>
-                                {brandData.logoUrl && (
-                                    <div>
-                                        <span className="font-medium text-gray-400">Logo:</span> 
-                                        <img src={brandData.logoUrl} alt="Brand Logo" className="mt-2 h-16 w-auto rounded bg-white p-1" />
-                                    </div>
-                                )}
-                                <p><span className="font-medium text-gray-400">Brand Identity Notes:</span> {brandData.brandIdentity || 'N/A'}</p>
-                                {/* Add more brand fields as needed */} 
-                            </div>
-                        ) : (
-                            <p className="text-gray-500">No brand profile found for this user.</p>
-                        )}
-                    </section>
+                    {/* No longer showing a global brand section, as we'll show individual brand sections with each campaign */}
 
                     {/* Campaign Designs Section */}
                     <section>
@@ -201,6 +182,9 @@ const UserDesignsPage = () => {
                                     const progress = uploadProgressMap.get(design.id || '');
                                     const uploadError = uploadErrorMap.get(design.id || '');
                                     const selectedFile = selectedFileMap.get(design.id || '');
+                                    
+                                    // Get associated brand data for this campaign
+                                    const campaignBrand = getBrandForCampaign(design);
 
                                     return (
                                         <div 
@@ -215,11 +199,45 @@ const UserDesignsPage = () => {
                                                     ${design.status === 'ready' ? 'bg-green-700 text-green-100' : 
                                                       design.status === 'processing' ? 'bg-blue-700 text-blue-100' : 
                                                       design.status === 'failed' ? 'bg-red-700 text-red-100' : 
+                                                      design.status === 'completed' ? 'bg-purple-700 text-purple-100' :
                                                       'bg-gray-600 text-gray-200'}
                                                 `}>
                                                     {design.status?.toUpperCase() || 'DRAFT'}
                                                 </span>
                                             </p>
+                                            
+                                            {/* Associated brand information */}
+                                            <div className="mt-3 pt-3 border-t border-gray-700/50 mb-3">
+                                                <h4 className="text-sm font-semibold text-electric-teal/90 mb-1">Associated Brand:</h4>
+                                                {campaignBrand ? (
+                                                    <div className="grid sm:grid-cols-2 gap-2 text-sm bg-gray-700/50 p-2 rounded">
+                                                        <p><span className="font-medium text-gray-400">Brand Name:</span> {campaignBrand.businessName}</p>
+                                                        {campaignBrand.logoUrl && (
+                                                            <div className="sm:text-right">
+                                                                <span className="font-medium text-gray-400">Logo:</span> 
+                                                                <img src={campaignBrand.logoUrl} alt="Brand Logo" className="mt-1 h-8 w-auto inline-block ml-2 rounded bg-white p-0.5" />
+                                                            </div>
+                                                        )}
+                                                        <p><span className="font-medium text-gray-400">Primary Color:</span> 
+                                                            <span style={{ backgroundColor: campaignBrand.styleComponents?.primaryColor, padding: '2px 8px', marginLeft: '5px', borderRadius: '3px', border: '1px solid gray' }}>
+                                                                {campaignBrand.styleComponents?.primaryColor}
+                                                            </span>
+                                                        </p>
+                                                        <p><span className="font-medium text-gray-400">Secondary Color:</span> 
+                                                            <span style={{ backgroundColor: campaignBrand.styleComponents?.secondaryColor, padding: '2px 8px', marginLeft: '5px', borderRadius: '3px', border: '1px solid gray' }}>
+                                                                {campaignBrand.styleComponents?.secondaryColor}
+                                                            </span>
+                                                        </p>
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-yellow-400 text-sm">
+                                                        {design.associatedBrandId ? 
+                                                            `Brand ID ${design.associatedBrandId} not found!` : 
+                                                            'No brand associated with this campaign.'}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            
                                             <p><span className="font-medium text-gray-400">Goal:</span> {design.primaryGoal || 'N/A'}</p>
                                             <p><span className="font-medium text-gray-400">CTA:</span> {design.callToAction || 'N/A'}</p>
                                             <p><span className="font-medium text-gray-400">Target Audience:</span> {design.targetAudience || 'N/A'}</p>
@@ -227,7 +245,7 @@ const UserDesignsPage = () => {
                                             <p><span className="font-medium text-gray-400">Visual Style:</span> {design.visualStyle || 'N/A'}</p>
                                             <p><span className="font-medium text-gray-400">Imagery Notes:</span> {design.imageryDescription || 'N/A'}</p>
                                             
-                                            {/* --- NEW: Display Imagery Preference --- */} 
+                                            {/* --- Display Imagery Preference --- */} 
                                             <div className="mt-2 pt-2 border-t border-gray-700/50">
                                                  <h4 className="text-sm font-semibold text-gray-300 mb-1">Imagery Preference:</h4>
                                                  {design.imageryType === 'upload' ? (
@@ -276,7 +294,17 @@ const UserDesignsPage = () => {
                                                 )}
                                             </div>
                                             
-                                            {/* --- NEW: Final Design Upload Section --- */}
+                                            {/* Display AI Summary if available */}
+                                            {design.aiSummary && (
+                                                <div className="mt-3 pt-3 border-t border-gray-700">
+                                                    <h4 className="text-sm font-semibold text-gray-300 mb-1">AI Summary:</h4>
+                                                    <div className="text-xs text-gray-300 bg-gray-700/50 p-2 rounded">
+                                                        {design.aiSummary}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            
+                                            {/* --- Final Design Upload Section --- */}
                                             <div className="mt-4 pt-4 border-t border-gray-700">
                                                 <h4 className="text-sm font-semibold text-gray-300 mb-2">Final Design</h4>
                                                 {design.finalDesignUrl ? (

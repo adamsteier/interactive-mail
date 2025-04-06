@@ -26,6 +26,37 @@ body {
     box-shadow: 0 0 10px #00F0FF,
                 0 0 20px rgba(0, 240, 255, 0.3);
   }
+  
+  .shadow-glow-sm {
+    box-shadow: 0 0 5px #00F0FF,
+                0 0 10px rgba(0, 240, 255, 0.2);
+  }
+  
+  .shadow-glow-strong {
+    box-shadow: 0 0 15px #00F0FF,
+                0 0 30px rgba(0, 240, 255, 0.4);
+  }
+  
+  .shadow-glow-input {
+    box-shadow: 0 0 5px rgba(0, 240, 255, 0.5);
+  }
+  
+  .shadow-glow-blue {
+    box-shadow: 0 0 10px #4F46E5,
+                0 0 20px rgba(79, 70, 229, 0.3);
+  }
+  
+  /* Custom placeholder color - muted pink-gray */
+  .placeholder-muted-pink::placeholder {
+    color: rgba(220, 180, 190, 0.6);
+  }
+  
+  /* Specific glow for tabs that doesn't get cut off at the bottom */
+  .tab-glow {
+    box-shadow: 0 -2px 5px #00F0FF,
+                -2px 0 4px rgba(0, 240, 255, 0.2),
+                2px 0 4px rgba(0, 240, 255, 0.2);
+  }
 }
 
 /* Brand Guidelines - Spacing */
