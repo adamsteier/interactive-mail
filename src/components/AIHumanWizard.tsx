@@ -13,6 +13,33 @@ import { addCampaignDesign } from '@/lib/campaignDesignService'; // Import for s
 import { storage } from '@/lib/firebase'; // Import storage instance
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
+// --- NEW: Tone & Style Keywords ---
+const toneKeywords = [
+  "Cheerful", "Bright", "Optimistic", "Energetic", "Joyful", "Vibrant", "Lively", "Enthusiastic", "Uplifting",
+  "Welcoming", "Inviting", "Hospitable", "Comforting", "Approachable", "Kindhearted", "Gentle", "Personable",
+  "Polished", "Refined", "Sophisticated", "Authoritative", "Conservative", "Serious", "Trustworthy", "Credible",
+  "Clean", "Streamlined", "Uncluttered", "Sleek", "Contemporary", "Understated", "Efficient",
+  "Opulent", "Lavish", "Upscale", "Sumptuous", "Exclusive", "Premium", "Extravagant", "Elegant",
+  "Quirky", "Imaginative", "Fun", "Humorous", "Lighthearted", "Fantastical", "Delightful", "Sprightly",
+  "Organic", "Authentic", "Natural", "Down-to-earth", "Cozy", "Handcrafted", "Timeless", "Warm-toned",
+  "Striking", "Attention-grabbing", "Daring", "Confident", "Eye-catching", "Dynamic", "Passionate", "Intense",
+  "Retro", "Sentimental", "Romantic", "Classic", "Vintage-inspired", "Evocative", "Charming",
+  "Cutting-edge", "Forward-thinking", "Progressive", "Experimental", "Tech-driven", "Visionary", "Sci-fi",
+  "Urban", "Raw", "Unfiltered", "Bold", "Provocative", "Rebellious", "Grunge", "Dark",
+  "Tranquil", "Soothing", "Peaceful", "Quiet", "Relaxing", "Meditative", "Harmonious",
+  "Artsy", "Expressive", "Crafted", "Original", "Inventive", "Eclectic", "Inspirational"
+];
+
+const visualStyleKeywords = {
+  "Historical / Classic": ["Baroque (dramatic, ornate)", "Rococo (ornamental, pastel)", "Victorian (elaborate, floral)", "Edwardian (elegant, refined)", "Neoclassical (Greek/Roman inspired, symmetrical)"],
+  "Early-Mid 20th Century": ["Art Nouveau (flowing lines, botanical)", "Art Deco (geometric, luxurious)", "Bauhaus (minimal, functional)", "Mid-Century Modern (clean lines, organic)", "De Stijl (primary colors, abstract geometry)"],
+  "Retro / Vintage": ["1950s Diner (bold, chrome, pastel)", "1960s Psychedelic (vibrant, swirling)", "1970s Funk (earth tones, funky shapes)", "1980s Memphis (playful geometry, bright)", "1980s Vaporwave/Synthwave (neon grids, retro future)", "1990s Grunge (distressed, DIY)", "Y2K (futuristic chrome, metallic gradients)"],
+  "Contemporary / Postmodern": ["Minimalist (clean, whitespace)", "Brutalism (raw, unpolished)", "Postmodern (eclectic, playful)", "Anti-Design (ironic, unconventional)"],
+  "Futuristic / Tech": ["Cyberpunk (high-tech dystopia, neon)", "Tech Noir (cinematic sci-fi, dark)", "Futurism (speed, technology)", "High-Tech (sleek, metallic)"],
+  "Fantasy / Thematic": ["Steampunk (Victorian industrial, gears)", "Dieselpunk (early 20th-c industrial)", "Fantasy Medieval (castles, mystical)", "Cottagecore (rustic, pastoral, cozy)", "Hygge / Scandinavian (warm minimalism, comfort)", "Japandi (Japanese/Scandinavian hybrid)", "Tropical / Tiki (exotic, beach)", "Bohemian (eclectic, layered patterns)"],
+  "Other Aesthetics": ["Pop Art (bold colors, comic style)", "Surrealism (dream-like, unexpected)", "Graffiti / Street Art (urban, spray-paint)", "Abstract (shapes, forms, colors)", "Zen / Wabi-Sabi (imperfection, natural)"]
+};
+// --- END: Keywords ---
 
 // Define the steps
 type WizardStep = 'design_choice' | 'brand' | 'campaign' | 'review';
@@ -95,7 +122,12 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
   const [completedCampaignForms, setCompletedCampaignForms] = useState<Set<string>>(new Set());
   const [campaignError, setCampaignError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false); // Changed from isSavingCampaign
-  // --- End State for Campaign Design Step ---
+  // State for the Key Selling Points input string (moved from renderStepContent)
+  const [keySellingPointsInput, setKeySellingPointsInput] = useState('');
+  // --- NEW: State for Info Modal ---
+  const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
+  const [infoModalContent, setInfoModalContent] = useState<{ title: string; content: React.ReactNode } | null>(null);
+  // --- END: State for Info Modal ---
 
   // Determine initial step and scope based on selected leads
   useEffect(() => {
@@ -121,10 +153,15 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
           const typeKey = activeCampaignType || (designScope === 'single' ? '__single__' : null);
           
           if (designScope === 'single' && typeKey) {
-              initialMap.set(typeKey, { ...initialCampaignFormData });
+              // *** Auto-populate designName for single scope ***
+              const defaultName = typeKey === '__single__' 
+                  ? (businessTypesArray.length > 0 ? `${businessTypesArray[0]} - Postcard` : 'General Business - Postcard') 
+                  : `${typeKey} - Postcard`;
+              initialMap.set(typeKey, { ...initialCampaignFormData, designName: defaultName });
           } else if (designScope === 'multiple') {
               businessTypesArray.forEach(type => {
-                  initialMap.set(type, { ...initialCampaignFormData });
+                  // *** Auto-populate designName for multiple scope ***
+                  initialMap.set(type, { ...initialCampaignFormData, designName: `${type} - Postcard` });
               });
           }
           setCampaignFormDataMap(initialMap);
@@ -184,6 +221,63 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
       }
     };
   }, [logoPreviewUrl]);
+
+  // Effect to sync local keySellingPointsInput state when tab changes or data loads (moved from renderStepContent)
+  useEffect(() => {
+    // Derive currentCampaignTypeKey based on component state for this effect
+    const currentCampaignTypeKey = activeCampaignType || (designScope === 'single' ? '__single__' : null);
+    if (currentCampaignTypeKey) {
+      const pointsArray = campaignFormDataMap.get(currentCampaignTypeKey)?.keySellingPoints || [];
+      setKeySellingPointsInput(pointsArray.join(', '));
+    }
+    // If there's no active type (e.g., switching from multi to single with no selection yet),
+    // clear the input to avoid showing stale data.
+    else if (!activeCampaignType && designScope !== 'multiple') { 
+        setKeySellingPointsInput('');
+    }
+  }, [activeCampaignType, campaignFormDataMap, designScope]); // Added designScope dependency
+
+  // --- NEW: Handlers for Info Modal ---
+  const openInfoModal = (type: 'tone' | 'visualStyle') => {
+    if (type === 'tone') {
+      setInfoModalContent({
+        title: "Tone Keyword Suggestions",
+        content: (
+          <div className="prose prose-invert max-w-none prose-sm text-gray-300">
+            <p className="mb-4">Enter keywords describing the feeling or mood of your design. Combine if needed (e.g., {`"Warm and Professional"`}, {`"Playful yet Elegant"`}).</p>
+            <p className="text-xs text-gray-400 mb-2">Examples:</p>
+            <ul className="list-disc list-inside columns-2 sm:columns-3 gap-x-4">
+              {toneKeywords.map(keyword => <li key={keyword}>{keyword}</li>)}
+            </ul>
+          </div>
+        )
+      });
+    } else {
+      setInfoModalContent({
+        title: "Visual Style & Aesthetic Suggestions",
+        content: (
+           <div className="prose prose-invert max-w-none prose-sm text-gray-300">
+             <p className="mb-4">Enter keywords describing the look and feel. You can reference eras, movements, or general aesthetics. Combine with Tone keywords for more specific results (e.g., {`"Minimalist and Clean"`}, {`"Vintage Romantic"`}).</p>
+             {Object.entries(visualStyleKeywords).map(([category, keywords]) => (
+              <div key={category} className="mb-3">
+                <h4 className="text-sm font-semibold text-electric-teal/80 mb-1">{category}</h4>
+                <ul className="list-disc list-inside">
+                  {keywords.map(keyword => <li key={keyword}>{keyword}</li>)}
+                </ul>
+              </div>
+             ))}
+           </div>
+        )
+      });
+    }
+    setIsInfoModalOpen(true);
+  };
+
+  const closeInfoModal = () => {
+    setIsInfoModalOpen(false);
+    setInfoModalContent(null);
+  };
+  // --- END: Handlers for Info Modal ---
 
   // --- Handler for Design Scope Choice (Step 0) ---
   const handleDesignScopeChoice = (scope: 'single' | 'multiple') => {
@@ -427,6 +521,18 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
   const handleTabClick = (type: string) => {
     setActiveCampaignType(type);
     setCampaignError(null); // Clear errors when switching tabs
+    // *** Ensure designName exists when switching tabs in multi-mode ***
+    if (designScope === 'multiple') {
+        setCampaignFormDataMap(prevMap => {
+            const currentData = prevMap.get(type);
+            if (currentData && !currentData.designName) {
+                const newMap = new Map(prevMap);
+                newMap.set(type, { ...currentData, designName: `${type} - Postcard` });
+                return newMap;
+            }
+            return prevMap; // No change needed
+        });
+    }
   };
   // --- End Handlers for Campaign Step ---
 
@@ -835,7 +941,37 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
 
       case 'campaign':
         // --- Campaign Design UI (Step 2 or 3) ---
-        const currentCampaignData = campaignFormDataMap.get(activeCampaignType || '') || {};
+        const currentCampaignTypeKey = activeCampaignType || (designScope === 'single' ? '__single__' : null);
+        const currentCampaignData = currentCampaignTypeKey ? campaignFormDataMap.get(currentCampaignTypeKey) || {} : {};
+
+        // *** Handler specifically for the Key Selling Points input ***
+        const handleKeySellingPointsChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+            const rawValue = event.target.value;
+            // 1. Update the local string state for the input field
+            setKeySellingPointsInput(rawValue);
+
+            // 2. Update the underlying array state in the main map
+            const pointsArray = rawValue.split(',').map(s => s.trim()).filter(s => s !== '');
+            
+            if (currentCampaignTypeKey) {
+                 setCampaignFormDataMap(prevForms => {
+                    const updatedForms = new Map(prevForms);
+                    const currentFormData = updatedForms.get(currentCampaignTypeKey) || { ...initialCampaignFormData };
+                    updatedForms.set(currentCampaignTypeKey, {
+                        ...currentFormData,
+                        keySellingPoints: pointsArray, // Update the array here
+                    });
+                    // Mark form as incomplete since it was edited
+                     setCompletedCampaignForms(prev => {
+                        const newSet = new Set(prev);
+                        newSet.delete(currentCampaignTypeKey);
+                        return newSet;
+                    });
+                    return updatedForms;
+                 });
+            }
+        };
+
         return (
           <motion.div
              key="campaign"
@@ -901,6 +1037,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                             <label htmlFor="primaryGoal" className="block text-sm font-medium text-gray-300 mb-1">Primary Goal</label>
                             <input type="text" id="primaryGoal" name="primaryGoal" 
                                 value={currentCampaignData.primaryGoal || ''}
+                                placeholder={`e.g., Get more ${activeCampaignType || 'customers'} to book consultations`}
                                 onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} 
                                 className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
@@ -908,6 +1045,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                             <label htmlFor="callToAction" className="block text-sm font-medium text-gray-300 mb-1">Call To Action</label>
                             <input type="text" id="callToAction" name="callToAction" 
                                 value={currentCampaignData.callToAction || ''}
+                                placeholder={`e.g., Visit ${userBrands.find(b => b.id === selectedBrandId)?.businessName || 'our website'}.com, Call Now for a Quote, Book Your Appointment`}
                                 onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} 
                                 className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
@@ -915,43 +1053,66 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                             <label htmlFor="targetAudience" className="block text-sm font-medium text-gray-300 mb-1">Target Audience Description</label>
                             <textarea id="targetAudience" name="targetAudience" rows={3} 
                                 value={currentCampaignData.targetAudience || ''}
+                                placeholder={designScope === 'multiple' ? `Describe the ideal ${activeCampaignType || 'customer'} (e.g., homeowners needing tax help, local restaurants seeking bookkeeping).` : 'Describe the ideal customer across all types (e.g., small business owners in St. Albert).'}
                                 onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} 
                                 className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
                         <div>
                             <label htmlFor="offer" className="block text-sm font-medium text-gray-300 mb-1">Specific Offer / Promotion</label>
-                            <input type="text" id="offer" name="offer" value={currentCampaignData.offer || ''} onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
+                            <input type="text" id="offer" name="offer" value={currentCampaignData.offer || ''} placeholder="e.g., 10% Off First Service, Free Initial Consultation, Mention This Card for..." onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
                         <div>
                             <label htmlFor="keySellingPoints" className="block text-sm font-medium text-gray-300 mb-1">Key Selling Points (comma-separated)</label>
-                            <input type="text" id="keySellingPoints" name="keySellingPoints" value={(currentCampaignData.keySellingPoints || []).join(', ')} onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
+                            <input 
+                                type="text" 
+                                id="keySellingPoints" 
+                                name="keySellingPoints" 
+                                // *** Value bound to local string state ***
+                                value={keySellingPointsInput} 
+                                // *** Use the specific handler ***
+                                onChange={handleKeySellingPointsChange} 
+                                placeholder="e.g., Saves Time, Reduces Errors, Expert Advice, Local & Trusted" 
+                                className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"
+                            />
                         </div>
                         <div>
                             <label htmlFor="targetMarketDescription" className="block text-sm font-medium text-gray-300 mb-1">Target Market Description (Optional)</label>
-                            <textarea id="targetMarketDescription" name="targetMarketDescription" rows={2} value={currentCampaignData.targetMarketDescription || ''} onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
+                            <textarea id="targetMarketDescription" name="targetMarketDescription" rows={2} value={currentCampaignData.targetMarketDescription || ''} placeholder={`e.g., Focus on ${activeCampaignType || 'businesses'} in the downtown core, Target new homeowners in the area`} onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
                         <div>
                             <label htmlFor="tagline" className="block text-sm font-medium text-gray-300 mb-1">Tagline (Optional)</label>
-                            <input type="text" id="tagline" name="tagline" value={currentCampaignData.tagline || ''} onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
+                            <input type="text" id="tagline" name="tagline" value={currentCampaignData.tagline || ''} placeholder="Your catchy business slogan" onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
+                            <div className="relative">
                                 <label htmlFor="tone" className="block text-sm font-medium text-gray-300 mb-1">Tone (Optional)</label>
-                                <p className="text-xs text-gray-400">(Multi-select placeholder)</p>
-                                <input type="text" name="tone" readOnly value={currentCampaignData.tone || ''} className="w-full p-2 rounded bg-gray-800 border border-gray-600 text-gray-400 italic"/>
+                                <p className="text-xs text-gray-400 mb-1">(Keywords help the AI)</p>
+                                <input type="text" name="tone" placeholder="e.g., Professional, Friendly, Urgent, Calm, Humorous" value={currentCampaignData.tone || ''} onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600"/>
+                                {/* NEW: Info Icon */}
+                                <button type="button" onClick={() => openInfoModal('tone')} className="absolute top-0 right-0 mt-1 mr-1 text-gray-400 hover:text-electric-teal">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                </button>
                             </div>
-                            <div>
+                            <div className="relative">
                                 <label htmlFor="visualStyle" className="block text-sm font-medium text-gray-300 mb-1">Visual Style/Aesthetic (Optional)</label>
-                                <p className="text-xs text-gray-400">(Multi-select placeholder)</p>
-                                <input type="text" name="visualStyle" readOnly value={currentCampaignData.visualStyle || ''} className="w-full p-2 rounded bg-gray-800 border border-gray-600 text-gray-400 italic"/>
+                                <p className="text-xs text-gray-400 mb-1">(Keywords help the AI)</p>
+                                <input type="text" name="visualStyle" placeholder="e.g., Modern, Minimalist, Bold, Vintage, Playful, Elegant" value={currentCampaignData.visualStyle || ''} onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600"/>
+                                {/* NEW: Info Icon */}
+                                <button type="button" onClick={() => openInfoModal('visualStyle')} className="absolute top-0 right-0 mt-1 mr-1 text-gray-400 hover:text-electric-teal">
+                                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                     <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                   </svg>
+                                 </button>
                             </div>
                         </div>
                         <div>
                             <label htmlFor="additionalInfo" className="block text-sm font-medium text-gray-300 mb-1">Additional Information (Optional)</label>
-                            <textarea id="additionalInfo" name="additionalInfo" rows={3} value={currentCampaignData.additionalInfo || ''} onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
+                            <textarea id="additionalInfo" name="additionalInfo" rows={3} value={currentCampaignData.additionalInfo || ''} placeholder="Anything else? e.g., Must include our phone number prominently. Use image of happy clients. Avoid red color." onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
 
-                        {/* Save Button for Multi-Scope */} 
+                        {/* Save Button for Multi-Scope or Single Scope Validation */} 
                         {designScope === 'multiple' && (
                            <div className="pt-4 border-t border-gray-600/50 mt-4">
                               <button 
@@ -965,7 +1126,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                         )}
                        </>
                     ) : (
-                        <p className="text-center text-gray-500">(Select a campaign type above)</p>
+                        <p className="text-center text-gray-500">(Select a campaign type above or check configuration)</p>
                     )}
                 </div>
             </div>
@@ -1117,6 +1278,44 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
             )}
          </div>
       )}
+
+      {/* --- NEW: Info Modal --- */}
+      {isInfoModalOpen && infoModalContent && (
+        <div
+          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+          onClick={closeInfoModal} // Close on overlay click
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.2 }}
+            className="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto relative border border-electric-teal/30"
+            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside modal
+          >
+            <h3 className="text-xl font-semibold text-electric-teal mb-4">{infoModalContent.title}</h3>
+            <div className="text-gray-300 mb-6">
+              {infoModalContent.content}
+            </div>
+            <button
+              onClick={closeInfoModal}
+              className="absolute top-3 right-3 text-gray-400 hover:text-white"
+              aria-label="Close modal"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+             <button
+                onClick={closeInfoModal}
+                className="mt-4 px-4 py-2 rounded bg-electric-teal text-charcoal hover:bg-electric-teal/90 transition-colors"
+              >
+                Got it
+              </button>
+          </motion.div>
+        </div>
+      )}
+      {/* --- END: Info Modal --- */}
     </div>
   );
 };
