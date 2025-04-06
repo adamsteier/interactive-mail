@@ -129,6 +129,26 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
   const [infoModalContent, setInfoModalContent] = useState<{ title: string; content: React.ReactNode } | null>(null);
   // --- END: State for Info Modal ---
 
+  // --- NEW: Helper function to find next incomplete design ---
+  const findNextIncompleteDesignType = (currentType: string | null): string | null => {
+    if (!currentType || designScope !== 'multiple') return null;
+
+    const currentIndex = businessTypesArray.indexOf(currentType);
+    if (currentIndex === -1) return null; // Should not happen
+
+    // Start searching from the next index, wrapping around
+    for (let i = 1; i < businessTypesArray.length; i++) {
+      const nextIndex = (currentIndex + i) % businessTypesArray.length;
+      const nextType = businessTypesArray[nextIndex];
+      if (!completedCampaignForms.has(nextType)) {
+        return nextType; // Found the next incomplete type
+      }
+    }
+
+    return null; // All others are complete
+  };
+  // --- END: Helper function ---
+
   // Determine initial step and scope based on selected leads
   useEffect(() => {
     console.log("AIHumanWizard Mounted. Selected Business Types:", selectedBusinessTypes);
@@ -534,8 +554,52 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
         });
     }
   };
-  // --- End Handlers for Campaign Step ---
 
+  // --- NEW: Handlers for Next/Copy Design ---
+  const handleGoToNextDesign = () => {
+    if (activeCampaignType) {
+      const nextType = findNextIncompleteDesignType(activeCampaignType);
+      if (nextType) {
+        handleTabClick(nextType); // Switch to the next incomplete tab
+      } else {
+        // Optional: Add feedback if all others are complete or no next one found
+        console.log("No further incomplete designs found or already on the last one.");
+      }
+    }
+  };
+
+  const handleCopyInfoToNextDesign = () => {
+     if (activeCampaignType) {
+        const nextType = findNextIncompleteDesignType(activeCampaignType);
+        const currentData = campaignFormDataMap.get(activeCampaignType);
+
+        if (nextType && currentData) {
+            setCampaignFormDataMap(prevMap => {
+                const newMap = new Map(prevMap);
+                // Copy data, ensuring keySellingPoints is a new array if it exists
+                const dataToCopy = { 
+                    ...currentData, 
+                    keySellingPoints: currentData.keySellingPoints ? [...currentData.keySellingPoints] : [] 
+                };
+                newMap.set(nextType, dataToCopy);
+                 // DO NOT mark nextType as complete here
+                 // Also remove nextType from completed set if it was somehow there
+                 setCompletedCampaignForms(prev => {
+                    const newSet = new Set(prev);
+                    newSet.delete(nextType);
+                    return newSet;
+                 });
+                return newMap;
+            });
+            // Automatically switch to the tab where data was copied
+            handleTabClick(nextType);
+        } else {
+             // Optional: Add feedback
+             console.log("Could not copy data: No next incomplete design found or current data missing.");
+        }
+     }
+  };
+  // --- END: Handlers for Next/Copy Design ---
 
   const handleNext = () => {
     // Clear errors on navigation
@@ -644,6 +708,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                 keySellingPoints: formData.keySellingPoints || [],
                 tone: formData.tone || '',
                 visualStyle: formData.visualStyle || '',
+                imageryDescription: formData.imageryDescription || undefined, // NEW: Include imagery
                 additionalInfo: formData.additionalInfo || undefined,
             };
             // Important: Use addCampaignDesign service function
@@ -1111,17 +1176,56 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                             <label htmlFor="additionalInfo" className="block text-sm font-medium text-gray-300 mb-1">Additional Information (Optional)</label>
                             <textarea id="additionalInfo" name="additionalInfo" rows={3} value={currentCampaignData.additionalInfo || ''} placeholder="Anything else? e.g., Must include our phone number prominently. Use image of happy clients. Avoid red color." onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
+                        {/* NEW: Imagery Description */}
+                        <div>
+                            <label htmlFor="imageryDescription" className="block text-sm font-medium text-gray-300 mb-1">Describe Desired Imagery (Optional)</label>
+                            <textarea 
+                                id="imageryDescription" 
+                                name="imageryDescription" 
+                                rows={3} 
+                                value={currentCampaignData.imageryDescription || ''} 
+                                onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} 
+                                placeholder="e.g., A friendly photo of our team, a picture of a beautifully renovated kitchen, abstract graphic representing growth, a simple illustration of a house with a sold sign."
+                                className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"
+                            />
+                        </div>
+                        <div>
+                            <label htmlFor="additionalInfo" className="block text-sm font-medium text-gray-300 mb-1">Additional Information (Optional)</label>
+                            <textarea id="additionalInfo" name="additionalInfo" rows={3} value={currentCampaignData.additionalInfo || ''} placeholder="Anything else? e.g., Must include our phone number prominently. Use image of happy clients. Avoid red color." onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
+                        </div>
 
                         {/* Save Button for Multi-Scope or Single Scope Validation */} 
-                        {designScope === 'multiple' && (
-                           <div className="pt-4 border-t border-gray-600/50 mt-4">
+                        {designScope === 'multiple' && activeCampaignType && (
+                           <div className="pt-4 border-t border-gray-600/50 mt-4 flex flex-wrap gap-2 justify-between items-center">
                               <button 
                                  onClick={() => handleMarkCampaignFormComplete(activeCampaignType)}
                                  disabled={completedCampaignForms.has(activeCampaignType)}
                                  className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm disabled:bg-gray-500 disabled:cursor-not-allowed"
                               >
-                                {completedCampaignForms.has(activeCampaignType) ? 'Details Saved' : 'Save Details for this Type'}
+                                {completedCampaignForms.has(activeCampaignType) ? '✓ Details Saved' : 'Save Details for this Type'}
                                </button>
+                               
+                               {/* NEW: Next/Copy Buttons */} 
+                               <div className="flex gap-2">
+                                 <button 
+                                    type="button"
+                                    onClick={handleCopyInfoToNextDesign}
+                                    disabled={!findNextIncompleteDesignType(activeCampaignType)} // Disable if no next incomplete
+                                    className="px-3 py-1.5 rounded bg-gray-500 hover:bg-gray-400 text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title={!findNextIncompleteDesignType(activeCampaignType) ? "All other designs are marked complete" : "Copy current details to the next incomplete design"}
+                                 >
+                                    Copy to Next
+                                 </button>
+                                 <button 
+                                     type="button"
+                                     onClick={handleGoToNextDesign}
+                                     disabled={!findNextIncompleteDesignType(activeCampaignType)} // Disable if no next incomplete
+                                     className="px-3 py-1.5 rounded bg-teal-600 hover:bg-teal-500 text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                     title={!findNextIncompleteDesignType(activeCampaignType) ? "All other designs are marked complete" : "Go to next incomplete design"}
+                                 >
+                                     Next Design →
+                                 </button>
+                               </div>
                            </div>
                         )}
                        </>
@@ -1168,6 +1272,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                             <li>Tagline: {formData.tagline || '(Not set)'}</li>
                             <li>Tone: {formData.tone || '(Not set)'}</li>
                             <li>Visual Style: {formData.visualStyle || '(Not set)'}</li>
+                            <li>Imagery Notes: {formData.imageryDescription || '(Not set)'}</li>
                             <li>Additional Info: {formData.additionalInfo || '(Not set)'}</li>
                         </ul>
                     </div>
@@ -1257,11 +1362,15 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                     (currentStep === 'campaign' && designScope === 'multiple' && completedCampaignForms.size !== businessTypesArray.length) ||
                     (currentStep === 'campaign' && designScope === 'single' && !completedCampaignForms.has(activeCampaignType || '')) // Add check for single scope completion
                 } 
-                className={`px-4 py-2 rounded bg-electric-teal text-charcoal hover:bg-electric-teal/90 transition-colors ${ 
-                    ((currentStep === 'brand' && !selectedBrandId) || 
-                     (currentStep === 'campaign' && designScope === 'multiple' && completedCampaignForms.size !== businessTypesArray.length) || 
-                     (currentStep === 'campaign' && designScope === 'single' && !completedCampaignForms.has(activeCampaignType || '')))
-                    ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`px-4 py-2 rounded bg-electric-teal text-charcoal hover:bg-electric-teal/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`} 
+                // NEW: Tooltip for disabled state in multi-design campaign step
+                title={
+                  (currentStep === 'campaign' && designScope === 'multiple' && completedCampaignForms.size !== businessTypesArray.length)
+                    ? `Please save details for all ${businessTypesArray.length} designs before proceeding.`
+                    : (currentStep === 'brand' && !selectedBrandId) 
+                    ? 'Please select or create a brand profile first.'
+                    : '' // No title needed if enabled
+                }
               >
                 Next
               </button>

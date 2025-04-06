@@ -46,21 +46,21 @@ export interface BrandingData {
 
 // Interface for documents in the 'campaignDesignData' subcollection (users/{userId}/campaignDesignData/{designId})
 export interface CampaignDesignData {
-  id?: string; // Optional: Firestore document ID
-  associatedBrandId: string; // ID of the BrandingData document used for this design
-  designName: string; // e.g., "Variant A - Summer Promo"
+  id?: string; // Optional because it's added after creation
+  associatedBrandId: string;
+  designName: string;
   primaryGoal: string;
   callToAction: string;
   targetAudience: string;
-  targetMarketDescription?: string;
-  tagline?: string;
-  offer?: string; // Added field for specific offer/promotion
-  keySellingPoints?: string[]; // Added field for key features/benefits
-  tone?: string; // Changed from string[] to string
-  visualStyle?: string; // Changed from string[] to string
-  additionalInfo?: string;
-  // associatedCampaignId?: string; // Link to a parent campaign if needed later
-  // Add fields for design specifics like image URLs, copy text blocks, etc.
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  targetMarketDescription?: string; // Optional
+  tagline?: string; // Optional
+  offer?: string; // Optional
+  keySellingPoints: string[];
+  tone: string;
+  visualStyle: string;
+  imageryDescription?: string; // NEW Optional field for imagery
+  additionalInfo?: string; // Optional
+  createdAt?: Timestamp; // Optional on creation, will be set by server
+  updatedAt?: Timestamp; // Optional on creation, will be set by server
+  // Potential future fields: finalDesignUrls?: string[], feedback?: string
 } 
