@@ -603,17 +603,27 @@ const HumanAssistedWizard = ({ onBack }: HumanAssistedWizardProps) => {
 
       // Prepare the campaign object with updated status and visual data
       const campaignsForWrite = campaigns.map((campaign, index) => {
-        if (index === campaignToUpdateIndex) {
-          return {
+        // Ensure all campaigns have defined status and null for AI fields if not set
+        const baseCampaign = {
             ...campaign,
+            campaignStatus: campaign.campaignStatus || 'draft',
+            aiPrompt: campaign.aiPrompt ?? null, 
+            aiSummary: campaign.aiSummary ?? null,
+        };
+        
+        if (index === campaignToUpdateIndex) {
+          // Update the currently processed campaign
+          return {
+            ...baseCampaign,
             visualData: visualData, // Ensure latest visual data
-            campaignStatus: 'processing_ai' as const, // Set status for this campaign
-            aiPrompt: null, // Use null instead of undefined
-            aiSummary: null, // Use null instead of undefined
+            campaignStatus: 'processing_ai' as const, // Set status
+            aiPrompt: null, // Reset AI fields for processing
+            aiSummary: null,
           };
+        } else {
+          // Return other campaigns as they are (with defaults applied)
+          return baseCampaign;
         }
-        // Initialize status for other campaigns if not set
-        return { ...campaign, campaignStatus: campaign.campaignStatus || 'draft' }; 
       });
 
       // A. If it's the FIRST campaign submission in multi-scope
