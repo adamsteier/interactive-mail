@@ -227,6 +227,39 @@ const UserDesignsPage = () => {
                                             <p><span className="font-medium text-gray-400">Visual Style:</span> {design.visualStyle || 'N/A'}</p>
                                             <p><span className="font-medium text-gray-400">Imagery Notes:</span> {design.imageryDescription || 'N/A'}</p>
                                             
+                                            {/* --- NEW: Display Imagery Preference --- */} 
+                                            <div className="mt-2 pt-2 border-t border-gray-700/50">
+                                                 <h4 className="text-sm font-semibold text-gray-300 mb-1">Imagery Preference:</h4>
+                                                 {design.imageryType === 'upload' ? (
+                                                     <div>
+                                                         <p className="text-sm text-gray-400">Type: User Uploaded Images</p>
+                                                         {(design.uploadedImageUrls || []).length > 0 ? (
+                                                             <ul className="list-disc list-inside pl-4 mt-1">
+                                                                 {(design.uploadedImageUrls || []).map((url, index) => (
+                                                                     <li key={`${design.id}-img-${index}`} className="text-xs">
+                                                                         <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline break-all">Image {index + 1}</a>
+                                                                         {/* Optional: Small preview */}
+                                                                         {/* <img src={url} alt={`Uploaded ${index+1}`} className="h-10 w-10 inline-block ml-2 border border-gray-600 rounded" /> */}
+                                                                     </li>
+                                                                 ))}
+                                                             </ul>
+                                                         ) : (
+                                                             <p className="text-sm text-gray-500 italic">(No images were uploaded)</p>
+                                                         )}
+                                                     </div>
+                                                 ) : design.imageryType === 'describe' ? (
+                                                      <div>
+                                                         <p className="text-sm text-gray-400">Type: AI Imagery Description</p>
+                                                         <pre className="text-xs text-gray-300 bg-gray-700/50 p-2 rounded mt-1 whitespace-pre-wrap font-sans">
+                                                             {design.imageryDescription || '(Description not provided)'}
+                                                         </pre>
+                                                      </div>
+                                                 ) : (
+                                                     <p className="text-sm text-gray-500 italic">(Imagery preference not set)</p>
+                                                 )}
+                                            </div>
+                                            {/* --- END: Display Imagery Preference --- */} 
+                                            
                                             {/* Display Generated Prompt */}
                                             <div className="mt-3 pt-3 border-t border-gray-700">
                                                 <h4 className="text-sm font-semibold text-gray-300 mb-1">Generated Prompt:</h4>

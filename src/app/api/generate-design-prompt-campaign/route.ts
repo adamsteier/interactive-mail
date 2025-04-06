@@ -117,7 +117,13 @@ export async function POST(req: Request) {
       - Key Selling Points: ${campaignData.keySellingPoints?.join(', ') || 'N/A'}
       - Tone: ${campaignData.tone || 'Default / Not Specified'}
       - Visual Style: ${campaignData.visualStyle || 'Default / Not Specified'}
-      - Desired Imagery Notes: ${campaignData.imageryDescription || 'Not Specified'}
+      
+      Imagery Preference:
+      - Type: ${campaignData.imageryType || 'Not Specified'}
+      ${campaignData.imageryType === 'upload' 
+          ? `- User Uploaded Image URLs: [${(campaignData.uploadedImageUrls || []).join(', ')}] (Consider these images for reference or inclusion in the design.)` 
+          : `- User Description for AI Imagery: ${campaignData.imageryDescription || 'Not Specified (Generate appropriate imagery based on other details)'}`}
+
       - Additional Info/Notes: ${campaignData.additionalInfo || 'N/A'}
       
       Generate a detailed, creative image generation prompt (suitable for DALL-E/Midjourney) AND a concise summary (2-3 sentences) for a human designer based ONLY on the provided details.
@@ -184,6 +190,11 @@ export async function POST(req: Request) {
 ` +
             `Brand: ${brandData?.businessName || 'N/A'}
 ` +
+            `<p>Imagery Preference: ${campaignData.imageryType === 'upload' ? 'User Uploaded Images' : campaignData.imageryType === 'describe' ? 'AI Description Provided' : 'Not Specified'}</p>` +
+            (campaignData.imageryType === 'upload' && (campaignData.uploadedImageUrls || []).length > 0 ? 
+                `<p>Uploaded Images:<br/>${(campaignData.uploadedImageUrls || []).map(url => `<a href="${url}" target="_blank">${url}</a>`).join('<br/>')}</p>` : '') +
+            (campaignData.imageryType === 'describe' && campaignData.imageryDescription ? 
+                `<p>Imagery Description: ${campaignData.imageryDescription}</p>` : '') +
             (campaignUpdateStatus === 'ready' ? 
                 `AI Summary: ${aiSummary}
 
@@ -198,6 +209,11 @@ Error Detail: ${aiGeneratedPrompt}
             `Manage Campaign: ${adminRequestUrl}`,
         html: `<p>Campaign '${campaignData.designName}' (ID: <strong>${campaignDesignId}</strong>) for user ${userId} is <strong>${subjectStatus}</strong>.</p>` +
             `<p>Brand: ${brandData?.businessName || 'N/A'}</p>` +
+            `<p>Imagery Preference: ${campaignData.imageryType === 'upload' ? 'User Uploaded Images' : campaignData.imageryType === 'describe' ? 'AI Description Provided' : 'Not Specified'}</p>` +
+            (campaignData.imageryType === 'upload' && (campaignData.uploadedImageUrls || []).length > 0 ? 
+                `<p>Uploaded Images:<br/>${(campaignData.uploadedImageUrls || []).map(url => `<a href="${url}" target="_blank">${url}</a>`).join('<br/>')}</p>` : '') +
+            (campaignData.imageryType === 'describe' && campaignData.imageryDescription ? 
+                `<p>Imagery Description: ${campaignData.imageryDescription}</p>` : '') +
             (campaignUpdateStatus === 'ready' ? 
                 `<p><strong>AI Summary:</strong><br/>${aiSummary.replace(/\n/g, '<br/>')}</p>` +
                 `<p><strong>AI Prompt:</strong><br/>${aiGeneratedPrompt.replace(/\n/g, '<br/>')}</p>` :

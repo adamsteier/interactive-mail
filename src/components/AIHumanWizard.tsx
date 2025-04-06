@@ -11,7 +11,7 @@ import { addCampaignDesign, updateCampaignDesign } from '@/lib/campaignDesignSer
 
 // Firebase Storage imports
 import { storage } from '@/lib/firebase'; // Import storage instance
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage"; // Removed deleteObject
 
 import Image from 'next/image'; // Import next/image
 
@@ -127,7 +127,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
   // Track if the API call for a specific campaign is running
   const [isProcessingApiCallMap, setIsProcessingApiCallMap] = useState<Map<string, boolean>>(new Map());
   const [campaignError, setCampaignError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false); // Changed from isSavingCampaign
+  const [isSubmitting, setIsSubmitting] = useState(false);
   // State for the Key Selling Points input string (moved from renderStepContent)
   const [keySellingPointsInput, setKeySellingPointsInput] = useState('');
   // --- NEW: State for Info Modal ---
@@ -151,6 +151,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
       setActiveCampaignType(businessTypesArray[0] || '__single__'); // Use special key for single scope
     }
     setIsLoadingInitial(false); // Initial setup complete
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run only once on mount
 
   // Initialize the campaignFormDataMap when scope/types are known
@@ -175,7 +176,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
           console.log("Initialized/Updated campaignFormDataMap:", initialMap);
       }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoadingInitial, designScope, JSON.stringify(businessTypesArray)]); // Depend on stringified array
+  }, [isLoadingInitial, designScope, businessTypesArray]); // Added businessTypesArray dependency
 
   // Fetch existing brands when the component mounts and user is available
   useEffect(() => {
@@ -1354,7 +1355,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
             </p>
             {/* Informational Text Added */} 
             <p className="text-xs text-yellow-300 bg-yellow-900/30 p-2 rounded mb-4 border border-yellow-700/50">
-                Please ensure you have clicked &quot;Save & Request AI Prompt&quot; for all required campaigns. Once submitted, our team will work on generating the final designs based on the details provided and the AI-generated prompts. You will be able to view the completed designs later.
+                Please ensure you have clicked &quot;Save & Request AI Prompt&quot; for {designScope === 'multiple' ? 'all designs' : 'the current design'} above. Once submitted, our team will work on generating the final designs based on the details provided and the AI-generated prompts. You will be able to view the completed designs later.
             </p>
             <div className="bg-gray-700 p-4 rounded-lg space-y-3">
                 <p><span className="font-medium text-gray-300">Selected Brand:</span> {userBrands.find(b => b.id === selectedBrandId)?.businessName || 'N/A'}</p>

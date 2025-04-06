@@ -59,6 +59,8 @@ export interface CampaignDesignData {
   tone: string;
   visualStyle: string;
   imageryDescription?: string; // NEW Optional field for imagery
+  imageryType?: 'upload' | 'describe'; // NEW: Track user's imagery choice
+  uploadedImageUrls?: string[]; // NEW: Store URLs if imageryType is 'upload'
   additionalInfo?: string; // Optional
   generatedPrompt?: string; // NEW: Store the AI prompt result
   aiSummary?: string; // NEW: Store the AI summary
