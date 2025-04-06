@@ -56,8 +56,8 @@ export interface CampaignDesignData {
   tagline?: string;
   offer?: string; // Added field for specific offer/promotion
   keySellingPoints?: string[]; // Added field for key features/benefits
-  tone?: string[]; // Added: Optional array of tone descriptors
-  visualStyle?: string[]; // Added: Optional array of style/aesthetic descriptors
+  tone?: string; // Changed from string[] to string
+  visualStyle?: string; // Changed from string[] to string
   additionalInfo?: string;
   // associatedCampaignId?: string; // Link to a parent campaign if needed later
   // Add fields for design specifics like image URLs, copy text blocks, etc.

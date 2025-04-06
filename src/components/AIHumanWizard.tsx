@@ -30,8 +30,8 @@ const initialCampaignFormData: Partial<Omit<CampaignDesignData, 'id' | 'associat
   tagline: '',
   offer: '',
   keySellingPoints: [],
-  tone: [],
-  visualStyle: [],
+  tone: '',
+  visualStyle: '',
   additionalInfo: ''
 };
 
@@ -233,47 +233,57 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
 
   // --- NEW Logo Handling Functions --- 
   const handleLogoSelect = (event: ChangeEvent<HTMLInputElement>) => {
-    if (logoPreviewUrl) {
-      URL.revokeObjectURL(logoPreviewUrl);
-    }
+    // Reset state on new selection
+    if (logoPreviewUrl) URL.revokeObjectURL(logoPreviewUrl);
     setLogoFile(null);
     setLogoPreviewUrl(null);
     setLogoUploadError(null);
     setLogoUploadProgress(null);
     setIsUploadingLogo(false);
-    // Clear the previously uploaded URL from the main data if a new file is selected
     setNewBrandData(prev => ({...prev, logoUrl: ''})); 
 
     if (event.target.files && event.target.files[0]) {
       const file = event.target.files[0];
-      // Validation (example: type and size)
+      // Validation
       if (!file.type.startsWith('image/') || file.size > 5 * 1024 * 1024) { // 5MB limit
         setLogoUploadError(!file.type.startsWith('image/') ? 'Please select an image file.' : 'File size must be under 5MB.');
+        // Clear the invalid file from the input
+        if (fileInputRef.current) fileInputRef.current.value = ""; 
         return;
       }
       
+      // Set state immediately for preview and file object
       const previewUrl = URL.createObjectURL(file);
       setLogoFile(file);
       setLogoPreviewUrl(previewUrl);
+
+      // *** Trigger upload immediately after setting file state ***
+      // Use a slight delay to ensure state updates before upload starts?
+      // Or directly call, assuming state updates are fast enough for handleUploadLogo
+      // Let's try direct call first.
+      handleUploadLogo(file); // Pass the file directly to avoid state race condition
     }
   };
 
-  const handleUploadLogo = async () => {
-    if (!logoFile) {
-      setLogoUploadError('No file selected.');
+  // Modify handleUploadLogo to optionally accept the file directly
+  const handleUploadLogo = async (fileToUpload?: File) => {
+    const currentFile = fileToUpload || logoFile; // Use passed file or state file
+    
+    if (!currentFile) {
+      setLogoUploadError('No file available to upload.');
       return;
     }
 
     if (logoPreviewUrl) {
-        URL.revokeObjectURL(logoPreviewUrl); // Clean up preview before upload
+        URL.revokeObjectURL(logoPreviewUrl); 
         setLogoPreviewUrl(null);
     }
     setIsUploadingLogo(true);
     setLogoUploadProgress(0);
     setLogoUploadError(null);
 
-    const storageRef = ref(storage, `logos/${user?.uid || 'unknown'}/${Date.now()}_${logoFile.name}`);
-    const uploadTask = uploadBytesResumable(storageRef, logoFile);
+    const storageRef = ref(storage, `logos/${user?.uid || 'unknown'}/${Date.now()}_${currentFile.name}`);
+    const uploadTask = uploadBytesResumable(storageRef, currentFile);
 
     uploadTask.on('state_changed',
       (snapshot) => {
@@ -285,26 +295,28 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
         setLogoUploadError(`Upload failed: ${error.code}`);
         setIsUploadingLogo(false);
         setLogoUploadProgress(null);
-        setLogoFile(null); // Clear the file on error
+        setLogoFile(null); // Clear the file state on error
+        if (fileInputRef.current) fileInputRef.current.value = ""; // Clear input value
       },
       () => {
-        // Upload completed successfully, now get the download URL
         getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
           console.log('File available at', downloadURL);
-          // IMPORTANT: Update the main brand data state with the final URL
           setNewBrandData(prev => ({ ...prev, logoUrl: downloadURL }));
-          // Update UI state
-          setLogoUploadProgress(100); // Indicate completion
+          setLogoUploadProgress(100); 
           setIsUploadingLogo(false);
-          setLogoFile(null); // Clear the file object
-          // Keep logoUrl in newBrandData, maybe clear preview? Preview already cleared.
-          
+          // Do NOT clear logoFile state here immediately after success,
+          // keep it until a new file is selected or save happens?
+          // Let's clear it for consistency for now.
+          setLogoFile(null); 
+          if (fileInputRef.current) fileInputRef.current.value = ""; // Clear input value after success
         }).catch((error) => {
+           // ... (error handling for getDownloadURL)
           console.error("Failed to get download URL:", error);
           setLogoUploadError('Upload succeeded but failed to get URL.');
           setIsUploadingLogo(false);
           setLogoUploadProgress(null);
           setLogoFile(null);
+          if (fileInputRef.current) fileInputRef.current.value = ""; 
         });
       }
     );
@@ -524,8 +536,8 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                 tagline: formData.tagline || undefined,
                 offer: formData.offer || undefined,
                 keySellingPoints: formData.keySellingPoints || [],
-                tone: formData.tone || [],
-                visualStyle: formData.visualStyle || [],
+                tone: formData.tone || '',
+                visualStyle: formData.visualStyle || '',
                 additionalInfo: formData.additionalInfo || undefined,
             };
             // Important: Use addCampaignDesign service function
@@ -721,15 +733,15 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                     </div>
                      <div>
                         <label className="block text-sm font-medium text-gray-300 mb-1">Logo (Optional)</label>
-                        <div className="mt-1 flex items-center gap-4">
+                        <div className="mt-1 flex items-center gap-4 flex-wrap">
                             {/* File Input Trigger Button */} 
                             <button 
                                 type="button"
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={isUploadingLogo}
-                                className="px-3 py-2 rounded border border-gray-500 text-gray-300 hover:border-electric-teal hover:text-electric-teal text-sm transition-colors disabled:opacity-50"
+                                className="px-3 py-2 rounded border border-gray-500 text-gray-300 hover:border-electric-teal hover:text-electric-teal text-sm transition-colors disabled:opacity-50 shrink-0"
                             >
-                                {logoFile ? 'Change Logo' : 'Select Logo'}
+                                {newBrandData.logoUrl || logoPreviewUrl || logoFile ? 'Change Logo' : 'Select Logo'}
                             </button>
                             <input 
                                 type="file"
@@ -737,31 +749,29 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                                 ref={fileInputRef}
                                 onChange={handleLogoSelect} 
                                 className="hidden" 
+                                disabled={isUploadingLogo}
                             />
                             {/* Preview Area */} 
                             {logoPreviewUrl && (
-                                <img src={logoPreviewUrl} alt="Logo Preview" className="h-10 w-auto rounded border border-gray-600" />
+                                <img src={logoPreviewUrl} alt="Logo Preview" className="h-10 w-auto rounded border border-gray-600 shrink-0" />
                             )}
                             {/* Display Final Uploaded Logo if no preview */} 
                             {!logoPreviewUrl && newBrandData.logoUrl && (
-                                 <img src={newBrandData.logoUrl} alt="Uploaded Logo" className="h-10 w-auto rounded border border-green-500" />
-                            )}
-                            {/* Upload Button */} 
-                            {logoFile && !isUploadingLogo && logoUploadProgress !== 100 && (
-                                <button 
-                                    type="button"
-                                    onClick={handleUploadLogo}
-                                    className="px-3 py-2 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm"
-                                >
-                                    Upload Logo
-                                </button>
+                                 <img src={newBrandData.logoUrl} alt="Uploaded Logo" className="h-10 w-auto rounded border border-green-500 shrink-0" />
                             )}
                             {/* Progress Indicator */} 
                             {isUploadingLogo && logoUploadProgress !== null && (
-                                <div className="text-sm text-gray-400 w-20 text-center">{(logoUploadProgress).toFixed(0)}%</div>
+                                <div className="flex items-center gap-2 text-sm text-gray-400 shrink-0">
+                                    <span>Uploading...</span>
+                                     <div className="w-20 h-2 bg-gray-600 rounded-full overflow-hidden">
+                                         <div className="bg-blue-500 h-full rounded-full" style={{width: `${logoUploadProgress}%`}}></div>
+                                     </div>
+                                     <span>{(logoUploadProgress).toFixed(0)}%</span>
+                                 </div>
                             )}
-                            {logoUploadProgress === 100 && !isUploadingLogo && (
-                                 <span className="text-sm text-green-400">✓ Uploaded</span>
+                            {/* Success Indicator */} 
+                            {logoUploadProgress === 100 && !isUploadingLogo && newBrandData.logoUrl && (
+                                 <span className="text-sm text-green-400 shrink-0">✓ Upload Successful</span>
                             )}
                         </div>
                          {/* Error Message */} 
@@ -928,12 +938,12 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                             <div>
                                 <label htmlFor="tone" className="block text-sm font-medium text-gray-300 mb-1">Tone (Optional)</label>
                                 <p className="text-xs text-gray-400">(Multi-select placeholder)</p>
-                                <input type="text" name="tone" readOnly value={(currentCampaignData.tone || []).join(', ')} className="w-full p-2 rounded bg-gray-800 border border-gray-600 text-gray-400 italic"/>
+                                <input type="text" name="tone" readOnly value={currentCampaignData.tone || ''} className="w-full p-2 rounded bg-gray-800 border border-gray-600 text-gray-400 italic"/>
                             </div>
                             <div>
                                 <label htmlFor="visualStyle" className="block text-sm font-medium text-gray-300 mb-1">Visual Style/Aesthetic (Optional)</label>
                                 <p className="text-xs text-gray-400">(Multi-select placeholder)</p>
-                                <input type="text" name="visualStyle" readOnly value={(currentCampaignData.visualStyle || []).join(', ')} className="w-full p-2 rounded bg-gray-800 border border-gray-600 text-gray-400 italic"/>
+                                <input type="text" name="visualStyle" readOnly value={currentCampaignData.visualStyle || ''} className="w-full p-2 rounded bg-gray-800 border border-gray-600 text-gray-400 italic"/>
                             </div>
                         </div>
                         <div>
@@ -995,8 +1005,8 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                             <li>Audience: {formData.targetAudience || '(Not set)'}</li>
                             <li>Market Notes: {formData.targetMarketDescription || '(Not set)'}</li>
                             <li>Tagline: {formData.tagline || '(Not set)'}</li>
-                            <li>Tone: {(formData.tone || []).join(', ') || '(Not set)'}</li>
-                            <li>Visual Style: {(formData.visualStyle || []).join(', ') || '(Not set)'}</li>
+                            <li>Tone: {formData.tone || '(Not set)'}</li>
+                            <li>Visual Style: {formData.visualStyle || '(Not set)'}</li>
                             <li>Additional Info: {formData.additionalInfo || '(Not set)'}</li>
                         </ul>
                     </div>
