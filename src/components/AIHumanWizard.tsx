@@ -77,6 +77,11 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
   const businessTypesArray = useMemo(() => Array.from(selectedBusinessTypes), [selectedBusinessTypes]);
   const fileInputRef = useRef<HTMLInputElement>(null); // Ref for file input
   
+  // Function to validate hex color
+  const isValidHex = (hex: string): boolean => {
+    return /^#([0-9A-F]{3}){1,2}$/i.test(hex);
+  };
+  
   // --- Core Wizard State ---
   const [currentStep, setCurrentStep] = useState<WizardStep>('brand'); 
   const [designScope, setDesignScope] = useState<DesignScope>('single'); 
@@ -241,21 +246,19 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
     };
   }, [logoPreviewUrl]);
 
-  // Effect to sync local keySellingPointsInput state when tab changes or data loads (moved from renderStepContent)
+  // Effect to sync local keySellingPointsInput state when tab changes or data loads
   useEffect(() => {
     // Derive currentCampaignTypeKey based on component state for this effect
     const currentCampaignTypeKey = activeCampaignType || (designScope === 'single' ? '__single__' : null);
     if (currentCampaignTypeKey) {
+      // We still need to display the array as a comma-separated string
       const pointsArray = campaignFormDataMap.get(currentCampaignTypeKey)?.keySellingPoints || [];
-      // Join with commas for text input display
+      // Don't split/join if not needed - just grab the raw string value
       setKeySellingPointsInput(pointsArray.join(', '));
+    } else {
+      setKeySellingPointsInput('');
     }
-    // If there's no active type (e.g., switching from multi to single with no selection yet),
-    // clear the input to avoid showing stale data.
-    else if (!activeCampaignType && designScope !== 'multiple') {
-        setKeySellingPointsInput('');
-    }
-  }, [activeCampaignType, campaignFormDataMap, designScope]); // Added designScope dependency
+  }, [activeCampaignType, campaignFormDataMap, designScope]);
 
   // --- NEW: Handlers for Info Modal ---
   const openInfoModal = (type: 'tone' | 'visualStyle') => {
@@ -827,10 +830,20 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
       }
 
       const formData = campaignFormDataMap.get(type);
-      // Basic check: Design Name is required
+      
+      // Required fields validation
       if (!formData?.designName || formData.designName.trim() === '') { 
           setCampaignError(`Design Name is required for the ${type} design.`);
-          // Ensure this type is NOT in the completed set if validation fails
+          setCompletedCampaignForms(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(type);
+              return newSet;
+          });
+          return false; // Indicate failure
+      }
+      
+      if (!formData?.primaryGoal || formData.primaryGoal.trim() === '') { 
+          setCampaignError(`Primary Goal is required for the ${type} design.`);
           setCompletedCampaignForms(prev => {
               const newSet = new Set(prev);
               newSet.delete(type);
@@ -853,24 +866,25 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
 
           let campaignId = campaignDesignIdsMap.get(type) || null;
 
-          // Prepare data for saving/updating
-          const dataToSave: Partial<Omit<CampaignDesignData, 'id' | 'createdAt' | 'updatedAt'>> = {
+          // Prepare data for saving/updating with proper defaults for optional fields
+          const dataToSave: Omit<CampaignDesignData, 'id' | 'createdAt' | 'updatedAt'> = {
               associatedBrandId: selectedBrandId,
-              designName: formData.designName,
-              primaryGoal: formData.primaryGoal || '',
-              callToAction: formData.callToAction || '',
-              targetAudience: formData.targetAudience || '',
-              targetMarketDescription: formData.targetMarketDescription || undefined,
-              tagline: formData.tagline || undefined, // Include offer only if it has a value
-              offer: formData.offer || undefined, // Include offer only if it has a value
-              keySellingPoints: formData.keySellingPoints || [],
-              tone: formData.tone || '',
-              visualStyle: formData.visualStyle || '',
-              additionalInfo: formData.additionalInfo || undefined,
-              imageryDescription: formData.imageryDescription || undefined, // Add imagery description
-              uploadedImageUrls: uploadedCampaignImageUrls.get(type) || undefined, // Add uploaded image URLs
-              imageryType: uploadedCampaignImageUrls.get(type)?.length ? 'upload' : formData.imageryDescription ? 'describe' : undefined, // Set imagery type based on content
-              status: 'processing' // Set status to processing for the API call
+              designName: formData.designName.trim(),
+              primaryGoal: formData.primaryGoal.trim(),
+              callToAction: formData.callToAction?.trim() || '',
+              targetAudience: formData.targetAudience?.trim() || '',
+              targetMarketDescription: formData.targetMarketDescription?.trim() || '',
+              tagline: formData.tagline?.trim() || '', 
+              offer: formData.offer?.trim() || '', 
+              keySellingPoints: (formData.keySellingPoints || []).filter(point => point.trim() !== ''),
+              tone: formData.tone?.trim() || '',
+              visualStyle: formData.visualStyle?.trim() || '',
+              additionalInfo: formData.additionalInfo?.trim() || '',
+              imageryDescription: formData.imageryDescription?.trim() || '',
+              uploadedImageUrls: uploadedCampaignImageUrls.get(type) || [],
+              imageryType: (uploadedCampaignImageUrls.get(type)?.length ? 'upload' : 
+                           formData.imageryDescription?.trim() ? 'describe' : undefined) as 'upload' | 'describe' | undefined,
+              status: 'processing'
           };
 
           if (campaignId) {
@@ -1215,21 +1229,79 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                            <label htmlFor="primaryColor" className="block text-sm font-medium text-electric-teal mb-1">Primary Brand Color</label>
-                           <input 
-                                type="color" id="primaryColor" name="primaryColor"
-                                value={newBrandData.styleComponents?.primaryColor || '#00c2a8'}
-                                onChange={handleNewBrandInputChange}
-                                className="w-full h-10 p-1 rounded-md bg-charcoal/80 border border-gray-600 cursor-pointer focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200"
-                            />
+                           <div className="flex items-center gap-2">
+                               <input 
+                                    type="text" 
+                                    id="primaryColorHex" 
+                                    name="primaryColorHex"
+                                    value={newBrandData.styleComponents?.primaryColor || '#00c2a8'}
+                                    onChange={(e) => {
+                                        const hexValue = e.target.value;
+                                        // Update state even if invalid for smooth typing experience
+                                        setNewBrandData(prev => ({
+                                            ...prev,
+                                            styleComponents: { ...prev.styleComponents, primaryColor: hexValue }
+                                        }));
+                                    }}
+                                    onBlur={(e) => {
+                                        const hexValue = e.target.value;
+                                        // Validate and correct on blur if needed
+                                        if (!isValidHex(hexValue)) {
+                                            setNewBrandData(prev => ({
+                                                ...prev, 
+                                                styleComponents: { ...prev.styleComponents, primaryColor: '#00c2a8' }
+                                            }));
+                                        }
+                                    }}
+                                    className="flex-grow p-2 rounded-md bg-charcoal/80 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200"
+                                />
+                                <input 
+                                    type="color" 
+                                    id="primaryColor" 
+                                    name="primaryColor"
+                                    value={newBrandData.styleComponents?.primaryColor || '#00c2a8'}
+                                    onChange={handleNewBrandInputChange}
+                                    className="h-10 w-10 p-1 rounded-md bg-charcoal/80 border border-gray-600 cursor-pointer focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200"
+                                />
+                            </div>
                         </div>
                          <div>
                             <label htmlFor="secondaryColor" className="block text-sm font-medium text-electric-teal mb-1">Secondary Brand Color</label>
-                            <input 
-                                type="color" id="secondaryColor" name="secondaryColor"
-                                value={newBrandData.styleComponents?.secondaryColor || '#00858a'}
-                                onChange={handleNewBrandInputChange}
-                                className="w-full h-10 p-1 rounded-md bg-charcoal/80 border border-gray-600 cursor-pointer focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200"
-                            />
+                            <div className="flex items-center gap-2">
+                               <input 
+                                    type="text" 
+                                    id="secondaryColorHex" 
+                                    name="secondaryColorHex"
+                                    value={newBrandData.styleComponents?.secondaryColor || '#00858a'}
+                                    onChange={(e) => {
+                                        const hexValue = e.target.value;
+                                        // Update state even if invalid for smooth typing experience
+                                        setNewBrandData(prev => ({
+                                            ...prev,
+                                            styleComponents: { ...prev.styleComponents, secondaryColor: hexValue }
+                                        }));
+                                    }}
+                                    onBlur={(e) => {
+                                        const hexValue = e.target.value;
+                                        // Validate and correct on blur if needed
+                                        if (!isValidHex(hexValue)) {
+                                            setNewBrandData(prev => ({
+                                                ...prev, 
+                                                styleComponents: { ...prev.styleComponents, secondaryColor: '#00858a' }
+                                            }));
+                                        }
+                                    }}
+                                    className="flex-grow p-2 rounded-md bg-charcoal/80 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200"
+                                />
+                                <input 
+                                    type="color" 
+                                    id="secondaryColor" 
+                                    name="secondaryColor"
+                                    value={newBrandData.styleComponents?.secondaryColor || '#00858a'}
+                                    onChange={handleNewBrandInputChange}
+                                    className="h-10 w-10 p-1 rounded-md bg-charcoal/80 border border-gray-600 cursor-pointer focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200"
+                                />
+                            </div>
                         </div>
                     </div>
                      <div>
@@ -1346,30 +1418,34 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
         // But useEffect to sync it is still needed if it depends on activeCampaignTypeKey
         
         // *** Handler specifically for the Key Selling Points input ***
-        const handleKeySellingPointsChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const handleKeySellingPointsChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
             const rawValue = event.target.value;
             setKeySellingPointsInput(rawValue); // Update local input state immediately
-
-            // Update the underlying array state in the main map
-            // Split by commas, trim, and filter empty items
-            const pointsArray = rawValue.split(',').map(s => s.trim()).filter(s => s !== '');
             
             if (currentCampaignTypeKey) {
-                 setCampaignFormDataMap(prevForms => {
+                setCampaignFormDataMap(prevForms => {
                     const updatedForms = new Map(prevForms);
                     const currentFormData = updatedForms.get(currentCampaignTypeKey) || { ...initialCampaignFormData };
+                    
+                    // We still parse commas for the data model, but our textarea now accepts any text freely
+                    const processedArray = rawValue ? 
+                        rawValue.split(',').map(s => s.trim()).filter(s => s !== '') : 
+                        [];
+                    
                     updatedForms.set(currentCampaignTypeKey, {
                         ...currentFormData,
-                        keySellingPoints: pointsArray,
+                        keySellingPoints: processedArray,
                     });
+                    
                     // Mark form as incomplete since it was edited
-                     setCompletedCampaignForms(prev => {
+                    setCompletedCampaignForms(prev => {
                         const newSet = new Set(prev);
                         newSet.delete(currentCampaignTypeKey);
                         return newSet;
                     });
+                    
                     return updatedForms;
-                 });
+                });
             }
         };
 
@@ -1474,11 +1550,11 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                             />
                         </div>
                         <div>
-                            <label htmlFor="primaryGoal" className="block text-sm font-medium text-electric-teal mb-1">Primary Goal</label>
+                            <label htmlFor="primaryGoal" className="block text-sm font-medium text-electric-teal mb-1">Primary Goal *</label>
                             <input type="text" id="primaryGoal" name="primaryGoal" 
                                 value={currentCampaignData.primaryGoal || ''}
                                 placeholder={`e.g., Get more ${activeCampaignType || 'customers'} to book consultations`}
-                                onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} 
+                                onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} required
                                 className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}
                             />
                         </div>
@@ -1505,16 +1581,17 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                             <input type="text" id="offer" name="offer" value={currentCampaignData.offer || ''} placeholder="e.g., 10% Off First Service, Free Initial Consultation, Mention This Card for..." onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}/>
                         </div>
                         <div>
-                            <label htmlFor="keySellingPoints" className="block text-sm font-medium text-electric-teal mb-1">Key Selling Points (comma-separated)</label>
-                            <input 
+                            <label htmlFor="keySellingPoints" className="block text-sm font-medium text-electric-teal mb-1">Key Selling Points</label>
+                            <textarea 
                                 id="keySellingPoints" 
                                 name="keySellingPoints" 
+                                rows={3}
                                 value={keySellingPointsInput} 
                                 onChange={handleKeySellingPointsChange} 
                                 placeholder="e.g., Saves Time, Reduces Errors, Expert Advice, Local & Trusted" 
                                 className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}
                             />
-                            <p className="text-xs text-gray-400 mt-1">Enter your key benefits separated by commas</p>
+                            <p className="text-xs text-gray-400 mt-1">Enter your key benefits (comma-separated list recommended for best AI results)</p>
                         </div>
                         <div>
                             <label htmlFor="targetMarketDescription" className="block text-sm font-medium text-electric-teal mb-1">Target Market Description (Optional)</label>
