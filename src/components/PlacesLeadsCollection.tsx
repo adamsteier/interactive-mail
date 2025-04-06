@@ -132,11 +132,21 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
       selectedPlaces.has(place.place_id)
     );
     
-    // Call the action from the leadsStore to process and store them
-    processSelectedLeads(selectedBusinesses);
-    
-    // Navigate to design page
-    router.push('/design');
+    try {
+        console.log("Attempting to process leads in store...");
+        // Call the action from the leadsStore to process and store them
+        processSelectedLeads(selectedBusinesses);
+        console.log("Successfully processed leads in store.");
+
+        console.log("Attempting to navigate to /design...");
+        // Navigate to design page
+        router.push('/design');
+        console.log("Navigation call successful.");
+
+      } catch (error) {
+        console.error("!!! Error during processSelectedLeads or navigation !!!", error); 
+        alert("An error occurred while preparing the campaign. Please check the console."); 
+      }
   };
 
   return (
