@@ -25,16 +25,18 @@
   - Need proper UI components for selecting from predefined options
   - Consider dropdown or tag-based selection components
 
-- ❌ Create design_requests document in Firestore
-  - Currently only writing to user's campaignDesigns subcollection
-  - Need to create main document that admin will access
+- ❌ Enhance campaignDesigns subcollection for admin access
+  - Add additional metadata fields needed for admin processing
+  - Include notification flags and status fields in the documents
+  - Group related campaign designs for multi-design requests
 
-- ❌ Notify admin when new design request is submitted
-  - Add notification field in Firestore document
+- ❌ Notify admin when new campaign designs are submitted
+  - Add notification field in campaignDesigns documents
   - Consider email notification or in-app alert system
 
-- ❌ Update admin request viewing page to handle new format
-  - Ensure compatibility with current structure
+- ❌ Update admin request viewing page to read from campaignDesigns subcollection
+  - Modify admin page to query and aggregate user's campaignDesigns
+  - Ensure admin page can filter and display related campaign designs together
   - Add support for tone/visualStyle fields display
 
 - ❌ AI processing integration
@@ -42,15 +44,12 @@
   - Handle AI response storage
 
 - ❌ Complete handleSubmit function:
-  - Map CampaignDesignData to format expected by admin page
-  - Include all required fields:
-    - userId
+  - Enhance metadata saved with campaignDesigns documents 
+  - Include all required admin fields in campaignDesigns documents:
     - status (initially "pending_prompt")
     - designScope
-    - globalBrandData
-    - campaigns array with proper structure
-    - logoUrl
-    - createdAt timestamp
+    - groupId (to associate related campaign designs)
+    - brandData reference
     - notifiedAdmin flag
 
 - ❌ Success/failure messaging after submission
@@ -67,14 +66,14 @@
 
 ## NOTES
 
-- Current implementation follows pattern similar to AIDesignWizard but needs to be aligned with HumanAssistedWizard
-- Admin page expects specific document structure in design_requests collection
-- Need to match the data structure shown in admin/requests/[id]/page.tsx
-- Consider reusing logic from HumanAssistedWizard.tsx for admin notification and document structure
+- Current implementation follows pattern similar to AIDesignWizard but needs rethinking for direct subcollection access
+- Admin page should be updated to read directly from user's campaignDesigns subcollection instead of a separate design_requests collection
+- Consider adding metadata and grouping fields to campaignDesigns documents to facilitate admin processing
+- May need to implement querying/aggregation logic in admin page to group related campaign designs
 
 ## NEXT IMMEDIATE STEPS
 
 1. Implement multi-select components for tone and visualStyle
-2. Complete handleSubmit function to create proper design_requests document
-3. Add admin notification logic
-4. Test end-to-end flow with admin review page 
+2. Enhance campaignDesigns documents with additional metadata for admin use
+3. Add admin notification logic to campaignDesigns documents
+4. Update admin page to read from and process campaignDesigns subcollection 
