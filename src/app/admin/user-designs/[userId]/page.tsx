@@ -7,9 +7,6 @@ import { db, storage } from '@/lib/firebase';
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import type { BrandingData, CampaignDesignData } from '@/types/firestoreTypes';
 
-// Add local type definition matching the one in firestoreTypes.ts
-type CampaignStatus = 'draft' | 'saving' | 'processing' | 'ready' | 'failed' | 'submitted' | 'completed';
-
 const UserDesignsPage = () => {
     const params = useParams();
     const searchParams = useSearchParams();
@@ -123,14 +120,14 @@ const UserDesignsPage = () => {
                     const campaignDocRef = doc(db, 'users', userId, 'campaignDesignData', campaignId);
                     await updateDoc(campaignDocRef, {
                         finalDesignUrl: downloadURL,
-                        status: 'completed' as CampaignStatus
+                        status: 'completed'
                     });
 
                     // Update local state to reflect change immediately
                     setCampaignDesigns(prevDesigns => 
                         prevDesigns.map((design): CampaignDesignData =>
                             design.id === campaignId 
-                                ? { ...design, finalDesignUrl: downloadURL, status: 'completed' as CampaignStatus }
+                                ? { ...design, finalDesignUrl: downloadURL, status: 'completed' }
                                 : design
                         )
                     );
