@@ -13,6 +13,8 @@ import { addCampaignDesign } from '@/lib/campaignDesignService'; // Import for s
 import { storage } from '@/lib/firebase'; // Import storage instance
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 
+import Image from 'next/image'; // Import next/image
+
 // --- NEW: Tone & Style Keywords ---
 const toneKeywords = [
   "Cheerful", "Bright", "Optimistic", "Energetic", "Joyful", "Vibrant", "Lively", "Enthusiastic", "Uplifting",
@@ -128,26 +130,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
   const [infoModalContent, setInfoModalContent] = useState<{ title: string; content: React.ReactNode } | null>(null);
   // --- END: State for Info Modal ---
-
-  // --- NEW: Helper function to find next incomplete design ---
-  const findNextIncompleteDesignType = (currentType: string | null): string | null => {
-    if (!currentType || designScope !== 'multiple') return null;
-
-    const currentIndex = businessTypesArray.indexOf(currentType);
-    if (currentIndex === -1) return null; // Should not happen
-
-    // Start searching from the next index, wrapping around
-    for (let i = 1; i < businessTypesArray.length; i++) {
-      const nextIndex = (currentIndex + i) % businessTypesArray.length;
-      const nextType = businessTypesArray[nextIndex];
-      if (!completedCampaignForms.has(nextType)) {
-        return nextType; // Found the next incomplete type
-      }
-    }
-
-    return null; // All others are complete
-  };
-  // --- END: Helper function ---
+  const [copySuccessMessage, setCopySuccessMessage] = useState<string | null>(null); // For copy feedback
 
   // Determine initial step and scope based on selected leads
   useEffect(() => {
@@ -494,6 +477,75 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
   };
   // --- End Handlers for Brand Step ---
 
+  // --- NEW: Handler for Copying Campaign Details ---
+  const handleCopyCampaignDetails = () => {
+      if (!activeCampaignType || designScope !== 'multiple' || businessTypesArray.length <= 1) {
+          console.warn("Copy requested in invalid state.");
+          return;
+      }
+
+      const sourceData = campaignFormDataMap.get(activeCampaignType);
+      if (!sourceData) {
+          setCampaignError(`Cannot copy: No data found for the current type "${activeCampaignType}".`);
+          return;
+      }
+
+      setCampaignError(null); // Clear previous errors
+      setCopySuccessMessage(null); // Clear previous success message
+
+      // Use functional update for setCampaignFormDataMap
+      setCampaignFormDataMap(prevMap => {
+          const newMap = new Map(prevMap);
+          let copiedCount = 0;
+
+          businessTypesArray.forEach(targetType => {
+              if (targetType !== activeCampaignType) {
+                  const existingTargetData = newMap.get(targetType) || { ...initialCampaignFormData };
+                  // Preserve the target's original design name
+                  const preservedDesignName = existingTargetData.designName || `${targetType} - Postcard`;
+                  
+                  // Create new data object by copying source, then restoring design name
+                  const newDataForTarget = {
+                      ...sourceData, // Copy all fields from source
+                      designName: preservedDesignName // Restore target's design name
+                  };
+                  
+                  newMap.set(targetType, newDataForTarget);
+                  copiedCount++;
+              }
+          });
+          console.log(`Copied details from ${activeCampaignType} to ${copiedCount} other types.`);
+          return newMap;
+      });
+
+      // Mark all *other* forms as incomplete after copying
+      setCompletedCampaignForms(prevSet => {
+         const newSet = new Set(prevSet);
+         businessTypesArray.forEach(targetType => {
+             if (targetType !== activeCampaignType) {
+                 newSet.delete(targetType);
+             }
+         });
+         // Optionally keep the source type complete if it already was
+         // if (!prevSet.has(activeCampaignType)) newSet.delete(activeCampaignType); 
+         return newSet;
+      });
+
+      // Provide feedback
+      setCopySuccessMessage(`Details copied to ${businessTypesArray.length - 1} other designs. Please review and validate each.`);
+      // Clear message after a few seconds
+       setTimeout(() => setCopySuccessMessage(null), 4000);
+
+       // Also update the local keySellingPointsInput if the active tab's data was just copied *from*
+       // This ensures consistency if the user stays on the same tab
+       const updatedSourceData = campaignFormDataMap.get(activeCampaignType);
+        if (updatedSourceData?.keySellingPoints) {
+             setKeySellingPointsInput(updatedSourceData.keySellingPoints.join(', '));
+        }
+
+  };
+  // --- END: Handler for Copying Campaign Details ---
+
   // --- Handlers for Campaign Step ---
   const handleCampaignInputChange = (
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -526,14 +578,23 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
 
   const handleMarkCampaignFormComplete = (type: string) => {
       const formData = campaignFormDataMap.get(type);
-      if (!formData?.designName) { 
+      // Basic check: Design Name is required
+      if (!formData?.designName || formData.designName.trim() === '') { 
           setCampaignError(`Design Name is required for ${type}.`);
+          // Ensure this type is NOT in the completed set if validation fails
+          setCompletedCampaignForms(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(type);
+              return newSet;
+          });
           return false; // Indicate failure
       }
-      // Add more validation checks here as needed
+      // Add more validation checks here as needed...
+      // e.g., if (!formData?.primaryGoal) { ... set error, return false }
       
-      setCampaignError(null);
-      setCompletedCampaignForms(prevSet => new Set(prevSet).add(type));
+      setCampaignError(null); // Clear error if validation passes
+      // Add to the set only if validation passes
+      setCompletedCampaignForms(prevSet => new Set(prevSet).add(type)); 
       console.log(`Marked form for ${type} as complete.`);
       return true; // Indicate success
   };
@@ -554,52 +615,8 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
         });
     }
   };
+  // --- End Handlers for Campaign Step ---
 
-  // --- NEW: Handlers for Next/Copy Design ---
-  const handleGoToNextDesign = () => {
-    if (activeCampaignType) {
-      const nextType = findNextIncompleteDesignType(activeCampaignType);
-      if (nextType) {
-        handleTabClick(nextType); // Switch to the next incomplete tab
-      } else {
-        // Optional: Add feedback if all others are complete or no next one found
-        console.log("No further incomplete designs found or already on the last one.");
-      }
-    }
-  };
-
-  const handleCopyInfoToNextDesign = () => {
-     if (activeCampaignType) {
-        const nextType = findNextIncompleteDesignType(activeCampaignType);
-        const currentData = campaignFormDataMap.get(activeCampaignType);
-
-        if (nextType && currentData) {
-            setCampaignFormDataMap(prevMap => {
-                const newMap = new Map(prevMap);
-                // Copy data, ensuring keySellingPoints is a new array if it exists
-                const dataToCopy = { 
-                    ...currentData, 
-                    keySellingPoints: currentData.keySellingPoints ? [...currentData.keySellingPoints] : [] 
-                };
-                newMap.set(nextType, dataToCopy);
-                 // DO NOT mark nextType as complete here
-                 // Also remove nextType from completed set if it was somehow there
-                 setCompletedCampaignForms(prev => {
-                    const newSet = new Set(prev);
-                    newSet.delete(nextType);
-                    return newSet;
-                 });
-                return newMap;
-            });
-            // Automatically switch to the tab where data was copied
-            handleTabClick(nextType);
-        } else {
-             // Optional: Add feedback
-             console.log("Could not copy data: No next incomplete design found or current data missing.");
-        }
-     }
-  };
-  // --- END: Handlers for Next/Copy Design ---
 
   const handleNext = () => {
     // Clear errors on navigation
@@ -708,7 +725,6 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                 keySellingPoints: formData.keySellingPoints || [],
                 tone: formData.tone || '',
                 visualStyle: formData.visualStyle || '',
-                imageryDescription: formData.imageryDescription || undefined, // NEW: Include imagery
                 additionalInfo: formData.additionalInfo || undefined,
             };
             // Important: Use addCampaignDesign service function
@@ -924,11 +940,13 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                             />
                             {/* Preview Area */} 
                             {logoPreviewUrl && (
-                                <img src={logoPreviewUrl} alt="Logo Preview" className="h-10 w-auto rounded border border-gray-600 shrink-0" />
+                                // Use next/image for preview - NOTE: May need loader config for blob URLs if issues arise
+                                <Image src={logoPreviewUrl} alt="Logo Preview" width={100} height={40} className="h-10 w-auto rounded border border-gray-600 shrink-0" />
                             )}
                             {/* Display Final Uploaded Logo if no preview */} 
                             {!logoPreviewUrl && newBrandData.logoUrl && (
-                                 <img src={newBrandData.logoUrl} alt="Uploaded Logo" className="h-10 w-auto rounded border border-green-500 shrink-0" />
+                                 // Use next/image for uploaded URL
+                                 <Image src={newBrandData.logoUrl} alt="Uploaded Logo" width={100} height={40} className="h-10 w-auto rounded border border-green-500 shrink-0" />
                             )}
                             {/* Progress Indicator */} 
                             {isUploadingLogo && logoUploadProgress !== null && (
@@ -1005,17 +1023,19 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
         // --- End Brand Data UI ---
 
       case 'campaign':
-        // --- Campaign Design UI (Step 2 or 3) ---
         const currentCampaignTypeKey = activeCampaignType || (designScope === 'single' ? '__single__' : null);
         const currentCampaignData = currentCampaignTypeKey ? campaignFormDataMap.get(currentCampaignTypeKey) || {} : {};
+        const selectedBrandName = userBrands.find(b => b.id === selectedBrandId)?.businessName || 'Your Business'; 
 
+        // Local state and handler for Key Selling Points input are defined *outside* the switch now
+        // But useEffect to sync it is still needed if it depends on activeCampaignTypeKey
+        
         // *** Handler specifically for the Key Selling Points input ***
         const handleKeySellingPointsChange = (event: React.ChangeEvent<HTMLInputElement>) => {
             const rawValue = event.target.value;
-            // 1. Update the local string state for the input field
-            setKeySellingPointsInput(rawValue);
+            setKeySellingPointsInput(rawValue); // Update local input state immediately
 
-            // 2. Update the underlying array state in the main map
+            // Update the underlying array state in the main map
             const pointsArray = rawValue.split(',').map(s => s.trim()).filter(s => s !== '');
             
             if (currentCampaignTypeKey) {
@@ -1024,7 +1044,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                     const currentFormData = updatedForms.get(currentCampaignTypeKey) || { ...initialCampaignFormData };
                     updatedForms.set(currentCampaignTypeKey, {
                         ...currentFormData,
-                        keySellingPoints: pointsArray, // Update the array here
+                        keySellingPoints: pointsArray,
                     });
                     // Mark form as incomplete since it was edited
                      setCompletedCampaignForms(prev => {
@@ -1082,20 +1102,34 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                     {designScope === 'multiple' && activeCampaignType && ` for: ${activeCampaignType}`}
                 </h3>
                 <p className="text-sm text-gray-400 mb-4">
-                    Using Brand: {userBrands.find(b => b.id === selectedBrandId)?.businessName || 'Unknown'}
+                    Using Brand: <span className="text-gray-200">{selectedBrandName}</span>
                 </p>
+
+                 {/* --- NEW: Copy Button (only in multi-mode) --- */}
+                 {designScope === 'multiple' && businessTypesArray.length > 1 && activeCampaignType && (
+                    <div className="mb-4 text-right">
+                         <button
+                            type="button"
+                            onClick={handleCopyCampaignDetails}
+                            className="px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-xs"
+                         >
+                            Copy These Details to Other Designs
+                         </button>
+                         {copySuccessMessage && <p className="text-xs text-green-400 mt-1">{copySuccessMessage}</p>}
+                    </div>
+                 )}
+                 {/* --- END: Copy Button --- */}
+
                 {campaignError && <p className="text-red-400 mb-4">{campaignError}</p>} 
 
-                {/* Actual Form Fields */} 
                 <div className="bg-gray-700 p-4 rounded-lg space-y-4">
-                    {/* Render form only if activeCampaignType is valid */} 
-                    {activeCampaignType ? (
+                    {currentCampaignTypeKey ? (
                        <> 
                         <div>
                             <label htmlFor="designName" className="block text-sm font-medium text-gray-300 mb-1">Design Name *</label>
                             <input type="text" id="designName" name="designName" 
                                 value={currentCampaignData.designName || ''}
-                                onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} required 
+                                onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} required 
                                 className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
                         <div>
@@ -1103,15 +1137,15 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                             <input type="text" id="primaryGoal" name="primaryGoal" 
                                 value={currentCampaignData.primaryGoal || ''}
                                 placeholder={`e.g., Get more ${activeCampaignType || 'customers'} to book consultations`}
-                                onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} 
+                                onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} 
                                 className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
                         <div>
                             <label htmlFor="callToAction" className="block text-sm font-medium text-gray-300 mb-1">Call To Action</label>
                             <input type="text" id="callToAction" name="callToAction" 
                                 value={currentCampaignData.callToAction || ''}
-                                placeholder={`e.g., Visit ${userBrands.find(b => b.id === selectedBrandId)?.businessName || 'our website'}.com, Call Now for a Quote, Book Your Appointment`}
-                                onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} 
+                                placeholder={`e.g., Visit ${selectedBrandName}.com, Call Now for a Quote, Book Your Appointment`}
+                                onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} 
                                 className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
                         <div>
@@ -1119,12 +1153,12 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                             <textarea id="targetAudience" name="targetAudience" rows={3} 
                                 value={currentCampaignData.targetAudience || ''}
                                 placeholder={designScope === 'multiple' ? `Describe the ideal ${activeCampaignType || 'customer'} (e.g., homeowners needing tax help, local restaurants seeking bookkeeping).` : 'Describe the ideal customer across all types (e.g., small business owners in St. Albert).'}
-                                onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} 
+                                onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} 
                                 className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
                         <div>
                             <label htmlFor="offer" className="block text-sm font-medium text-gray-300 mb-1">Specific Offer / Promotion</label>
-                            <input type="text" id="offer" name="offer" value={currentCampaignData.offer || ''} placeholder="e.g., 10% Off First Service, Free Initial Consultation, Mention This Card for..." onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
+                            <input type="text" id="offer" name="offer" value={currentCampaignData.offer || ''} placeholder="e.g., 10% Off First Service, Free Initial Consultation, Mention This Card for..." onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
                         <div>
                             <label htmlFor="keySellingPoints" className="block text-sm font-medium text-gray-300 mb-1">Key Selling Points (comma-separated)</label>
@@ -1132,9 +1166,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                                 type="text" 
                                 id="keySellingPoints" 
                                 name="keySellingPoints" 
-                                // *** Value bound to local string state ***
                                 value={keySellingPointsInput} 
-                                // *** Use the specific handler ***
                                 onChange={handleKeySellingPointsChange} 
                                 placeholder="e.g., Saves Time, Reduces Errors, Expert Advice, Local & Trusted" 
                                 className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"
@@ -1142,17 +1174,17 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                         </div>
                         <div>
                             <label htmlFor="targetMarketDescription" className="block text-sm font-medium text-gray-300 mb-1">Target Market Description (Optional)</label>
-                            <textarea id="targetMarketDescription" name="targetMarketDescription" rows={2} value={currentCampaignData.targetMarketDescription || ''} placeholder={`e.g., Focus on ${activeCampaignType || 'businesses'} in the downtown core, Target new homeowners in the area`} onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
+                            <textarea id="targetMarketDescription" name="targetMarketDescription" rows={2} value={currentCampaignData.targetMarketDescription || ''} placeholder={`e.g., Focus on ${activeCampaignType || 'businesses'} in the downtown core, Target new homeowners in the area`} onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
                         <div>
                             <label htmlFor="tagline" className="block text-sm font-medium text-gray-300 mb-1">Tagline (Optional)</label>
-                            <input type="text" id="tagline" name="tagline" value={currentCampaignData.tagline || ''} placeholder="Your catchy business slogan" onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
+                            <input type="text" id="tagline" name="tagline" value={currentCampaignData.tagline || ''} placeholder="Your catchy business slogan" onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="relative">
                                 <label htmlFor="tone" className="block text-sm font-medium text-gray-300 mb-1">Tone (Optional)</label>
                                 <p className="text-xs text-gray-400 mb-1">(Keywords help the AI)</p>
-                                <input type="text" name="tone" placeholder="e.g., Professional, Friendly, Urgent, Calm, Humorous" value={currentCampaignData.tone || ''} onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600"/>
+                                <input type="text" name="tone" placeholder="e.g., Professional, Friendly, Urgent, Calm, Humorous" value={currentCampaignData.tone || ''} onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} className="w-full p-2 rounded bg-gray-800 border border-gray-600"/>
                                 {/* NEW: Info Icon */}
                                 <button type="button" onClick={() => openInfoModal('tone')} className="absolute top-0 right-0 mt-1 mr-1 text-gray-400 hover:text-electric-teal">
                                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1163,7 +1195,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                             <div className="relative">
                                 <label htmlFor="visualStyle" className="block text-sm font-medium text-gray-300 mb-1">Visual Style/Aesthetic (Optional)</label>
                                 <p className="text-xs text-gray-400 mb-1">(Keywords help the AI)</p>
-                                <input type="text" name="visualStyle" placeholder="e.g., Modern, Minimalist, Bold, Vintage, Playful, Elegant" value={currentCampaignData.visualStyle || ''} onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600"/>
+                                <input type="text" name="visualStyle" placeholder="e.g., Modern, Minimalist, Bold, Vintage, Playful, Elegant" value={currentCampaignData.visualStyle || ''} onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} className="w-full p-2 rounded bg-gray-800 border border-gray-600"/>
                                 {/* NEW: Info Icon */}
                                 <button type="button" onClick={() => openInfoModal('visualStyle')} className="absolute top-0 right-0 mt-1 mr-1 text-gray-400 hover:text-electric-teal">
                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1174,58 +1206,24 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                         </div>
                         <div>
                             <label htmlFor="additionalInfo" className="block text-sm font-medium text-gray-300 mb-1">Additional Information (Optional)</label>
-                            <textarea id="additionalInfo" name="additionalInfo" rows={3} value={currentCampaignData.additionalInfo || ''} placeholder="Anything else? e.g., Must include our phone number prominently. Use image of happy clients. Avoid red color." onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
-                        </div>
-                        {/* NEW: Imagery Description */}
-                        <div>
-                            <label htmlFor="imageryDescription" className="block text-sm font-medium text-gray-300 mb-1">Describe Desired Imagery (Optional)</label>
-                            <textarea 
-                                id="imageryDescription" 
-                                name="imageryDescription" 
-                                rows={3} 
-                                value={currentCampaignData.imageryDescription || ''} 
-                                onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} 
-                                placeholder="e.g., A friendly photo of our team, a picture of a beautifully renovated kitchen, abstract graphic representing growth, a simple illustration of a house with a sold sign."
-                                className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"
-                            />
-                        </div>
-                        <div>
-                            <label htmlFor="additionalInfo" className="block text-sm font-medium text-gray-300 mb-1">Additional Information (Optional)</label>
-                            <textarea id="additionalInfo" name="additionalInfo" rows={3} value={currentCampaignData.additionalInfo || ''} placeholder="Anything else? e.g., Must include our phone number prominently. Use image of happy clients. Avoid red color." onChange={(e) => handleCampaignInputChange(e, activeCampaignType)} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
+                            <textarea id="additionalInfo" name="additionalInfo" rows={3} value={currentCampaignData.additionalInfo || ''} placeholder="Anything else? e.g., Must include our phone number prominently. Use image of happy clients. Avoid red color." onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
 
-                        {/* Save Button for Multi-Scope or Single Scope Validation */} 
-                        {designScope === 'multiple' && activeCampaignType && (
-                           <div className="pt-4 border-t border-gray-600/50 mt-4 flex flex-wrap gap-2 justify-between items-center">
-                              <button 
-                                 onClick={() => handleMarkCampaignFormComplete(activeCampaignType)}
-                                 disabled={completedCampaignForms.has(activeCampaignType)}
-                                 className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm disabled:bg-gray-500 disabled:cursor-not-allowed"
-                              >
-                                {completedCampaignForms.has(activeCampaignType) ? '✓ Details Saved' : 'Save Details for this Type'}
-                               </button>
-                               
-                               {/* NEW: Next/Copy Buttons */} 
-                               <div className="flex gap-2">
-                                 <button 
-                                    type="button"
-                                    onClick={handleCopyInfoToNextDesign}
-                                    disabled={!findNextIncompleteDesignType(activeCampaignType)} // Disable if no next incomplete
-                                    className="px-3 py-1.5 rounded bg-gray-500 hover:bg-gray-400 text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                                    title={!findNextIncompleteDesignType(activeCampaignType) ? "All other designs are marked complete" : "Copy current details to the next incomplete design"}
-                                 >
-                                    Copy to Next
-                                 </button>
-                                 <button 
-                                     type="button"
-                                     onClick={handleGoToNextDesign}
-                                     disabled={!findNextIncompleteDesignType(activeCampaignType)} // Disable if no next incomplete
-                                     className="px-3 py-1.5 rounded bg-teal-600 hover:bg-teal-500 text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                                     title={!findNextIncompleteDesignType(activeCampaignType) ? "All other designs are marked complete" : "Go to next incomplete design"}
-                                 >
-                                     Next Design →
-                                 </button>
-                               </div>
+                        {/* Validation Button Area */}
+                        {(designScope === 'multiple' || designScope === 'single') && currentCampaignTypeKey && (
+                          <div className="pt-4 border-t border-gray-600/50 mt-4">
+                             <button 
+                                type="button" 
+                                onClick={() => handleMarkCampaignFormComplete(currentCampaignTypeKey)}
+                                disabled={completedCampaignForms.has(currentCampaignTypeKey)}
+                                className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm disabled:bg-gray-500 disabled:cursor-not-allowed"
+                             >
+                                {completedCampaignForms.has(currentCampaignTypeKey) ? '✓ Details Validated' : 'Validate Details for This Design'} 
+                                </button>
+                                {/* Changed button text slightly */}
+                                <p className="text-xs text-gray-400 mt-1">
+                                     Click &apos;Validate Details&apos; to confirm this section before proceeding.
+                                </p>
                            </div>
                         )}
                        </>
@@ -1272,7 +1270,6 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                             <li>Tagline: {formData.tagline || '(Not set)'}</li>
                             <li>Tone: {formData.tone || '(Not set)'}</li>
                             <li>Visual Style: {formData.visualStyle || '(Not set)'}</li>
-                            <li>Imagery Notes: {formData.imageryDescription || '(Not set)'}</li>
                             <li>Additional Info: {formData.additionalInfo || '(Not set)'}</li>
                         </ul>
                     </div>
@@ -1309,6 +1306,22 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
   };
   const progress = isLoadingInitial ? 0 : calculateProgress();
 
+  // Check if Next button should be disabled (extracted for clarity)
+  const isNextDisabled = useMemo(() => {
+     if (currentStep === 'brand' && !selectedBrandId) return true;
+     if (currentStep === 'campaign') {
+         if (designScope === 'multiple') {
+             return completedCampaignForms.size !== businessTypesArray.length;
+         }
+         if (designScope === 'single') {
+             // Ensure activeCampaignType is correctly determined for single mode check
+             const singleTypeKey = activeCampaignType || '__single__'; 
+             return !completedCampaignForms.has(singleTypeKey);
+         }
+     }
+     return false; // Not disabled on other steps by default
+  }, [currentStep, selectedBrandId, designScope, completedCampaignForms, businessTypesArray, activeCampaignType]);
+
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-6 bg-gray-800 rounded-lg shadow-xl text-white">
       {/* Header & Progress (Show only after initial loading) */} 
@@ -1342,49 +1355,49 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
 
       {/* Navigation Buttons (Show only after initial loading) */} 
       {!isLoadingInitial && (
-         <div className="flex justify-between mt-8 pt-4 border-t border-gray-700">
-            {/* Back Button */} 
-            {(currentStep !== 'design_choice') && ( // Always show back unless on first step
-              <button 
-                onClick={handlePrevious} 
-                className="px-4 py-2 rounded bg-gray-600 hover:bg-gray-500 transition-colors">
-                {currentStep === 'brand' && designScope === 'single' ? 'Back to Options' : 'Previous'}
-              </button>
-            )}
-             {(currentStep === 'design_choice') && <div />} {/* Placeholder if needed */}
+         <div className="flex justify-between items-start mt-8 pt-4 border-t border-gray-700">
+             {/* Back Button */} 
+             {(currentStep !== 'design_choice') && ( // Always show back unless on first step
+               <button 
+                 onClick={handlePrevious} 
+                 className="px-4 py-2 rounded bg-gray-600 hover:bg-gray-500 transition-colors">
+                 {currentStep === 'brand' && designScope === 'single' ? 'Back to Options' : 'Previous'}
+               </button>
+             )}
+              {(currentStep === 'design_choice') && <div />} {/* Placeholder if needed */}
 
-            {/* Next Button */} 
-            {(currentStep === 'brand' || currentStep === 'campaign') && (
-              <button 
-                onClick={handleNext} 
-                disabled={
-                    (currentStep === 'brand' && !selectedBrandId) ||
-                    (currentStep === 'campaign' && designScope === 'multiple' && completedCampaignForms.size !== businessTypesArray.length) ||
-                    (currentStep === 'campaign' && designScope === 'single' && !completedCampaignForms.has(activeCampaignType || '')) // Add check for single scope completion
-                } 
-                className={`px-4 py-2 rounded bg-electric-teal text-charcoal hover:bg-electric-teal/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`} 
-                // NEW: Tooltip for disabled state in multi-design campaign step
-                title={
-                  (currentStep === 'campaign' && designScope === 'multiple' && completedCampaignForms.size !== businessTypesArray.length)
-                    ? `Please save details for all ${businessTypesArray.length} designs before proceeding.`
-                    : (currentStep === 'brand' && !selectedBrandId) 
-                    ? 'Please select or create a brand profile first.'
-                    : '' // No title needed if enabled
-                }
-              >
-                Next
-              </button>
-            )}
+             <div className="flex flex-col items-end"> {/* Align Next button and potential message */}
+                 {/* Next Button */} 
+                 {(currentStep !== 'review') && (
+                   <button 
+                     onClick={handleNext} 
+                     disabled={isNextDisabled} // Use the memoized check
+                     className={`px-4 py-2 rounded bg-electric-teal text-charcoal hover:bg-electric-teal/90 transition-colors ${
+                         isNextDisabled ? 'opacity-50 cursor-not-allowed' : ''
+                     }`}
+                   >
+                     Next
+                   </button>
+                 )}
 
-            {/* Submit Button */} 
-            {currentStep === 'review' && (
-              <button 
-                onClick={handleSubmit} 
-                disabled={isSubmitting} // Disable while submitting
-                className="px-4 py-2 rounded bg-green-500 hover:bg-green-400 transition-colors disabled:opacity-50">
-                {isSubmitting ? 'Submitting...' : 'Submit Request'}
-              </button>
-            )}
+                 {/* Submit Button */} 
+                 {currentStep === 'review' && (
+                   <button 
+                     onClick={handleSubmit} 
+                     disabled={isSubmitting} 
+                     className="px-4 py-2 rounded bg-green-500 hover:bg-green-400 transition-colors disabled:opacity-50">
+                     {isSubmitting ? 'Submitting...' : 'Submit Request'}
+                   </button>
+                 )}
+
+                {/* Validation Reminder Message */}
+                {currentStep === 'campaign' && isNextDisabled && (
+                     <p className="text-xs text-yellow-400 mt-1 text-right">
+                        Please click &quot;Validate Details&quot; for {designScope === 'multiple' ? 'all designs' : 'the current design'} above.
+                    </p>
+                )}
+            </div>
+
          </div>
       )}
 
