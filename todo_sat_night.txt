@@ -1,0 +1,80 @@
+# SATURDAY NIGHT TODO LIST - AIHumanWizard Implementation Status
+
+## ✅ COMPLETED ITEMS
+
+- ✅ Basic wizard flow implementation with steps: design_choice, brand, campaign, review
+- ✅ Design scope selection (single vs multiple designs)
+- ✅ Brand profile selection and creation
+- ✅ Campaign details form with fields for:
+  - ✅ Design name, primary goal, call to action
+  - ✅ Target audience description
+  - ✅ Tagline, offer, key selling points  
+  - ✅ Target market description
+  - ✅ Placeholders for tone and visual style multi-selects
+- ✅ Multi-tab interface for multiple business types
+- ✅ Progress tracking between steps
+- ✅ Form validation for required fields
+- ✅ Basic CampaignDesignData storage structure
+- ✅ Campaign data submission to Firestore subcollections
+- ✅ Navigation between steps
+- ✅ Review step with data summary
+
+## ❌ TODO ITEMS
+
+- ❌ Implement multi-select components for tone and visualStyle fields
+  - Need proper UI components for selecting from predefined options
+  - Consider dropdown or tag-based selection components
+
+- ❌ Create design_requests document in Firestore
+  - Currently only writing to user's campaignDesigns subcollection
+  - Need to create main document that admin will access
+
+- ❌ Notify admin when new design request is submitted
+  - Add notification field in Firestore document
+  - Consider email notification or in-app alert system
+
+- ❌ Update admin request viewing page to handle new format
+  - Ensure compatibility with current structure
+  - Add support for tone/visualStyle fields display
+
+- ❌ AI processing integration
+  - Connect to AI service for generating initial concepts
+  - Handle AI response storage
+
+- ❌ Complete handleSubmit function:
+  - Map CampaignDesignData to format expected by admin page
+  - Include all required fields:
+    - userId
+    - status (initially "pending_prompt")
+    - designScope
+    - globalBrandData
+    - campaigns array with proper structure
+    - logoUrl
+    - createdAt timestamp
+    - notifiedAdmin flag
+
+- ❌ Success/failure messaging after submission
+  - Show clear success message with next steps
+  - Proper error handling and user feedback
+
+- ❌ Loading states and error states throughout the wizard
+  - Add spinners/loading indicators where appropriate
+  - Better error messaging for API calls
+
+- ❌ Mobile responsiveness improvements
+  - Test and fix responsive layout issues
+  - Ensure forms work well on small screens
+
+## NOTES
+
+- Current implementation follows pattern similar to AIDesignWizard but needs to be aligned with HumanAssistedWizard
+- Admin page expects specific document structure in design_requests collection
+- Need to match the data structure shown in admin/requests/[id]/page.tsx
+- Consider reusing logic from HumanAssistedWizard.tsx for admin notification and document structure
+
+## NEXT IMMEDIATE STEPS
+
+1. Implement multi-select components for tone and visualStyle
+2. Complete handleSubmit function to create proper design_requests document
+3. Add admin notification logic
+4. Test end-to-end flow with admin review page 

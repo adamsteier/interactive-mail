@@ -18,6 +18,13 @@ interface LeadsActions {
 // Combined type
 type LeadsStore = LeadsState & LeadsActions;
 
+// Serialized state structure for storage
+interface SerializedState {
+  selectedLeadsByBusinessType: [string, GooglePlace[]][];
+  selectedBusinessTypes: string[];
+  totalSelectedLeadsCount: number;
+}
+
 // Initial state
 const initialState: LeadsState = {
   selectedLeadsByBusinessType: new Map(),
@@ -25,25 +32,7 @@ const initialState: LeadsState = {
   totalSelectedLeadsCount: 0,
 };
 
-// Helper function to convert Map and Set to JSON-serializable formats
-const serializeState = (state: LeadsState) => {
-  return {
-    selectedLeadsByBusinessType: Array.from(state.selectedLeadsByBusinessType.entries()),
-    selectedBusinessTypes: Array.from(state.selectedBusinessTypes),
-    totalSelectedLeadsCount: state.totalSelectedLeadsCount
-  };
-};
-
-// Helper function to convert serialized data back to Map and Set
-const deserializeState = (serialized: any): LeadsState => {
-  return {
-    selectedLeadsByBusinessType: new Map(serialized.selectedLeadsByBusinessType || []),
-    selectedBusinessTypes: new Set(serialized.selectedBusinessTypes || []),
-    totalSelectedLeadsCount: serialized.totalSelectedLeadsCount || 0
-  };
-};
-
-// Create the store with persistence
+// Create the store
 export const useLeadsStore = create<LeadsStore>()(
   devtools(
     persist(
@@ -85,40 +74,52 @@ export const useLeadsStore = create<LeadsStore>()(
             };
           });
           
-          // Force storage update immediately
+          // Manual storage to ensure state is saved before navigation
           if (typeof window !== 'undefined') {
-            const currentState = useLeadsStore.getState();
-            localStorage.setItem(
-              'leads-storage', 
-              JSON.stringify({
-                state: serializeState(currentState)
-              })
-            );
+            try {
+              const currentState = useLeadsStore.getState();
+              const serialized: SerializedState = {
+                selectedLeadsByBusinessType: Array.from(currentState.selectedLeadsByBusinessType.entries()),
+                selectedBusinessTypes: Array.from(currentState.selectedBusinessTypes),
+                totalSelectedLeadsCount: currentState.totalSelectedLeadsCount
+              };
+              localStorage.setItem('leads-manual-storage', JSON.stringify(serialized));
+            } catch (e) {
+              console.error('Failed to manually save state:', e);
+            }
           }
         },
 
         clearSelectedLeads: () => set(() => {
           console.log('LeadsStore: Clearing selected leads');
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('leads-manual-storage');
+          }
           return { ...initialState };
         }),
       }),
       {
         name: 'leads-storage',
-        // Override the default serialization/deserialization
-        serialize: (state) => JSON.stringify({
-          state: serializeState(state)
-        }),
-        deserialize: (str) => {
-          try {
-            const parsed = JSON.parse(str);
-            return deserializeState(parsed.state);
-          } catch (e) {
-            console.error('Failed to deserialize leads store:', e);
-            return initialState;
-          }
-        }
       }
     ),
     { name: 'leads-storage-debug' }
   )
-); 
+);
+
+// Initialize from localStorage if available
+if (typeof window !== 'undefined') {
+  try {
+    const savedState = localStorage.getItem('leads-manual-storage');
+    if (savedState) {
+      const parsed = JSON.parse(savedState) as SerializedState;
+      useLeadsStore.setState({
+        selectedLeadsByBusinessType: new Map(parsed.selectedLeadsByBusinessType || []),
+        selectedBusinessTypes: new Set(parsed.selectedBusinessTypes || []),
+        totalSelectedLeadsCount: parsed.totalSelectedLeadsCount || 0
+      });
+      console.log('Restored state from manual storage');
+    }
+  } catch (e) {
+    console.error('Failed to load from manual storage:', e);
+  }
+} 
