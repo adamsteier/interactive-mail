@@ -7,7 +7,7 @@ import { useLeadsStore } from '@/store/leadsStore'; // Import the new leads stor
 import { useMarketingStore } from '@/store/marketingStore'; // Import Marketing Store
 import { BrandingData, CampaignDesignData } from '@/types/firestoreTypes'; // Types
 import { getBrandDataForUser, addBrandData } from '@/lib/brandingService'; // Service functions
-import { addCampaignDesign } from '@/lib/campaignDesignService'; // Import for submit
+import { addCampaignDesign, updateCampaignDesign } from '@/lib/campaignDesignService'; // Import for submit and update
 
 // Firebase Storage imports
 import { storage } from '@/lib/firebase'; // Import storage instance
@@ -120,8 +120,12 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
   const [activeCampaignType, setActiveCampaignType] = useState<string | null>(null); // Track active tab/type in multi-mode
   // Store form data for each campaign type if scope is multiple
   const [campaignFormDataMap, setCampaignFormDataMap] = useState<Map<string, Partial<CampaignDesignData>>>(new Map());
-  // Track which forms are considered complete for navigation
+  // Store Firestore document IDs for each campaign type (null if not yet saved)
+  const [campaignDesignIdsMap, setCampaignDesignIdsMap] = useState<Map<string, string | null>>(new Map());
+  // Track which forms are considered complete/processed for navigation
   const [completedCampaignForms, setCompletedCampaignForms] = useState<Set<string>>(new Set());
+  // Track if the API call for a specific campaign is running
+  const [isProcessingApiCallMap, setIsProcessingApiCallMap] = useState<Map<string, boolean>>(new Map());
   const [campaignError, setCampaignError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false); // Changed from isSavingCampaign
   // State for the Key Selling Points input string (moved from renderStepContent)
@@ -576,11 +580,20 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
     });
   };
 
-  const handleMarkCampaignFormComplete = (type: string) => {
+  /**
+   * Validates the form data for a given campaign type, saves/updates it to Firestore,
+   * and triggers the background AI processing API call.
+   */
+  const handleValidateAndProcessCampaign = async (type: string) => {
+      if (!user || !selectedBrandId) {
+          setCampaignError("User or Brand ID missing. Cannot process campaign.");
+          return false; // Indicate failure
+      }
+
       const formData = campaignFormDataMap.get(type);
       // Basic check: Design Name is required
       if (!formData?.designName || formData.designName.trim() === '') { 
-          setCampaignError(`Design Name is required for ${type}.`);
+          setCampaignError(`Design Name is required for the ${type} design.`);
           // Ensure this type is NOT in the completed set if validation fails
           setCompletedCampaignForms(prev => {
               const newSet = new Set(prev);
@@ -589,14 +602,88 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
           });
           return false; // Indicate failure
       }
-      // Add more validation checks here as needed...
-      // e.g., if (!formData?.primaryGoal) { ... set error, return false }
-      
-      setCampaignError(null); // Clear error if validation passes
-      // Add to the set only if validation passes
-      setCompletedCampaignForms(prevSet => new Set(prevSet).add(type)); 
-      console.log(`Marked form for ${type} as complete.`);
-      return true; // Indicate success
+
+      // Set processing state
+      setIsProcessingApiCallMap(prev => new Map(prev).set(type, true));
+
+      try {
+          let campaignId = campaignDesignIdsMap.get(type) || null;
+
+          // Prepare data for saving/updating
+          const dataToSave: Partial<Omit<CampaignDesignData, 'id' | 'createdAt' | 'updatedAt'>> = {
+              associatedBrandId: selectedBrandId,
+              designName: formData.designName,
+              primaryGoal: formData.primaryGoal || '',
+              callToAction: formData.callToAction || '',
+              targetAudience: formData.targetAudience || '',
+              targetMarketDescription: formData.targetMarketDescription || undefined,
+              tagline: formData.tagline || undefined,
+              offer: formData.offer || undefined,
+              keySellingPoints: formData.keySellingPoints || [],
+              tone: formData.tone || '',
+              visualStyle: formData.visualStyle || '',
+              additionalInfo: formData.additionalInfo || undefined,
+              status: 'processing' // Set status to processing for the API call
+          };
+
+          if (campaignId) {
+              // Update existing document
+              console.log(`Updating campaign design ${campaignId} for type ${type}...`);
+              await updateCampaignDesign(user.uid, campaignId, dataToSave);
+          } else {
+              // Add new document
+              console.log(`Adding new campaign design for type ${type}...`);
+              const savedDesign = await addCampaignDesign(user.uid, dataToSave as Omit<CampaignDesignData, 'id' | 'createdAt' | 'updatedAt'>);
+              campaignId = savedDesign.id ?? null; // Get the new ID, ensure it's string | null
+              if (!campaignId) throw new Error("Failed to get ID for newly saved campaign.");
+              // Store the new ID
+              setCampaignDesignIdsMap(prev => new Map(prev).set(type, campaignId!));
+              console.log(`Saved new campaign with ID: ${campaignId}`);
+          }
+
+          // Now trigger the API endpoint in the background
+          console.log(`Triggering API for campaign ID: ${campaignId}`);
+          const response = await fetch('/api/generate-design-prompt-campaign', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: user.uid, campaignDesignId: campaignId })
+          });
+
+          if (!response.ok) {
+              // API call failed - try to read error message
+              let apiErrorMsg = 'API call failed after saving data.';
+              try {
+                  const errorData = await response.json();
+                  apiErrorMsg = errorData.error || errorData.message || apiErrorMsg;
+              } catch { /* Ignore if response body isn't JSON */ }
+              console.error(`API call failed for ${campaignId}: ${response.status} - ${apiErrorMsg}`);
+              // Update status back in Firestore? Or maybe API already set it to 'failed'
+              // For now, just show error to user
+              throw new Error(apiErrorMsg);
+          }
+
+          // API call successful
+          console.log(`API call successful for ${campaignId}`);
+          // Add to the completed set ONLY after successful save and API trigger
+          setCompletedCampaignForms(prevSet => new Set(prevSet).add(type));
+          console.log(`Campaign ${type} processing initiated.`);
+          return true; // Indicate overall success
+
+      } catch (error) {
+          console.error(`Error processing campaign ${type}:`, error);
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
+          setCampaignError(`Failed to process campaign ${type}: ${errorMsg}`);
+          // Ensure form is marked as incomplete on error
+          setCompletedCampaignForms(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(type);
+              return newSet;
+          });
+          return false; // Indicate failure
+      } finally {
+          // Always turn off processing indicator for this type
+          setIsProcessingApiCallMap(prev => new Map(prev).set(type, false));
+      }
   };
 
   const handleTabClick = (type: string) => {
@@ -633,25 +720,15 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
     else if (currentStep === 'campaign') {
        let allFormsValid = true;
        if (designScope === 'single' && activeCampaignType) {
-           allFormsValid = handleMarkCampaignFormComplete(activeCampaignType);
+           // Just check completion status, don't trigger processing again
+           allFormsValid = completedCampaignForms.has(activeCampaignType);
+           if (!allFormsValid) setCampaignError("Please validate the current campaign details first.");
        } else if (designScope === 'multiple') {
-           // Validate all forms before proceeding from the last step
-           for (const type of businessTypesArray) {
-               if (!completedCampaignForms.has(type)) {
-                   // Try to mark it complete (will set error if invalid)
-                   if (!handleMarkCampaignFormComplete(type)) {
-                       allFormsValid = false;
-                       // Focus the tab with the error if possible? (More complex UI logic)
-                       setActiveCampaignType(type); // Switch to the tab with the error
-                       break; // Stop checking on first error
-                   }
-               }
-           }
-           if (allFormsValid && completedCampaignForms.size !== businessTypesArray.length) {
-                // This case should ideally be caught by the loop above setting an error
-               setCampaignError("Please ensure all campaign details are saved correctly.");
-               allFormsValid = false;
-           }
+           // Check if all forms are marked as complete
+           if (completedCampaignForms.size !== businessTypesArray.length) {
+                setCampaignError("Please ensure all campaign details are saved correctly.");
+                allFormsValid = false;
+            }
        }
        
        if (allFormsValid) {
@@ -687,7 +764,8 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
     // Final validation check
      let allFormsValid = true;
        if (designScope === 'single' && activeCampaignType) {
-           allFormsValid = handleMarkCampaignFormComplete(activeCampaignType);
+           // Check if the single campaign is complete
+           allFormsValid = completedCampaignForms.has(activeCampaignType);
        } else if (designScope === 'multiple') {
            if (completedCampaignForms.size !== businessTypesArray.length) {
                 setCampaignError("Please ensure all campaign details are saved/validated before submitting.");
@@ -706,34 +784,16 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
     console.log('Selected Brand ID:', selectedBrandId);
     console.log('Design Scope:', designScope);
     console.log('Campaign Data Map:', campaignFormDataMap);
+    console.log('Campaign Design IDs Map:', campaignDesignIdsMap);
 
     try {
-        const savedDesignData: CampaignDesignData[] = [];
-        const designPromises: Promise<CampaignDesignData>[] = [];
+        // The individual CampaignDesignData documents should already be created/updated
+        // by handleValidateAndProcessCampaign. We might just need to create the
+        // overarching `design_requests` document if that's still part of the flow,
+        // or maybe this step just becomes navigating away.
 
-        for (const [typeKey, formData] of campaignFormDataMap.entries()) {
-            // Ensure all required fields are present and add brand ID
-            const dataToSave: Omit<CampaignDesignData, 'id' | 'createdAt' | 'updatedAt'> = {
-                associatedBrandId: selectedBrandId,
-                designName: formData.designName || `Design for ${typeKey}`,
-                primaryGoal: formData.primaryGoal || '',
-                callToAction: formData.callToAction || '',
-                targetAudience: formData.targetAudience || '',
-                targetMarketDescription: formData.targetMarketDescription || undefined,
-                tagline: formData.tagline || undefined,
-                offer: formData.offer || undefined,
-                keySellingPoints: formData.keySellingPoints || [],
-                tone: formData.tone || '',
-                visualStyle: formData.visualStyle || '',
-                additionalInfo: formData.additionalInfo || undefined,
-            };
-            // Important: Use addCampaignDesign service function
-            designPromises.push(addCampaignDesign(user.uid, dataToSave));
-        }
-        
-        savedDesignData.push(...await Promise.all(designPromises));
-        console.log("Saved CampaignDesignData documents:", savedDesignData);
-
+        // For now, let's assume we just need to finish.
+ 
         // TODO: Step 2 - Prepare and save the main 'design_requests' document
         // This requires mapping savedDesignData + branding data to the admin page format.
         // Example structure (needs refinement based on admin page types):
@@ -758,11 +818,11 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
         */
        
         // TODO: Step 3 - Trigger AI processing API (placeholder)
-        console.log("Placeholder: Triggering AI processing...");
+        console.log("All campaigns processed or submitted.");
 
         console.log("Submission successful (Data saved to user subcollection)");
-        // For now, just log success and go back
-         alert("Design request submitted successfully! (Placeholder - AI processing not yet implemented)");
+        // For now, just show success and go back
+         alert("Design request generation initiated for all campaigns! You can monitor progress or navigate away.");
          onBack(); 
 
     } catch (error) {
@@ -1070,7 +1130,10 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
              {designScope === 'multiple' && (
                 <div className="flex space-x-1 border-b border-gray-700 mb-4 overflow-x-auto pb-2">
                     {businessTypesArray.map(type => {
+                        const isProcessing = isProcessingApiCallMap.get(type);
                         const isComplete = completedCampaignForms.has(type);
+                        // Show spinner if actively processing OR if processing is complete (ready state implied)
+                        const showSpinner = isProcessing || isComplete;
                         const isActive = activeCampaignType === type;
                         return (
                             <button
@@ -1082,13 +1145,20 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                                     : 'text-gray-400 hover:text-electric-teal hover:bg-gray-700/50'
                                 }`}
                             >
-                                {/* Status Indicator */} 
-                                <span className={`w-2 h-2 rounded-full ${ 
-                                    isComplete ? 'bg-green-500' : isActive ? 'bg-yellow-500' : 'bg-gray-500' 
-                                }`} /> 
+                                {/* Status Indicator - Show check only if complete and NOT active processing */}
+                                {!showSpinner && (
+                                    <span className={`w-2 h-2 rounded-full ${ 
+                                        isComplete ? 'bg-green-500' : isActive ? 'bg-yellow-500' : 'bg-gray-500' 
+                                    }`} /> 
+                                )}
                                 {type}
-                                {/* Placeholder for thumbnail */} 
-                                <div className="w-4 h-4 bg-gray-600 rounded-sm ml-1 hidden"></div> 
+                                {/* Processing Spinner for Tab */} 
+                                {showSpinner && (
+                                    <svg className="animate-spin h-3 w-3 text-blue-400 ml-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                )}
                             </button>
                         );
                     })}
@@ -1096,17 +1166,31 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
              )}
 
             {/* Campaign Form Area */} 
-            <div> 
-                <h3 className="text-lg font-semibold mb-3 text-electric-teal/90">
-                    Define Campaign Design Details 
-                    {designScope === 'multiple' && activeCampaignType && ` for: ${activeCampaignType}`}
-                </h3>
-                <p className="text-sm text-gray-400 mb-4">
-                    Using Brand: <span className="text-gray-200">{selectedBrandName}</span>
-                </p>
+            <div>
++                {/* --- NEW: Welcome Text --- */}
++                <div className="mb-6 p-4 bg-gradient-to-r from-gray-700 to-gray-700/80 rounded-lg border border-electric-teal/20 shadow-sm">
++                    <h3 className="text-lg font-semibold text-electric-teal mb-2">
++                        Let&apos;s Craft Your <span className="text-electric-teal/80">{activeCampaignType !== '__single__' ? activeCampaignType : (businessTypesArray[0] || 'Business')}</span> Postcard!
++                    </h3>
++                    <p className="text-sm text-gray-300 mb-2">
++                        Welcome! We&apos;re about to create a tailor-made postcard for your campaign—completely aligned with your brand guidelines. To make sure our AI-driven design captures your unique style and messaging, please fill out the details below.
++                    </p>
++                    <p className="text-xs text-gray-400">
++                        Think of this as your creative brief: you&apos;ll provide the key campaign info (like goals, offers, and the vibe you want) so we can craft a polished, on-brand postcard that resonates with your target audience. The more specifics you share—like your key selling points, tone, or preferred visuals—the easier it is for us to deliver a stunning final design.
++                    </p>
++                </div>
++                {/* --- End Welcome Text --- */}
++
+                 <h3 className="text-lg font-semibold mb-3 text-electric-teal/90">
+                     Define Campaign Design Details 
+                     {designScope === 'multiple' && activeCampaignType && ` for: ${activeCampaignType}`}
+                 </h3>
+                 <p className="text-sm text-gray-400 mb-4">
+                     Using Brand: <span className="text-gray-200">{selectedBrandName}</span>
+                 </p>
 
-                 {/* --- NEW: Copy Button (only in multi-mode) --- */}
-                 {designScope === 'multiple' && businessTypesArray.length > 1 && activeCampaignType && (
+                  {/* --- NEW: Copy Button (only in multi-mode) --- */}
+                  {designScope === 'multiple' && businessTypesArray.length > 1 && activeCampaignType && (
                     <div className="mb-4 text-right">
                          <button
                             type="button"
@@ -1209,23 +1293,41 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                             <textarea id="additionalInfo" name="additionalInfo" rows={3} value={currentCampaignData.additionalInfo || ''} placeholder="Anything else? e.g., Must include our phone number prominently. Use image of happy clients. Avoid red color." onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} className="w-full p-2 rounded bg-gray-800 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal"/>
                         </div>
 
-                        {/* Validation Button Area */}
-                        {(designScope === 'multiple' || designScope === 'single') && currentCampaignTypeKey && (
-                          <div className="pt-4 border-t border-gray-600/50 mt-4">
-                             <button 
-                                type="button" 
-                                onClick={() => handleMarkCampaignFormComplete(currentCampaignTypeKey)}
-                                disabled={completedCampaignForms.has(currentCampaignTypeKey)}
-                                className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm disabled:bg-gray-500 disabled:cursor-not-allowed"
-                             >
-                                {completedCampaignForms.has(currentCampaignTypeKey) ? '✓ Details Validated' : 'Validate Details for This Design'} 
+                        {/* Validation Button Area - Updated */} 
+                         {(designScope === 'multiple' || designScope === 'single') && currentCampaignTypeKey && (
+                            <div className="pt-4 border-t border-gray-600/50 mt-4 flex items-center gap-3">
+                                <button 
+                                    title={isProcessingApiCallMap.get(currentCampaignTypeKey) ? "Processing AI prompt request..." : (completedCampaignForms.has(currentCampaignTypeKey) ? "AI prompt request sent" : "Save details and request AI prompt")}
+                                    type="button" 
+                                    onClick={() => handleValidateAndProcessCampaign(currentCampaignTypeKey)}
+                                    // Disable if already complete OR currently processing this specific campaign
+                                    disabled={completedCampaignForms.has(currentCampaignTypeKey) || isProcessingApiCallMap.get(currentCampaignTypeKey)}
+                                    className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 text-white text-sm disabled:bg-gray-500 disabled:cursor-not-allowed transition-opacity"
+                                >
+                                    {isProcessingApiCallMap.get(currentCampaignTypeKey) ? (
+                                        // Simple processing indicator
+                                        <span className="flex items-center gap-1">
+                                            <svg className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            Processing...
+                                        </span>
+                                    ) : completedCampaignForms.has(currentCampaignTypeKey) ? (
+                                        '✓ Prompt Requested' // Updated text
+                                    ) : (
+                                        'Save & Request AI Prompt' // Updated text
+                                    )}
                                 </button>
-                                {/* Changed button text slightly */}
-                                <p className="text-xs text-gray-400 mt-1">
-                                     Click &apos;Validate Details&apos; to confirm this section before proceeding.
+                                <p className="text-xs text-gray-400">
+                                    {completedCampaignForms.has(currentCampaignTypeKey) 
+                                        ? 'AI prompt generation initiated. You can move to the next step when ready.'
+                                        : 'Click to save details and trigger AI prompt generation.'
+                                    } 
+                                    {isProcessingApiCallMap.get(currentCampaignTypeKey) && " (This may take a moment...)"}
                                 </p>
-                           </div>
-                        )}
+                            </div>
+                         )}
                        </>
                     ) : (
                         <p className="text-center text-gray-500">(Select a campaign type above or check configuration)</p>
@@ -1247,8 +1349,12 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
              transition={{ duration: 0.3 }}
           >
             <h3 className="text-lg font-semibold mb-3 text-electric-teal/90">Review and Submit</h3>
-            <p className="text-gray-300 mb-4">
+            <p className="text-gray-300 mb-2">
               Review the details below before submitting the request.
+            </p>
+            {/* Informational Text Added */} 
+            <p className="text-xs text-yellow-300 bg-yellow-900/30 p-2 rounded mb-4 border border-yellow-700/50">
+                Please ensure you have clicked &quot;Save & Request AI Prompt&quot; for all required campaigns. Once submitted, our team will work on generating the final designs based on the details provided and the AI-generated prompts. You will be able to view the completed designs later.
             </p>
             <div className="bg-gray-700 p-4 rounded-lg space-y-3">
                 <p><span className="font-medium text-gray-300">Selected Brand:</span> {userBrands.find(b => b.id === selectedBrandId)?.businessName || 'N/A'}</p>
@@ -1393,7 +1499,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                 {/* Validation Reminder Message */}
                 {currentStep === 'campaign' && isNextDisabled && (
                      <p className="text-xs text-yellow-400 mt-1 text-right">
-                        Please click &quot;Validate Details&quot; for {designScope === 'multiple' ? 'all designs' : 'the current design'} above.
+                        Please click &quot;Save & Request AI Prompt&quot; for {designScope === 'multiple' ? 'all designs' : 'the current design'} above.
                     </p>
                 )}
             </div>

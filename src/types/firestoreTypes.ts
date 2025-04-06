@@ -61,6 +61,7 @@ export interface CampaignDesignData {
   imageryDescription?: string; // NEW Optional field for imagery
   additionalInfo?: string; // Optional
   generatedPrompt?: string; // NEW: Store the AI prompt result
+  aiSummary?: string; // NEW: Store the AI summary
   status?: 'draft' | 'processing' | 'ready' | 'failed' | 'completed'; // NEW: Track backend status
   createdAt?: Timestamp; // Optional on creation, will be set by server
   updatedAt?: Timestamp; // Optional on creation, will be set by server

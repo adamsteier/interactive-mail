@@ -86,12 +86,12 @@ export async function POST(req: Request) {
     const brandData = brandDocSnap.exists ? brandDocSnap.data() as BrandingData : null; // Cast to shared type
     console.log("Fetched Branding Data:", brandData);
 
-    // Check if this specific campaign needs processing (rely on status if available)
-    if (campaignData.status && campaignData.status !== 'processing') {
-        console.log(`Campaign '${campaignData.designName}' (ID: ${campaignDesignId}) status is '${campaignData.status}'. No AI generation needed.`);
-        // Maybe still send notification if it's 'failed' and we want admin to know? For now, just exit cleanly.
-        return NextResponse.json({ success: true, message: `Campaign already processed or not ready (status: ${campaignData.status}).` });
-    }
+    // Immediately update status to 'processing'
+    console.log(`Updating campaign ${campaignDesignId} status to 'processing'`);
+    await campaignDocRef.update({ 
+        status: 'processing', 
+        updatedAt: FieldValue.serverTimestamp() 
+    });
 
     // --- Generate AI Prompt ---
     console.log(`Generating AI prompt for campaign: ${campaignData.designName}`);
@@ -160,16 +160,16 @@ export async function POST(req: Request) {
     console.log(`Updating Firestore campaign doc ${campaignDesignId} with results. Status: ${campaignUpdateStatus}`);
     await campaignDocRef.update({ 
       generatedPrompt: aiGeneratedPrompt,
+      aiSummary: aiSummary, // Save the summary
       status: campaignUpdateStatus,
-      // aiSummary field could be added to CampaignDesignData type if needed, or just rely on prompt field for errors
-      updatedAt: FieldValue.serverTimestamp() // Corrected usage
+      updatedAt: FieldValue.serverTimestamp() // Update timestamp again
     });
     console.log("Firestore campaign document updated successfully.");
 
     // --- Send SendGrid Notification ---
     console.log(`Attempting to send notification email for campaign '${campaignDesignId}'...`);
     const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    // TODO: Finalize the structure for the new admin page URL
+    // Use the correct link format for the admin page
     const adminRequestUrl = `${appBaseUrl}/admin/user-designs/${userId}?campaignId=${campaignDesignId}`; 
     
     const subjectStatus = campaignUpdateStatus === 'ready' ? 'Ready for Review' : 'Failed';
