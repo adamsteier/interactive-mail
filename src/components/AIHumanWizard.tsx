@@ -8,12 +8,11 @@ import { useMarketingStore } from '@/store/marketingStore'; // Import Marketing 
 import { BrandingData, CampaignDesignData } from '@/types/firestoreTypes'; // Types
 import { getBrandDataForUser, addBrandData } from '@/lib/brandingService'; // Service functions
 import { addCampaignDesign, updateCampaignDesign } from '@/lib/campaignDesignService'; // Import for submit and update
+import { associateCampaignWithBusinessTypes } from '@/lib/placeStorageService'; // Import for campaign-business type association
 
 // Firebase Storage imports
 import { storage } from '@/lib/firebase'; // Import storage instance
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage"; // Removed deleteObject
-
-import Image from 'next/image'; // Import next/image
 
 // --- NEW: Tone & Style Keywords ---
 const toneKeywords = [
@@ -949,9 +948,29 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
               const savedDesign = await addCampaignDesign(user.uid, dataToSave as Omit<CampaignDesignData, 'id' | 'createdAt' | 'updatedAt'>);
               campaignId = savedDesign.id ?? null; // Get the new ID, ensure it's string | null
               if (!campaignId) throw new Error("Failed to get ID for newly saved campaign.");
+              
               // Store the new ID
               setCampaignDesignIdsMap(prev => new Map(prev).set(type, campaignId!));
               console.log(`Saved new campaign with ID: ${campaignId}`);
+
+              // NEW: Associate campaign with business type in the background
+              try {
+                  // For single scope, associate with all business types (since it's one campaign for all types)
+                  // For multiple scope, associate with just the current type
+                  const typesToAssociate = designScope === 'single' ? businessTypesArray : [type];
+                  
+                  // Call the associateCampaignWithBusinessTypes function (don't await to keep it in background)
+                  if (typesToAssociate.length > 0) {
+                      console.log(`Associating campaign ${campaignId} with business types: ${typesToAssociate.join(', ')}`);
+                      associateCampaignWithBusinessTypes(user.uid, campaignId, typesToAssociate)
+                          .then(() => console.log(`Successfully associated campaign ${campaignId} with business types`))
+                          .catch(error => console.error(`Error associating campaign ${campaignId} with business types:`, error));
+                  }
+              } catch (associationError) {
+                  // Log error but continue with API call
+                  console.error(`Error during campaign-business type association:`, associationError);
+                  // Don't fail the whole operation just because of association error
+              }
           }
 
           // Now trigger the API endpoint in the background
@@ -980,6 +999,43 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
           // Add to the completed set ONLY after successful save and API trigger
           setCompletedCampaignForms(prevSet => new Set(prevSet).add(type));
           console.log(`Campaign ${type} processing initiated.`);
+          
+          // If we're in multiple design scope, automatically move to the next tab
+          if (designScope === 'multiple' && businessTypesArray.length > 1) {
+              // Find the current index in the business types array
+              const currentIndex = businessTypesArray.findIndex(t => t === type);
+              
+              // Only proceed if we found the current type in the array
+              if (currentIndex !== -1) {
+                  // Calculate the next index, wrapping around to the beginning if needed
+                  const nextIndex = (currentIndex + 1) % businessTypesArray.length;
+                  const nextType = businessTypesArray[nextIndex];
+                  
+                  // Look for the first incomplete type, starting from the next one
+                  let targetType = nextType;
+                  let searchCount = 0;
+                  
+                  // Loop through at most once through all types to find one that's not completed
+                  while (searchCount < businessTypesArray.length) {
+                      // If we find a type that's not completed, use that
+                      if (!completedCampaignForms.has(targetType)) {
+                          break;
+                      }
+                      
+                      // Otherwise, move to the next one
+                      const targetIndex = (businessTypesArray.findIndex(t => t === targetType) + 1) % businessTypesArray.length;
+                      targetType = businessTypesArray[targetIndex];
+                      searchCount++;
+                  }
+                  
+                  // If we found a type that's not completed, switch to it
+                  if (targetType !== type) {
+                      console.log(`Auto-switching to next tab: ${targetType}`);
+                      setActiveCampaignType(targetType);
+                  }
+              }
+          }
+          
           return true; // Indicate overall success
 
       } catch (error) {
@@ -1378,13 +1434,13 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                             />
                             {/* Preview Area */} 
                             {logoPreviewUrl && (
-                                // Use next/image for preview - NOTE: May need loader config for blob URLs if issues arise
-                                <Image src={logoPreviewUrl} alt="Logo Preview" width={100} height={40} className="h-10 w-auto rounded-md border border-gray-600 shrink-0" />
+                                // Use regular img instead of next/image for preview
+                                <img src={logoPreviewUrl} alt="Logo Preview" className="h-10 w-auto rounded-md border border-gray-600 shrink-0" />
                             )}
                             {/* Display Final Uploaded Logo if no preview */} 
                             {!logoPreviewUrl && newBrandData.logoUrl && (
-                                 // Use next/image for uploaded URL
-                                 <Image src={newBrandData.logoUrl} alt="Uploaded Logo" width={100} height={40} className="h-10 w-auto rounded-md border border-green-500 shrink-0" />
+                                 // Use regular img instead of next/image for uploaded URL
+                                 <img src={newBrandData.logoUrl} alt="Uploaded Logo" className="h-10 w-auto rounded-md border border-green-500 shrink-0" />
                             )}
                             {/* Progress Indicator */} 
                             {isUploadingLogo && logoUploadProgress !== null && (
@@ -1737,12 +1793,11 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                                                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                                             {(uploadedCampaignImageUrls.get(currentCampaignTypeKey) || []).map((url, index) => (
                                                                 <div key={`img-${index}`} className="relative aspect-square group overflow-hidden rounded-md border border-gray-600">
-                                                                    <Image 
+                                                                    {/* Replace Next.js Image with regular img for Firebase URLs */}
+                                                                    <img 
                                                                         src={url} 
                                                                         alt={`Uploaded ${index+1}`}
-                                                                        fill
-                                                                        sizes="(max-width: 640px) 50vw, 33vw"
-                                                                        className="object-cover transition-transform duration-200 group-hover:scale-105"
+                                                                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
                                                                     />
                                                                     <button
                                                                         type="button"
@@ -1810,7 +1865,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                                 </button>
                                 <div className="text-xs text-gray-400">
                                     {completedCampaignForms.has(currentCampaignTypeKey) 
-                                        ? 'AI design generation initiated. You can move to the next step when ready.'
+                                        ? 'AI design generation initiated. We\'ll automatically move to the next design.'
                                         : (
                                           <div>
                                             <p>Only Design Name and Primary Goal are required.</p>
@@ -1924,11 +1979,11 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                                         <div className="flex flex-wrap gap-2">
                                             {(uploadedCampaignImageUrls.get(type) || []).map((url, i) => (
                                                 <div key={i} className="w-16 h-16 relative rounded-md overflow-hidden border border-gray-600">
-                                                    <Image 
+                                                    {/* Use regular img instead of Next.js Image for Firebase URLs */}
+                                                    <img 
                                                         src={url} 
                                                         alt={`Image ${i+1}`} 
-                                                        fill 
-                                                        className="object-cover"
+                                                        className="absolute inset-0 w-full h-full object-cover"
                                                     />
                                                 </div>
                                             ))}

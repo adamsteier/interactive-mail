@@ -1,0 +1,41 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Allow read access to everyone
+    match /{allPaths=**} {
+      allow read: if true; // Keep public read if intended
+    }
+
+    // Allow authenticated users to write to the logos folder
+    match /logos/{allPaths=**} {
+      allow write: if request.auth != null;
+    }
+
+    // Allow authenticated users to write to the campaignImages folder
+    match /campaignImages/{userId}/{allPaths=**} {
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Allow authenticated users to write to the finalDesigns folder
+    // TODO: Update these rules when admin functionality is implemented
+    // For now, allowing any authenticated user to upload for testing
+    match /finalDesigns/{userId}/{allPaths=**} {
+      // Currently allowing any authenticated user to write to finalize designs
+      // This should eventually be restricted to only admins or the specific user
+      allow write: if request.auth != null;
+    }
+
+    // Keep your existing specific rules if needed
+    match /users/{userId}/{allPaths=**} {
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /temp/{sessionId}/{allPaths=**} {
+      // Consider if this should be request.auth != null or allow all writes?
+      allow write: if request.auth != null;
+    }
+    match /businesses/{businessId}/{allPaths=**} {
+      // Might need more specific logic based on user role/ownership
+      allow write: if request.auth != null;
+    }
+  }
+} 

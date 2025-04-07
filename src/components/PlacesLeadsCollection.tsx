@@ -7,6 +7,8 @@ import { useMarketingStore } from '@/store/marketingStore';
 import { useLeadsStore } from '@/store/leadsStore';
 import LoadingBar from './LoadingBar';
 import type { GooglePlace } from '@/types/places';
+import { useAuth } from '@/contexts/AuthContext';
+import { saveAllPlaces, saveSelectedPlaces } from '@/lib/placeStorageService';
 
 interface PlacesLeadsCollectionProps {
   onClose: () => void;
@@ -19,6 +21,7 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
   const progress = useMarketingStore(state => state.searchResults.progress);
   // Get the action from leadsStore
   const processSelectedLeads = useLeadsStore(state => state.processSelectedLeads);
+  const { user } = useAuth();
 
   const [selectedPlaces, setSelectedPlaces] = useState<Set<string>>(new Set());
   const [activeFilter, setActiveFilter] = useState<string>('all');
@@ -134,6 +137,23 @@ const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
         // Call the action from the leadsStore to process and store them
         processSelectedLeads(selectedBusinesses);
         console.log("Successfully processed leads in store.");
+
+        // Save places to Firestore in the background
+        if (user) {
+          console.log("Saving places to Firestore in the background...");
+          
+          // Save all places grouped by business type
+          saveAllPlaces(user.uid, places)
+            .then(() => console.log("Successfully saved all places to Firestore"))
+            .catch(error => console.error("Error saving all places to Firestore:", error));
+          
+          // Save selected places grouped by business type
+          saveSelectedPlaces(user.uid, selectedBusinesses)
+            .then(() => console.log("Successfully saved selected places to Firestore"))
+            .catch(error => console.error("Error saving selected places to Firestore:", error));
+        } else {
+          console.warn("User not authenticated, skipping Firestore save");
+        }
 
         console.log("Navigating directly to /design...");
         // Use direct location change instead of router.push
