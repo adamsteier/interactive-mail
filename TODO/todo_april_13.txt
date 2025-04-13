@@ -26,7 +26,6 @@ Create a dashboard page for users to land on after submitting design requests vi
     [ ] Display summary of selected/unselected leads across campaigns or for a specific campaign.
     [x] Fetch lead data from Firestore (likely `campaignLeads` collection or subcollection) - Implemented in viewer.
     [x] Implement view to see leads for a specific campaign (`CampaignLeadViewer.tsx` created, modal integration done).
-    [ ] Add filtering/sorting options for leads within a campaign view.
     [x] Allow selecting/deselecting leads within the campaign view. (Implemented with batch update).
     [ ] (Future) Track lead status (sent, delivered, responded).
 
@@ -48,8 +47,8 @@ Create a dashboard page for users to land on after submitting design requests vi
     **Note:** Corrected `leadCount`/`selectedLeadCount` update logic in `campaignService.ts` to use `increment()`.
 
 6.  **Settings (`UserSettings.tsx`)**
-    [ ] User profile management (Name, Email). (UI Placeholder added, needs service fn)
-    [ ] Password change functionality. (Placeholder added, needs service fn)
+    [x] User profile management (Name, Email). (UI Placeholder added, needs `updateUserProfileData` service fn integration)
+    [x] Password change functionality. (Implemented using client-side SDK, needs re-auth flow for `requires-recent-login` error)
     [ ] (Future) Billing information / Stripe integration management.
     [ ] (Future) Notification preferences.
 
@@ -78,3 +77,4 @@ Create a dashboard page for users to land on after submitting design requests vi
 [x] Modify `AIHumanWizard.tsx` to accept and save `campaignId`.
 [x] Create `DashboardSummary.tsx` component with placeholder UI.
 [x] Create `UserSettings.tsx` component with placeholder UI.
+[x] Implement client-side password change logic in `UserSettings.tsx`.

@@ -26,3 +26,7 @@
     *   Update `Campaign` type and Firestore structure to include mailing status fields (e.g., `mailingStatus: 'pending' | 'sent' | 'failed'`, `stannpJobId: string`).
     *   (Optional) Implement webhook endpoint (if Stannp provides them) or periodic checks to update mailing status based on Stannp feedback.
     *   Display mailing status in `CampaignHistory.tsx`.
+
+[ ] Leads Table Enhancements (in `CampaignLeadViewer.tsx`):
+    *   Add filtering controls (e.g., by name, type, selection status).
+    *   Add sorting controls (e.g., click table headers).
