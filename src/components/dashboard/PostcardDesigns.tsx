@@ -11,11 +11,23 @@ import { db } from '@/lib/firebase'; // Assuming db instance is exported from he
 // Temporary type assertion helper until CampaignDesignData includes leadCount REMOVED
 // type DesignWithLeadCount = CampaignDesignData & { leadCount?: number }; 
 
+// --- Skeleton Loader Component ---
+const SkeletonCard: React.FC = () => (
+  <div className="border border-gray-700/50 rounded-lg p-4 bg-charcoal/40 animate-pulse flex flex-col">
+      <div className="h-4 bg-gray-600/50 rounded w-3/4 mb-3"></div>
+      <div className="flex-grow mb-2 flex items-center justify-center bg-gray-700/40 rounded aspect-video"></div> {/* Thumbnail placeholder */}
+      <div className="h-3 bg-gray-600/50 rounded w-1/2 mb-2"></div> {/* Status/Lead placeholder */}
+      <div className="h-3 bg-gray-600/50 rounded w-1/3 mb-3"></div> {/* Date placeholder */}
+      <div className="h-8 bg-gray-700/40 rounded"></div> {/* Button placeholder */}
+  </div>
+);
+
 const PostcardDesigns: React.FC = () => {
   const { user } = useAuth();
   const [designs, setDesigns] = useState<CampaignDesignData[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null); // State for modal
 
   useEffect(() => {
     if (!user) {
@@ -69,8 +81,16 @@ const PostcardDesigns: React.FC = () => {
   // --- Render Logic ---
 
   if (isLoading) {
-    // TODO: Use a branded loading component/spinner
-    return <div className="text-center p-6 text-gray-400">Loading designs...</div>;
+    // Render skeleton grid
+    return (
+      <div className="space-y-6">
+        <h2 className="text-xl font-semibold text-electric-teal">Your Postcard Designs</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {/* Render multiple skeleton cards */} 
+          {[...Array(4)].map((_, index) => <SkeletonCard key={index} />)}
+        </div>
+      </div>
+    );
   }
 
   if (error) {
@@ -95,10 +115,25 @@ const PostcardDesigns: React.FC = () => {
       {/* TODO: Implement grid or list layout for designs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {designs.map((design) => (
-          <div key={design.id} className="border border-gray-700 rounded-lg p-4 bg-charcoal/60 hover:border-electric-teal/50 hover:shadow-glow-sm transition-all duration-200">
+          <div key={design.id} className="border border-gray-700 rounded-lg p-4 bg-charcoal/60 hover:border-electric-teal/50 hover:shadow-glow-sm transition-all duration-200 flex flex-col">
             <h3 className="font-medium text-white mb-2 truncate">{design.designName}</h3>
-            {/* TODO: Display thumbnail if available */}
-            {/* {design.finalDesignUrl && <img src={design.finalDesignUrl} alt={design.designName} className="aspect-video object-cover rounded mb-2"/>} */}
+            {/* Display thumbnail if available */}
+            <div className="flex-grow mb-2 flex items-center justify-center bg-gray-700/50 rounded aspect-video overflow-hidden">
+               {design.finalDesignUrl ? (
+                    <img
+                        src={design.finalDesignUrl}
+                        alt={`Design: ${design.designName}`}
+                        className="w-full h-full object-contain cursor-pointer transition-transform hover:scale-105"
+                        onClick={() => setExpandedImageUrl(design.finalDesignUrl!)}
+                    />
+                ) : (
+                    <span className="text-xs text-gray-500 italic">
+                        {design.status === 'processing' || (design.status as string) === 'processing_ai' ? 'Processing...' :
+                        design.status === 'failed' || (design.status as string) === 'ai_failed' ? 'Failed' :
+                        'No preview'}
+                    </span>
+                )}
+             </div>
             <p className="text-xs text-gray-400 mb-1">Status: <span className={`font-medium ${
               // TODO: Ensure CampaignDesignData type includes 'processing_ai' and 'ai_failed' statuses
               design.status === 'completed' ? 'text-green-400' :
@@ -134,14 +169,29 @@ const PostcardDesigns: React.FC = () => {
             </div>
           </div>
         ))}
-         {/* Placeholder card for demonstration */}
-         <div className="border border-gray-700 rounded-lg p-4 bg-charcoal/60 hover:border-electric-teal/50 hover:shadow-glow-sm transition-all duration-200 animate-pulse">
-             <div className="h-4 bg-gray-600 rounded w-3/4 mb-3"></div>
-             <div className="h-20 bg-gray-600 rounded mb-2"></div> {/* Thumbnail placeholder */}
-             <div className="h-3 bg-gray-600 rounded w-1/2 mb-2"></div> {/* Status placeholder */}
-             <div className="h-3 bg-gray-600 rounded w-1/3"></div> {/* Date placeholder */}
-         </div>
       </div>
+
+      {/* Image Expansion Modal */}
+      {expandedImageUrl && (
+          <div
+              className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 cursor-pointer"
+              onClick={() => setExpandedImageUrl(null)}
+          >
+              <img
+                  src={expandedImageUrl}
+                  alt="Expanded design"
+                  className="max-w-full max-h-full object-contain"
+                  onClick={(e) => e.stopPropagation()}
+              />
+               <button
+                  className="absolute top-4 right-4 text-white text-3xl font-bold hover:text-electric-teal"
+                  onClick={() => setExpandedImageUrl(null)}
+                  aria-label="Close expanded image"
+              >
+                  &times;
+              </button>
+          </div>
+      )}
     </div>
   );
 };

@@ -57,7 +57,7 @@ export interface CampaignDesignData {
   targetMarketDescription?: string; // Optional refined description
   tagline?: string; // Optional
   offer?: string; // Optional
-  keySellingPoints: string[]; // Updated to array based on user code example
+  keySellingPoints: string; // Ensure this is a string, not string[]
   tone: string; // User-provided keywords
   visualStyle: string; // User-provided keywords
   imageryDescription?: string; // User's description if they chose 'describe'

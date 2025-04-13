@@ -57,7 +57,7 @@ const initialCampaignFormData: Partial<Omit<CampaignDesignData, 'id' | 'associat
   targetMarketDescription: '',
   tagline: '',
   offer: '', // Keep this field, but handling will make it optional on save
-  keySellingPoints: '', // Initialize as string
+  keySellingPoints: '', // Initialize as string, no assertion needed
   tone: '',
   visualStyle: '',
   additionalInfo: '',
@@ -897,7 +897,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
               targetMarketDescription: formData.targetMarketDescription?.trim() || '',
               tagline: formData.tagline?.trim() || '',
               offer: formData.offer?.trim() || '',
-              keySellingPoints: formData.keySellingPoints?.trim() || '', // Type should be string here now
+              keySellingPoints: formData.keySellingPoints?.trim() || '', // Remove assertion, should be string now
               tone: formData.tone?.trim() || '',
               visualStyle: formData.visualStyle?.trim() || '',
               additionalInfo: formData.additionalInfo?.trim() || '',
