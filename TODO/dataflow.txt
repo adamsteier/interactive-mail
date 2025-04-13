@@ -1,3 +1,17 @@
+# User Flow: End-to-End (Homepage to Mailing)
+
+This document traces the user journey and associated data operations.
+
+## Step 1: Target Location Entry (Homepage)
+
+1.  **User Action:** Visits homepage (`/`), enters a target city/location (e.g., "St. Albert") into an input field, and submits.
+2.  **System Action (Frontend):**
+    *   Captures the entered location.
+    *   Stores the target location in application state (e.g., `marketingStore.businessInfo.location`).
+    *   Navigates the user to the next step, typically the lead selection/map view (e.g., `/leads`).
+
+--------------------
+
 # Data Flow for Campaign Creation & Design Association (Revised)
 
 This outlines the intended flow from lead gathering to initiating a mailing, emphasizing the earlier connection between Campaigns and Designs.
