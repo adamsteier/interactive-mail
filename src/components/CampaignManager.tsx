@@ -2,11 +2,9 @@ import { useState, useEffect } from 'react';
 import { useMarketingStore } from '@/store/marketingStore';
 import { Campaign } from '@/lib/campaignService';
 import PostcardUploader from './PostcardUploader';
+import { useAuth } from '@/contexts/AuthContext';
 
 const CampaignManager = () => {
-  const [campaignName, setCampaignName] = useState('');
-  const [selectedLeads, setSelectedLeads] = useState<Record<string, boolean>>({});
-  
   const {
     activeBusiness,
     currentCampaign,
@@ -27,6 +25,9 @@ const CampaignManager = () => {
     batchUpdateCampaignLeads,
     savePlacesToCampaign
   } = useMarketingStore();
+  const { user } = useAuth();
+  const [campaignName, setCampaignName] = useState('');
+  const [selectedLeads, setSelectedLeads] = useState<Record<string, boolean>>({});
   
   // Load business campaigns when component mounts
   useEffect(() => {
@@ -42,8 +43,13 @@ const CampaignManager = () => {
       return;
     }
     
+    if (!user) {
+      alert('User not logged in');
+      return;
+    }
+    
     try {
-      const campaignId = await createNewCampaign(campaignName);
+      const campaignId = await createNewCampaign(user.uid, campaignName);
       await loadCampaignById(campaignId);
       setCampaignName('');
     } catch (error) {
