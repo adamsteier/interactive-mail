@@ -40,8 +40,8 @@ export interface BrandingData {
     secondaryColor?: string;
     font?: string;
   };
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // Interface for documents in the 'campaignDesignData' subcollection (users/{userId}/campaignDesignData/{designId})
@@ -76,6 +76,6 @@ export interface CampaignDesignData {
   leadCount?: number; // Number of selected leads this design is intended for
 
   // --- Timestamps ---
-  createdAt?: Timestamp; // Set by server on creation
-  updatedAt?: Timestamp; // Set by server on update
+  createdAt?: Date;
+  updatedAt?: Date;
 } 

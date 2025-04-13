@@ -94,7 +94,6 @@ const PostcardDesigns: React.FC = () => {
   }
 
   if (error) {
-    // TODO: Use a branded error component
     return <div className="text-center p-6 text-red-400 bg-red-900/20 border border-red-700 rounded-md">{error}</div>;
   }
 
@@ -147,6 +146,11 @@ const PostcardDesigns: React.FC = () => {
                 design.status === 'failed' || (design.status as string) === 'ai_failed' ? 'text-red-400' :
                 'text-gray-300'
             }`}>{design.status || 'Unknown'}</span></p>
+            {/* Placeholder for Design Request Status (if applicable) */}
+            <div className="text-xs text-gray-500 italic mt-1">
+                {/* TODO: Fetch and display status from related design_requests document if using that flow */}
+                {/* (Design Request Status: Placeholder) */}
+            </div>
             {/* Display Lead Count */} 
             <div 
                 className="text-xs text-gray-400 mt-1 cursor-pointer hover:text-electric-teal transition-colors" 

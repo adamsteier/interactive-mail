@@ -6,3 +6,23 @@
     *   Trigger email notification to user when design is eventually completed after being delayed.
     *   Type Definition: Add 'delayed' to `CampaignDesignData` status options.
     *   UI: Display appropriate message in dashboard for 'delayed' status (e.g., "Processing taking longer than usual, we'll email you...").
+
+[ ] Stripe Payment Integration:
+    *   Set up Stripe account and obtain API keys.
+    *   Create backend endpoint (e.g., Cloud Function) to create Stripe Checkout Sessions.
+    *   Implement logic (likely Cloud Function triggered by Firestore `onCreate` on a `payments` collection or similar) to create Stripe Customer ID on first payment and store it on the user's profile (`UserData` or separate `stripeCustomers` collection).
+    *   Implement webhook endpoint to handle Stripe events (e.g., `checkout.session.completed`, `payment_intent.succeeded`).
+    *   Update campaign status/trigger mailing process upon successful payment webhook.
+    *   Modify frontend (`PostcardDesigns.tsx` or payment component) to call the checkout session endpoint when "Proceed to Payment" is clicked.
+    *   Add billing management UI to dashboard Settings section (view invoices, manage payment methods).
+
+[ ] Stannp (or Mailing Provider) Integration:
+    *   Set up Stannp account and obtain API key.
+    *   Create backend logic (likely Cloud Function triggered by successful payment or admin action) to:
+        *   Fetch campaign details, selected leads, and final design URL.
+        *   Format data according to Stannp API requirements.
+        *   Call Stannp API to create and submit the mailing job.
+        *   Store the Stannp Job ID on the `Campaign` document in Firestore.
+    *   Update `Campaign` type and Firestore structure to include mailing status fields (e.g., `mailingStatus: 'pending' | 'sent' | 'failed'`, `stannpJobId: string`).
+    *   (Optional) Implement webhook endpoint (if Stannp provides them) or periodic checks to update mailing status based on Stannp feedback.
+    *   Display mailing status in `CampaignHistory.tsx`.

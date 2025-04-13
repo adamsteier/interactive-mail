@@ -5,7 +5,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext'; // Assuming you have an AuthContext
 // Import dashboard components once they are created
 // import DashboardSummary from '@/components/dashboard/DashboardSummary';
-// import BrandProfileManager from '@/components/dashboard/BrandProfileManager';
+import BrandProfileManager from '@/components/dashboard/BrandProfileManager';
 // import CampaignLeadViewer from '@/components/dashboard/CampaignLeadViewer';
 import PostcardDesigns from '@/components/dashboard/PostcardDesigns';
 // import CampaignHistory from '@/components/dashboard/CampaignHistory';
@@ -33,8 +33,7 @@ const DashboardPage: React.FC = () => {
         // return <DashboardSummary />;
         return <p>Dashboard Overview Content (Component coming soon)</p>;
       case 'brands':
-        // return <BrandProfileManager />;
-        return <p>Brand Profile Management Content (Component coming soon)</p>;
+        return <BrandProfileManager />;
       case 'leads':
         // return <CampaignLeadViewer />; // Or LeadSummary depending on final structure
         return <p>Lead Management Content (Component coming soon)</p>;

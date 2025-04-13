@@ -9,7 +9,7 @@ import {
   query, 
   where, 
   serverTimestamp, 
-  arrayUnion,
+  increment,
   writeBatch,
   Timestamp,
   DocumentReference
@@ -21,6 +21,7 @@ export interface Campaign {
   id?: string;
   name: string;
   businessId: string;
+  userId: string;
   businessTypes: string[];
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
@@ -51,12 +52,14 @@ export interface CampaignLead {
 
 // Create a new campaign
 export const createCampaign = async (
+  userId: string,
   businessId: string,
   name: string,
   businessTypes: string[]
 ): Promise<Campaign> => {
   const campaignRef = doc(collection(db, 'campaigns'));
   const campaign: Campaign = {
+    userId,
     businessId,
     name,
     businessTypes,
@@ -91,6 +94,25 @@ export const getCampaignById = async (campaignId: string): Promise<Campaign | nu
     } as Campaign;
   } catch (error) {
     console.error('Error getting campaign:', error);
+    throw error;
+  }
+};
+
+// Get all campaigns for a USER
+export const getUserCampaigns = async (userId: string): Promise<Campaign[]> => {
+  try {
+    const campaignsQuery = query(
+      collection(db, 'campaigns'),
+      where('userId', '==', userId)
+    );
+    
+    const campaignDocs = await getDocs(campaignsQuery);
+    return campaignDocs.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Campaign));
+  } catch (error) {
+    console.error('Error getting user campaigns:', error);
     throw error;
   }
 };
@@ -173,10 +195,11 @@ export const addLeadsToCampaign = async (
       batch.set(leadRef, lead);
     });
     
-    // Update the campaign with the new lead count
+    // Update the campaign with the new lead count using increment
     const campaignRef = doc(db, 'campaigns', campaignId);
     batch.update(campaignRef, {
-      leadCount: arrayUnion(campaignLeads.length),
+      // Use Firestore increment
+      leadCount: increment(campaignLeads.length),
       updatedAt: serverTimestamp()
     });
     
@@ -225,9 +248,8 @@ export const updateLead = async (
       
       const campaignRef = doc(db, 'campaigns', lead.campaignId);
       await updateDoc(campaignRef, {
-        selectedLeadCount: data.selected 
-          ? arrayUnion(1) 
-          : arrayUnion(-1),
+        // Use Firestore increment with 1 or -1
+        selectedLeadCount: increment(data.selected ? 1 : -1),
         updatedAt: serverTimestamp()
       });
     }
@@ -278,18 +300,18 @@ export const batchUpdateLeads = async (
       }
     }
     
-    // Update the campaigns with the new selected lead counts
+    // Update the campaigns with the new selected lead counts using increment
     for (const [campaignId, countChange] of Object.entries(selectCountChanges)) {
       if (countChange !== 0) {
         const campaignRef = doc(db, 'campaigns', campaignId);
-        const campaignDoc = await getDoc(campaignRef);
-        
+        // Check existence before incrementing (optional but safer)
+        const campaignDoc = await getDoc(campaignRef); 
         if (campaignDoc.exists()) {
-          const campaign = campaignDoc.data() as Campaign;
-          batch.update(campaignRef, {
-            selectedLeadCount: Math.max(0, (campaign.selectedLeadCount || 0) + countChange),
-            updatedAt: serverTimestamp()
-          });
+            batch.update(campaignRef, {
+                // Use Firestore increment
+                selectedLeadCount: increment(countChange),
+                updatedAt: serverTimestamp()
+            });
         }
       }
     }
