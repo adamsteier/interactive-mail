@@ -179,13 +179,15 @@ export const associateCampaignWithBusinessTypes = async (
     let batch = writeBatch(db);
     const batchPromises: Promise<void>[] = [];
     
-    // Update each business type document with the campaign ID
+    // Update each business type document in selected_places with the campaign ID
     businessTypes.forEach(type => {
       const typeDocRef = doc(db, 'users', userId, 'selected_places', type);
-      batch.update(typeDocRef, {
+      // Use merge:true in case the document doesn't exist yet (e.g., if saving failed previously)
+      // arrayUnion handles duplicates automatically
+      batch.set(typeDocRef, {
         associatedCampaignIds: arrayUnion(campaignId),
         updatedAt: serverTimestamp()
-      });
+      }, { merge: true }); 
       
       operationCount++;
       
@@ -196,10 +198,10 @@ export const associateCampaignWithBusinessTypes = async (
       }
     });
     
-    // Update the campaign document with the business types
-    const campaignDocRef = doc(db, 'users', userId, 'campaigns', campaignId);
+    // Update the campaign document in campaignDesignData with the business types
+    const campaignDocRef = doc(db, 'users', userId, 'campaignDesignData', campaignId);
     batch.update(campaignDocRef, {
-      associatedBusinessTypes: businessTypes,
+      associatedBusinessTypes: businessTypes, // Store the list of types on the campaign
       updatedAt: serverTimestamp()
     });
     

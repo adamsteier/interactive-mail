@@ -47,26 +47,35 @@ export interface BrandingData {
 // Interface for documents in the 'campaignDesignData' subcollection (users/{userId}/campaignDesignData/{designId})
 export interface CampaignDesignData {
   id?: string; // Optional because it's added after creation
-  associatedBrandId: string;
-  designName: string;
+  associatedBrandId: string; // Which brand profile this design belongs to
+  designName: string; // User-given name for this specific design (e.g., "Restaurant Promo Q3")
+
+  // --- Input Data Mirrors (or relevant subset) ---
   primaryGoal: string;
   callToAction: string;
-  targetAudience: string;
-  targetMarketDescription?: string; // Optional
+  targetAudience: string; // e.g., "Restaurants", "Cafes", "__all__" or a descriptor
+  targetMarketDescription?: string; // Optional refined description
   tagline?: string; // Optional
   offer?: string; // Optional
-  keySellingPoints: string[];
-  tone: string;
-  visualStyle: string;
-  imageryDescription?: string; // NEW Optional field for imagery
-  imageryType?: 'upload' | 'describe'; // NEW: Track user's imagery choice
-  uploadedImageUrls?: string[]; // NEW: Store URLs if imageryType is 'upload'
-  additionalInfo?: string; // Optional
-  generatedPrompt?: string; // NEW: Store the AI prompt result
-  aiSummary?: string; // NEW: Store the AI summary
-  status?: 'draft' | 'processing' | 'ready' | 'failed' | 'completed'; // NEW: Track backend status
-  createdAt?: Timestamp; // Optional on creation, will be set by server
-  updatedAt?: Timestamp; // Optional on creation, will be set by server
-  finalDesignUrl?: string; // NEW: To store the URL of the uploaded final design
-  // Potential future fields: feedback?: string
+  keySellingPoints: string[]; // Updated to array based on user code example
+  tone: string; // User-provided keywords
+  visualStyle: string; // User-provided keywords
+  imageryDescription?: string; // User's description if they chose 'describe'
+  imageryType?: 'upload' | 'describe'; // User's choice for image source
+  uploadedImageUrls?: string[]; // URLs if user uploaded images
+  additionalInfo?: string; // Optional extra notes from user
+
+  // --- Generated / Status Fields ---
+  generatedPrompt?: string; // AI-generated image prompt for admin/backend
+  aiSummary?: string; // AI-generated summary for admin
+  status?: 'draft' | 'processing' | 'ready' | 'failed' | 'completed' | 'processing_ai' | 'ai_failed'; // Updated to include more statuses
+  finalDesignUrl?: string; // URL of the final design uploaded by admin (if single image)
+  finalDesigns?: string[]; // Alternative: Array if multiple final images are possible per design
+
+  // --- NEW FIELD ---
+  leadCount?: number; // Number of selected leads this design is intended for
+
+  // --- Timestamps ---
+  createdAt?: Timestamp; // Set by server on creation
+  updatedAt?: Timestamp; // Set by server on update
 } 

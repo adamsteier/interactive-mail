@@ -1,0 +1,71 @@
+# TODO: Dashboard Page - April 13
+
+## Goal
+Create a dashboard page for users to land on after submitting design requests via the AIHumanWizard. This page will allow users to view their leads, track the status of their postcard designs, see past campaigns, manage brand profiles, and manage account settings.
+
+## File Structure
+
+[x] Main Page: `app/dashboard/page.tsx`
+[x] Components Directory: `src/components/dashboard/`
+
+## Dashboard Sections & Components
+
+1.  **Dashboard Overview (`DashboardSummary.tsx`)**
+    [ ] Welcome message.
+    [ ] Quick stats (active campaigns, leads selected, postcards sent - requires Stannp integration).
+    [ ] Recent activity feed.
+    [ ] Quick action buttons ("Start New Campaign", "View Campaigns").
+
+2.  **Brand Profile Management (`BrandProfileManager.tsx`)**
+    [ ] List user's existing brand profiles (fetch from `users/{userId}/brandingData`).
+    [ ] Allow creating new brand profiles.
+    [ ] Allow editing existing profiles (name, colors, logo, notes).
+    [ ] Allow deleting brand profiles.
+    [ ] Implement business selector to filter campaigns/designs by the user's brand/business.
+
+3.  **Data Management / Leads (`LeadSummary.tsx` / `CampaignLeadViewer.tsx`)**
+    [ ] Display summary of selected/unselected leads across campaigns or for a specific campaign.
+    [ ] Fetch lead data from Firestore (likely campaignLeads collection or subcollection).
+    [ ] Implement view to see leads for a specific campaign.
+    [ ] Add filtering/sorting options for leads within a campaign view.
+    [ ] Allow selecting/deselecting leads within the campaign view.
+    [ ] (Future) Track lead status (sent, delivered, responded).
+
+4.  **Postcard Designs (`PostcardDesigns.tsx` or `DesignGallery.tsx`)**
+    [x] Fetch user's `CampaignDesignData` documents from Firestore (or potentially `design_requests` depending on final structure).
+    [x] Implement real-time Firestore listeners to track status field changes ('processing_ai', 'review_ready', 'completed', 'ai_failed') and generated results (aiPrompt, aiSummary, finalDesignUrl or finalDesigns). Listener implemented. Type definition updated with new statuses & leadCount.
+    [ ] Display loading indicators for designs with 'processing_ai' status.
+    [x] Show final generated designs (thumbnails, view larger option) when 'completed'. Basic display setup with modal for expansion implemented.
+    [x] Display associated lead count (`leadCount`). UI implemented. Requires backend logic to populate field.
+    [ ] Handle 'ai_failed' status appropriately (show error message, maybe retry option?). Basic display setup.
+    [ ] Display status of `design_requests` if using that collection for AI+Human flow.
+    [x] Payment Trigger: Add "Proceed to Payment & Send" button for completed designs. (UI implemented). (**Note:** On first payment, create Stripe customer ID and associate with user).
+
+5.  **Campaigns / Sent History (`CampaignHistory.tsx`)**
+    [ ] Display list of campaigns (fetched from Firestore campaigns collection).
+    [ ] Show key campaign details (Name, Status, Dates, Lead Counts).
+    [ ] Link campaigns to their respective leads and designs.
+    [ ] Track actual sent postcards (requires defining mail job tracking - e.g., update campaign status, link to Stannp job ID).
+    [ ] Display history of sent campaigns with status and dates.
+
+6.  **Settings (`UserSettings.tsx`)**
+    [ ] User profile management (Name, Email).
+    [ ] Password change functionality.
+    [ ] (Future) Billing information / Stripe integration management.
+    [ ] (Future) Notification preferences.
+
+## Layout & Navigation
+[x] The main `app/dashboard/page.tsx` will orchestrate the layout.
+[x] Implement navigation between sections (Tabs or Sidebar). Basic tabs implemented & styled.
+[ ] Ensure all UI components adhere to the styles defined in `brandguidelines.txt`.
+
+## Data Flow
+[ ] `page.tsx` might handle initial data fetching (e.g., list of businesses/brands) or delegate to child components.
+[x] Real-time listeners in `PostcardDesigns.tsx` are essential for design status updates. Listener implemented.
+[ ] Evaluate need for shared state management (Zustand/Context) vs. component-level fetching, especially for the active brand/business context.
+
+## Next Steps
+[x] Create the basic `app/dashboard/page.tsx` structure.
+[x] Create the `src/components/dashboard/` directory.
+[x] Start building the layout/navigation (e.g., using Tabs). Basic tabs implemented & styled.
+[x] Begin implementing the postcard design viewing component (`PostcardDesigns.tsx`). Basic structure, listener, thumbnail display/modal, lead count display, and payment button UI implemented.

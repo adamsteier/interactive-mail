@@ -57,7 +57,7 @@ const initialCampaignFormData: Partial<Omit<CampaignDesignData, 'id' | 'associat
   targetMarketDescription: '',
   tagline: '',
   offer: '', // Keep this field, but handling will make it optional on save
-  keySellingPoints: [],
+  keySellingPoints: '', // Initialize as string
   tone: '',
   visualStyle: '',
   additionalInfo: '',
@@ -136,8 +136,6 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
   const [isProcessingApiCallMap, setIsProcessingApiCallMap] = useState<Map<string, boolean>>(new Map());
   const [campaignError, setCampaignError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  // State for the Key Selling Points input string (now textarea content)
-  const [keySellingPointsInput, setKeySellingPointsInput] = useState('');
   // --- NEW: Imagery State ---
   const [isImageryExpanded, setIsImageryExpanded] = useState<Map<string, boolean>>(new Map()); // Track accordion expansion
   const [campaignImageUploadProgress, setCampaignImageUploadProgress] = useState<Map<string, Map<string, number>>>(new Map()); // Progress for each file
@@ -244,20 +242,6 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
       }
     };
   }, [logoPreviewUrl]);
-
-  // Effect to sync local keySellingPointsInput state when tab changes or data loads
-  useEffect(() => {
-    // Derive currentCampaignTypeKey based on component state for this effect
-    const currentCampaignTypeKey = activeCampaignType || (designScope === 'single' ? '__single__' : null);
-    if (currentCampaignTypeKey) {
-      // We still need to display the array as a comma-separated string
-      const pointsArray = campaignFormDataMap.get(currentCampaignTypeKey)?.keySellingPoints || [];
-      // Don't split/join if not needed - just grab the raw string value
-      setKeySellingPointsInput(pointsArray.join(', '));
-    } else {
-      setKeySellingPointsInput('');
-    }
-  }, [activeCampaignType, campaignFormDataMap, designScope]);
 
   // --- NEW: Handlers for Info Modal ---
   const openInfoModal = (type: 'tone' | 'visualStyle') => {
@@ -559,7 +543,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
        // This ensures consistency if the user stays on the same tab
        const updatedSourceData = campaignFormDataMap.get(activeCampaignType);
         if (updatedSourceData?.keySellingPoints) {
-             setKeySellingPointsInput(updatedSourceData.keySellingPoints.join(', '));
+             // setKeySellingPointsInput(updatedSourceData.keySellingPoints.join(', ')); // REMOVED sync with removed state
         }
 
   };
@@ -841,15 +825,9 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
       const updatedForms = new Map(prevForms);
       const currentFormData = updatedForms.get(businessType) || { ...initialCampaignFormData };
 
-      const processedValue: string | string[] = value;
-      // Key Selling Points handling is now separate in handleKeySellingPointsChange
-      // if (name === 'keySellingPoints') {
-      //   processedValue = value.split(',').map(s => s.trim()).filter(s => s !== '');
-      // }
-
       updatedForms.set(businessType, {
         ...currentFormData,
-        [name]: processedValue,
+        [name]: value, // Directly assign the value (will be string for keySellingPoints from textarea)
       });
 
       // If user edits, remove from completed set
@@ -917,9 +895,9 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
               callToAction: formData.callToAction?.trim() || '',
               targetAudience: formData.targetAudience?.trim() || '',
               targetMarketDescription: formData.targetMarketDescription?.trim() || '',
-              tagline: formData.tagline?.trim() || '', 
-              offer: formData.offer?.trim() || '', 
-              keySellingPoints: (formData.keySellingPoints || []).filter(point => point.trim() !== ''),
+              tagline: formData.tagline?.trim() || '',
+              offer: formData.offer?.trim() || '',
+              keySellingPoints: formData.keySellingPoints?.trim() || '', // Type should be string here now
               tone: formData.tone?.trim() || '',
               visualStyle: formData.visualStyle?.trim() || '',
               additionalInfo: formData.additionalInfo?.trim() || '',
@@ -1522,41 +1500,6 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
         const currentCampaignData = currentCampaignTypeKey ? campaignFormDataMap.get(currentCampaignTypeKey) || {} : {};
         const selectedBrandName = userBrands.find(b => b.id === selectedBrandId)?.businessName || 'Your Business'; 
 
-        // Local state and handler for Key Selling Points input are defined *outside* the switch now
-        // But useEffect to sync it is still needed if it depends on activeCampaignTypeKey
-        
-        // *** Handler specifically for the Key Selling Points input ***
-        const handleKeySellingPointsChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-            const rawValue = event.target.value;
-            setKeySellingPointsInput(rawValue); // Update local input state immediately
-            
-            if (currentCampaignTypeKey) {
-                setCampaignFormDataMap(prevForms => {
-                    const updatedForms = new Map(prevForms);
-                    const currentFormData = updatedForms.get(currentCampaignTypeKey) || { ...initialCampaignFormData };
-                    
-                    // We still parse commas for the data model, but our textarea now accepts any text freely
-                    const processedArray = rawValue ? 
-                        rawValue.split(',').map(s => s.trim()).filter(s => s !== '') : 
-                        [];
-                    
-                    updatedForms.set(currentCampaignTypeKey, {
-                        ...currentFormData,
-                        keySellingPoints: processedArray,
-                    });
-                    
-                    // Mark form as incomplete since it was edited
-                    setCompletedCampaignForms(prev => {
-                        const newSet = new Set(prev);
-                        newSet.delete(currentCampaignTypeKey);
-                        return newSet;
-                    });
-                    
-                    return updatedForms;
-                });
-            }
-        };
-
         return (
           <motion.div
              key="campaign"
@@ -1679,7 +1622,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                             <label htmlFor="targetAudience" className="block text-sm font-medium text-electric-teal mb-1">Target Audience Description</label>
                             <textarea id="targetAudience" name="targetAudience" rows={3} 
                                 value={currentCampaignData.targetAudience || ''}
-                                placeholder={designScope === 'multiple' ? `Describe the ideal ${activeCampaignType || 'customer'} (e.g., homeowners needing tax help, local restaurants seeking bookkeeping).` : 'Describe the ideal customer across all types (e.g., small business owners in St. Albert).'}
+                                placeholder={designScope === 'multiple' ? `Describe the ideal ${activeCampaignType || 'customer'} (Why do they need you or your service? e.g., homeowners needing tax help, local restaurants seeking bookkeeping).` : 'Describe the ideal customer across all types (e.g., small business owners in St. Albert).'}
                                 onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} 
                                 className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}
                             />
@@ -1690,16 +1633,16 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                         </div>
                         <div>
                             <label htmlFor="keySellingPoints" className="block text-sm font-medium text-electric-teal mb-1">Key Selling Points</label>
-                            <textarea 
-                                id="keySellingPoints" 
-                                name="keySellingPoints" 
+                            <textarea
+                                id="keySellingPoints"
+                                name="keySellingPoints"
                                 rows={3}
-                                value={keySellingPointsInput} 
-                                onChange={handleKeySellingPointsChange} 
-                                placeholder="e.g., Saves Time, Reduces Errors, Expert Advice, Local & Trusted" 
+                                value={currentCampaignData.keySellingPoints || ''} // Use string value directly
+                                onChange={(e) => { if (currentCampaignTypeKey) handleCampaignInputChange(e, currentCampaignTypeKey)}} // Use general handler
+                                placeholder="e.g., Saves Time, Reduces Errors, Expert Advice, Local & Trusted"
                                 className={`w-full p-2 rounded-md bg-charcoal/80 border border-gray-600 focus:border-electric-teal focus:ring-electric-teal focus:shadow-glow-input transition-shadow duration-200 ${placeholderStyle}`}
                             />
-                            <p className="text-xs text-gray-400 mt-1">Enter your key benefits (comma-separated list recommended for best AI results)</p>
+                            <p className="text-xs text-gray-400 mt-1">Enter your key benefits or selling points here.</p> {/* Updated helper text */}
                         </div>
                         <div>
                             <label htmlFor="targetMarketDescription" className="block text-sm font-medium text-electric-teal mb-1">Target Market Description (Optional)</label>
@@ -1942,7 +1885,7 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                                 </div>
                                 <div className="col-span-2">
                                     <p className="text-gray-400">Selling Points:</p>
-                                    <p className="text-gray-200">{(formData.keySellingPoints || []).join('; ') || '(Not set)'}</p>
+                                    <p className="text-gray-200">{formData.keySellingPoints || '(Not set)'}</p> {/* Display string directly */}
                                 </div>
                                 <div className="col-span-2">
                                     <p className="text-gray-400">Target Audience:</p>

@@ -120,7 +120,7 @@ export async function POST(req: Request) {
       - Call To Action: ${campaignData.callToAction}
       - Target Market Notes: ${campaignData.targetMarketDescription || 'N/A'}
       - Offer: ${campaignData.offer || 'N/A'}
-      - Key Selling Points: ${campaignData.keySellingPoints?.join(', ') || 'N/A'}
+      - Key Selling Points: ${campaignData.keySellingPoints || 'N/A'}
       - Tone: ${campaignData.tone || 'Default / Not Specified'}
       - Visual Style: ${campaignData.visualStyle || 'Default / Not Specified'}
       
