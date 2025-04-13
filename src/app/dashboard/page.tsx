@@ -4,10 +4,12 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext'; // Assuming you have an AuthContext
 // Import dashboard components once they are created
-// import DashboardSummary from '@/components/dashboard/DashboardSummary';
+import DashboardSummary from '@/components/dashboard/DashboardSummary';
 import BrandProfileManager from '@/components/dashboard/BrandProfileManager';
 // import CampaignLeadViewer from '@/components/dashboard/CampaignLeadViewer';
 import PostcardDesigns from '@/components/dashboard/PostcardDesigns';
+import CampaignHistory from '@/components/dashboard/CampaignHistory';
+import UserSettings from '@/components/dashboard/UserSettings';
 // import CampaignHistory from '@/components/dashboard/CampaignHistory';
 // import UserSettings from '@/components/dashboard/UserSettings';
 
@@ -30,8 +32,7 @@ const DashboardPage: React.FC = () => {
   const renderTabContent = () => {
     switch (activeTab) {
       case 'overview':
-        // return <DashboardSummary />;
-        return <p>Dashboard Overview Content (Component coming soon)</p>;
+        return <DashboardSummary />;
       case 'brands':
         return <BrandProfileManager />;
       case 'leads':
@@ -40,11 +41,9 @@ const DashboardPage: React.FC = () => {
       case 'designs':
         return <PostcardDesigns />;
       case 'history':
-        // return <CampaignHistory />;
-        return <p>Campaign History Content (Component coming soon)</p>;
+        return <CampaignHistory />;
       case 'settings':
-        // return <UserSettings />;
-        return <p>Account Settings Content (Component coming soon)</p>;
+        return <UserSettings />;
       default:
         return null;
     }

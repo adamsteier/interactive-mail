@@ -1,0 +1,40 @@
+# Data Flow for Campaign Creation & Design Association (Revised)
+
+This outlines the intended flow from lead gathering to initiating a mailing, emphasizing the earlier connection between Campaigns and Designs.
+
+1.  **Campaign Initiation & Lead Gathering:**
+    *   User defines targeting criteria (location, business types, etc.).
+    *   This action likely triggers the creation of a `Campaign` document in the `campaigns` collection (Firestore) with an initial `status: 'draft'`. This document stores the campaign name, targeting criteria, `userId`, `businessId`, etc.
+    *   Based on the criteria, potential leads are fetched/generated and stored as `CampaignLead` documents in the `campaignLeads` collection, each linked via `campaignId` to the newly created draft `Campaign`.
+
+2.  **Design Creation (Wizard with Context):**
+    *   User navigates to the design creation step *from the context of the draft campaign* (e.g., clicking "Create Design for this Campaign").
+    *   The `campaignId` of the draft campaign is passed to the `AIHumanWizard` component.
+    *   The wizard proceeds as before (collecting brand info, design goals, tone, style, etc.).
+
+3.  **Linking Design to Campaign:**
+    *   When the `AIHumanWizard` saves the design details, it creates one or more `CampaignDesignData` documents (in `users/{userId}/campaignDesignData`).
+    *   **Crucially:** Each created `CampaignDesignData` document **now also stores the `campaignId`** it was created for.
+    *   (Requires adding `campaignId?: string;` field to the `CampaignDesignData` interface in `src/types/firestoreTypes.ts`).
+
+4.  **Dashboard Interaction:**
+    *   The primary dashboard view might list `Campaigns` (fetching from the `campaigns` collection).
+    *   Clicking on a specific `Campaign` (e.g., from `CampaignHistory.tsx`) should lead to a detailed view for that campaign.
+    *   This detailed campaign view would fetch and display:
+        *   The campaign's details (name, status, etc.).
+        *   The associated leads (`CampaignLeads` filtered by `campaignId`).
+        *   The associated designs (`CampaignDesignData` filtered by `campaignId`).
+
+5.  **Lead & Design Finalization:**
+    *   Within the detailed campaign view (or a dedicated step), the user reviews and selects the specific leads (`selected: true`) they want to mail for this instance.
+    *   The user selects the *one specific, finalized* `CampaignDesignData` document (which should have `status: 'completed'`) they want to use for this mailing.
+
+6.  **Initiate Mailing (Update Campaign):**
+    *   User clicks a "Proceed to Payment & Send" (or similar) button within the campaign context.
+    *   This action **updates the existing `Campaign` document**: 
+        *   Sets the `status` to `'pending_payment'` or `'queued_for_mailing'`. 
+        *   Updates `selectedLeadCount` based on the final selection for *this mailing*.
+        *   Potentially stores the ID of the chosen `finalDesignUrl` directly on the `Campaign` document for easy access during mailing fulfillment, or confirms the link via the `postcardDesigns` array.
+    *   This triggers the payment flow and, upon success, the mailing fulfillment process (e.g., Stannp integration). 
+
+**Key Change:** Designs are linked to a specific (potentially draft) campaign *at the time of design creation*, rather than only when the mailing is initiated.

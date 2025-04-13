@@ -48,6 +48,7 @@ export interface BrandingData {
 export interface CampaignDesignData {
   id?: string; // Optional because it's added after creation
   associatedBrandId: string; // Which brand profile this design belongs to
+  campaignId?: string; // NEW: Link to the parent Campaign document
   designName: string; // User-given name for this specific design (e.g., "Restaurant Promo Q3")
 
   // --- Input Data Mirrors (or relevant subset) ---

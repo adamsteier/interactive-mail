@@ -11,10 +11,10 @@ Create a dashboard page for users to land on after submitting design requests vi
 ## Dashboard Sections & Components
 
 1.  **Dashboard Overview (`DashboardSummary.tsx`)**
-    [ ] Welcome message.
-    [ ] Quick stats (active campaigns, leads selected, postcards sent - requires Stannp integration).
-    [ ] Recent activity feed.
-    [ ] Quick action buttons ("Start New Campaign", "View Campaigns").
+    [ ] Welcome message. (UI Placeholder added)
+    [ ] Quick stats (active campaigns, leads selected, postcards sent - requires Stannp integration). (UI Placeholder added, needs data fetch)
+    [ ] Recent activity feed. (UI Placeholder added, needs data fetch)
+    [ ] Quick action buttons ("Start New Campaign", "View Campaigns"). (UI Placeholders added, needs linking)
 
 2.  **Brand Profile Management (`BrandProfileManager.tsx`)**
     [x] List user's existing brand profiles (fetch from `users/{userId}/brandingData`). (Listener implemented)
@@ -48,8 +48,8 @@ Create a dashboard page for users to land on after submitting design requests vi
     **Note:** Corrected `leadCount`/`selectedLeadCount` update logic in `campaignService.ts` to use `increment()`.
 
 6.  **Settings (`UserSettings.tsx`)**
-    [ ] User profile management (Name, Email).
-    [ ] Password change functionality.
+    [ ] User profile management (Name, Email). (UI Placeholder added, needs service fn)
+    [ ] Password change functionality. (Placeholder added, needs service fn)
     [ ] (Future) Billing information / Stripe integration management.
     [ ] (Future) Notification preferences.
 
@@ -74,3 +74,7 @@ Create a dashboard page for users to land on after submitting design requests vi
 [x] Create `CampaignLeadViewer.tsx` component.
 [x] Integrate `CampaignLeadViewer` into `CampaignHistory` via modal.
 [x] Implement lead selection/deselection logic with batch update in `CampaignLeadViewer.tsx`.
+[x] Update `CampaignDesignData` type to include `campaignId`.
+[x] Modify `AIHumanWizard.tsx` to accept and save `campaignId`.
+[x] Create `DashboardSummary.tsx` component with placeholder UI.
+[x] Create `UserSettings.tsx` component with placeholder UI.

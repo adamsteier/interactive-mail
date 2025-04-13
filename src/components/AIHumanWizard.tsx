@@ -64,12 +64,13 @@ const initialCampaignFormData: Partial<Omit<CampaignDesignData, 'id' | 'associat
   imageryDescription: '' // Add imagery description field
 };
 
-// Props expected by the wizard, including the callback to close it
+// Props expected by the wizard, including the callback to close it and optional campaignId
 interface AIHumanWizardProps {
   onBack: () => void;
+  campaignId?: string; // Optional: ID of the parent campaign being worked on
 }
 
-const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
+const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack, campaignId }) => {
   const { user } = useAuth(); // Get user authentication status
   const selectedBusinessTypes = useLeadsStore(state => state.selectedBusinessTypes);
   const storeBusinessName = useMarketingStore(state => state.businessInfo.businessName); // Get name from store
@@ -885,78 +886,72 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
               return false;
           }
 
-          let campaignId = campaignDesignIdsMap.get(type) || null;
+          let currentCampaignDesignId = campaignDesignIdsMap.get(type) || null;
 
-          // Prepare data for saving/updating with proper defaults for optional fields
-          const dataToSave: Omit<CampaignDesignData, 'id' | 'createdAt' | 'updatedAt'> = {
+          // Prepare data for saving/updating 
+          const dataToSave: Partial<Omit<CampaignDesignData, 'id' | 'createdAt' | 'updatedAt'>> = {
+              // --- Include campaignId if provided via props --- 
+              ...(campaignId && { campaignId: campaignId }), 
+              // --- Existing fields --- 
               associatedBrandId: selectedBrandId,
-              designName: formData.designName.trim(),
-              primaryGoal: formData.primaryGoal.trim(),
+              designName: formData.designName!.trim(), // Use non-null assertion after validation
+              primaryGoal: formData.primaryGoal!.trim(), // Use non-null assertion after validation
               callToAction: formData.callToAction?.trim() || '',
               targetAudience: formData.targetAudience?.trim() || '',
               targetMarketDescription: formData.targetMarketDescription?.trim() || '',
               tagline: formData.tagline?.trim() || '',
               offer: formData.offer?.trim() || '',
-              keySellingPoints: formData.keySellingPoints?.trim() || '', // Remove assertion, should be string now
+              keySellingPoints: formData.keySellingPoints?.trim() || '', 
               tone: formData.tone?.trim() || '',
               visualStyle: formData.visualStyle?.trim() || '',
               additionalInfo: formData.additionalInfo?.trim() || '',
               imageryDescription: formData.imageryDescription?.trim() || '',
               uploadedImageUrls: uploadedCampaignImageUrls.get(type) || [],
-              status: 'processing'
+              status: 'processing' // Set initial status for AI processing
           };
           
-          // Conditionally add imageryType only when needed (Firestore doesn't accept undefined values)
+          // Conditionally add imageryType
+          // ... (existing imageryType logic) ...
           if (uploadedCampaignImageUrls.get(type)?.length) {
-              // If we have uploaded images, set type to 'upload'
               dataToSave.imageryType = 'upload';
           } else if (formData.imageryDescription?.trim()) {
-              // If we have a description but no uploads, set type to 'describe'
               dataToSave.imageryType = 'describe';
           }
-          // If neither condition is met, we don't include the field at all
 
-          if (campaignId) {
+          if (currentCampaignDesignId) {
               // Update existing document
-              console.log(`Updating campaign design ${campaignId} for type ${type}...`);
-              await updateCampaignDesign(user.uid, campaignId, dataToSave);
+              console.log(`Updating campaign design ${currentCampaignDesignId} for type ${type}...`);
+              await updateCampaignDesign(user.uid, currentCampaignDesignId, dataToSave as CampaignDesignData);
           } else {
               // Add new document
               console.log(`Adding new campaign design for type ${type}...`);
               const savedDesign = await addCampaignDesign(user.uid, dataToSave as Omit<CampaignDesignData, 'id' | 'createdAt' | 'updatedAt'>);
-              campaignId = savedDesign.id ?? null; // Get the new ID, ensure it's string | null
-              if (!campaignId) throw new Error("Failed to get ID for newly saved campaign.");
+              currentCampaignDesignId = savedDesign.id ?? null;
+              if (!currentCampaignDesignId) throw new Error("Failed to get ID for newly saved campaign.");
               
-              // Store the new ID
-              setCampaignDesignIdsMap(prev => new Map(prev).set(type, campaignId!));
-              console.log(`Saved new campaign with ID: ${campaignId}`);
+              setCampaignDesignIdsMap(prev => new Map(prev).set(type, currentCampaignDesignId!));
+              console.log(`Saved new campaign design with ID: ${currentCampaignDesignId}`);
 
-              // NEW: Associate campaign with business type in the background
+              // ... (existing association logic - might need review based on new flow) ...
               try {
-                  // For single scope, associate with all business types (since it's one campaign for all types)
-                  // For multiple scope, associate with just the current type
                   const typesToAssociate = designScope === 'single' ? businessTypesArray : [type];
-                  
-                  // Call the associateCampaignWithBusinessTypes function (don't await to keep it in background)
-                  if (typesToAssociate.length > 0) {
-                      console.log(`Associating campaign ${campaignId} with business types: ${typesToAssociate.join(', ')}`);
-                      associateCampaignWithBusinessTypes(user.uid, campaignId, typesToAssociate)
-                          .then(() => console.log(`Successfully associated campaign ${campaignId} with business types`))
-                          .catch(error => console.error(`Error associating campaign ${campaignId} with business types:`, error));
+                  if (typesToAssociate.length > 0 && currentCampaignDesignId) { // Ensure ID exists
+                      console.log(`Associating campaign design ${currentCampaignDesignId} with business types: ${typesToAssociate.join(', ')}`);
+                      associateCampaignWithBusinessTypes(user.uid, currentCampaignDesignId, typesToAssociate)
+                          .then(() => console.log(`Successfully associated campaign design ${currentCampaignDesignId} with business types`))
+                          .catch(error => console.error(`Error associating campaign design ${currentCampaignDesignId} with business types:`, error));
                   }
               } catch (associationError) {
-                  // Log error but continue with API call
-                  console.error(`Error during campaign-business type association:`, associationError);
-                  // Don't fail the whole operation just because of association error
+                  console.error(`Error during campaign design-business type association:`, associationError);
               }
           }
 
-          // Now trigger the API endpoint in the background
-          console.log(`Triggering API for campaign ID: ${campaignId}`);
+          // Trigger the API endpoint in the background
+          console.log(`Triggering API for campaign design ID: ${currentCampaignDesignId}`);
           const response = await fetch('/api/generate-design-prompt-campaign', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ userId: user.uid, campaignDesignId: campaignId })
+              body: JSON.stringify({ userId: user.uid, campaignDesignId: currentCampaignDesignId }) // Use the correct ID
           });
 
           if (!response.ok) {
@@ -966,17 +961,16 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
                   const errorData = await response.json();
                   apiErrorMsg = errorData.error || errorData.message || apiErrorMsg;
               } catch { /* Ignore if response body isn't JSON */ }
-              console.error(`API call failed for ${campaignId}: ${response.status} - ${apiErrorMsg}`);
+              console.error(`API call failed for ${currentCampaignDesignId}: ${response.status} - ${apiErrorMsg}`);
               // Update status back in Firestore? Or maybe API already set it to 'failed'
               // For now, just show error to user
               throw new Error(apiErrorMsg);
           }
 
           // API call successful
-          console.log(`API call successful for ${campaignId}`);
-          // Add to the completed set ONLY after successful save and API trigger
+          console.log(`API call successful for ${currentCampaignDesignId}`);
           setCompletedCampaignForms(prevSet => new Set(prevSet).add(type));
-          console.log(`Campaign ${type} processing initiated.`);
+          console.log(`Campaign design ${type} processing initiated.`);
           
           // If we're in multiple design scope, automatically move to the next tab
           if (designScope === 'multiple' && businessTypesArray.length > 1) {
@@ -1017,10 +1011,9 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
           return true; // Indicate overall success
 
       } catch (error) {
-          console.error(`Error processing campaign ${type}:`, error);
+          console.error(`Error processing campaign design ${type}:`, error);
           const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
-          setCampaignError(`Failed to process campaign ${type}: ${errorMsg}`);
-          // Ensure form is marked as incomplete on error
+          setCampaignError(`Failed to process campaign design ${type}: ${errorMsg}`);
           setCompletedCampaignForms(prev => {
               const newSet = new Set(prev);
               newSet.delete(type);
@@ -1028,7 +1021,6 @@ const AIHumanWizard: React.FC<AIHumanWizardProps> = ({ onBack }) => {
           });
           return false; // Indicate failure
       } finally {
-          // Always turn off processing indicator for this type
           setIsProcessingApiCallMap(prev => new Map(prev).set(type, false));
       }
   };
