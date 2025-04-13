@@ -118,8 +118,14 @@ const PostcardDesigns: React.FC = () => {
           <div key={design.id} className="border border-gray-700 rounded-lg p-4 bg-charcoal/60 hover:border-electric-teal/50 hover:shadow-glow-sm transition-all duration-200 flex flex-col">
             <h3 className="font-medium text-white mb-2 truncate">{design.designName}</h3>
             {/* Display thumbnail if available */}
-            <div className="flex-grow mb-2 flex items-center justify-center bg-gray-700/50 rounded aspect-video overflow-hidden">
-               {design.finalDesignUrl ? (
+            <div className="relative flex-grow mb-2 flex items-center justify-center bg-gray-700/50 rounded aspect-video overflow-hidden">
+               {/* Conditional Content: Spinner, Image, or Placeholder Text */}
+               {(design.status === 'processing' || (design.status as string) === 'processing_ai') ? (
+                   <svg className="animate-spin h-8 w-8 text-electric-teal/70" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                   </svg>
+               ) : design.finalDesignUrl ? (
                     <img
                         src={design.finalDesignUrl}
                         alt={`Design: ${design.designName}`}
@@ -128,19 +134,18 @@ const PostcardDesigns: React.FC = () => {
                     />
                 ) : (
                     <span className="text-xs text-gray-500 italic">
-                        {design.status === 'processing' || (design.status as string) === 'processing_ai' ? 'Processing...' :
-                        design.status === 'failed' || (design.status as string) === 'ai_failed' ? 'Failed' :
+                        {/* Removed processing check here as it's handled above */}
+                        {design.status === 'failed' || (design.status as string) === 'ai_failed' ? 'Failed' :
                         'No preview'}
                     </span>
                 )}
              </div>
-            <p className="text-xs text-gray-400 mb-1">Status: <span className={`font-medium ${
-              // TODO: Ensure CampaignDesignData type includes 'processing_ai' and 'ai_failed' statuses
-              design.status === 'completed' ? 'text-green-400' :
-              // Use type assertion (as string) to handle statuses potentially not yet in the type definition
-              design.status === 'processing' || (design.status as string) === 'processing_ai' ? 'text-yellow-400 animate-pulse' :
-              design.status === 'failed' || (design.status as string) === 'ai_failed' ? 'text-red-400' :
-              'text-gray-300' // Default for other statuses like 'draft', 'review_ready', etc.
+            <p className="text-xs text-gray-400 mb-1">Status: <span className={`font-medium ${ 
+                // No longer need animate-pulse here for processing status
+                design.status === 'completed' ? 'text-green-400' :
+                design.status === 'processing' || (design.status as string) === 'processing_ai' ? 'text-yellow-400' :
+                design.status === 'failed' || (design.status as string) === 'ai_failed' ? 'text-red-400' :
+                'text-gray-300'
             }`}>{design.status || 'Unknown'}</span></p>
             {/* Display Lead Count */} 
             <div 

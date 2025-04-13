@@ -1,0 +1,8 @@
+# TODO: ALL-TIME Deferred Tasks
+
+[ ] Implement "Delayed" Status Handling for Designs:
+    *   Backend: Scheduled function to check for designs stuck in 'processing' status for > X minutes.
+    *   Update status to 'delayed' in Firestore.
+    *   Trigger email notification to user when design is eventually completed after being delayed.
+    *   Type Definition: Add 'delayed' to `CampaignDesignData` status options.
+    *   UI: Display appropriate message in dashboard for 'delayed' status (e.g., "Processing taking longer than usual, we'll email you...").

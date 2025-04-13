@@ -34,11 +34,10 @@ Create a dashboard page for users to land on after submitting design requests vi
 4.  **Postcard Designs (`PostcardDesigns.tsx` or `DesignGallery.tsx`)**
     [x] Fetch user's `CampaignDesignData` documents from Firestore (or potentially `design_requests` depending on final structure).
     [x] Implement real-time Firestore listeners to track status field changes ('processing_ai', 'review_ready', 'completed', 'ai_failed') and generated results (aiPrompt, aiSummary, finalDesignUrl or finalDesigns). Listener implemented. Type definition updated with new statuses & leadCount.
-    [ ] Display loading indicators for designs with 'processing_ai' status.
+    [ ] Display loading indicators for designs with 'processing_ai' status. (Refine visual next)
     [x] Show final generated designs (thumbnails, view larger option) when 'completed'. Basic display setup with modal for expansion implemented.
     [x] Display associated lead count (`leadCount`). UI implemented. Requires backend logic to populate field.
-    [ ] Handle 'ai_failed' status appropriately (show error message, maybe retry option?). Basic display setup.
-    [ ] Display status of `design_requests` if using that collection for AI+Human flow.
+    [ ] Display status of `design_requests` if using that collection for AI+Human flow. (Implement placeholder next)
     [x] Payment Trigger: Add "Proceed to Payment & Send" button for completed designs. (UI implemented). (**Note:** On first payment, create Stripe customer ID and associate with user).
 
 5.  **Campaigns / Sent History (`CampaignHistory.tsx`)**
