@@ -146,7 +146,7 @@ interface MarketingState {
   loadBusinessById: (businessId: string) => Promise<void>;
 
   // Campaign actions
-  createNewCampaign: (name: string) => Promise<string>;
+  createNewCampaign: (userId: string, name: string) => Promise<string>;
   loadBusinessCampaigns: (businessId: string) => Promise<void>;
   setCurrentCampaign: (campaign: Campaign | null) => void;
   loadCampaignById: (campaignId: string) => Promise<void>;
@@ -862,7 +862,7 @@ const createMarketingStore = () => {
   setSelectedLocation: (location) => set({ selectedLocation: location }),
 
     // Campaign actions
-    createNewCampaign: async (name) => {
+    createNewCampaign: async (userId, name) => {
       const state = get();
       set({ isSavingCampaign: true });
       
@@ -877,6 +877,7 @@ const createMarketingStore = () => {
         if (isOnline) {
           // Online - create in Firestore
           const campaign = await createCampaign(
+            userId,
             state.activeBusiness.id,
             name,
             Array.from(state.selectedBusinessTypes)
@@ -897,6 +898,7 @@ const createMarketingStore = () => {
           // Create a local campaign object
           const campaign: Campaign = {
             id: tempId,
+            userId,
             businessId: state.activeBusiness.id,
             name,
             businessTypes: Array.from(state.selectedBusinessTypes),
