@@ -361,7 +361,7 @@ const createMarketingStore = () => {
               description: currentState.businessInfo.businessAnalysis?.description || '',
             });
             
-            // Queue for sync when online
+            // Queues for sync when online
             await storePendingOperation({
               type: 'update',
               collection: 'businesses',
