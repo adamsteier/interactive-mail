@@ -159,7 +159,7 @@ const CampaignLeadViewer: React.FC<CampaignLeadViewerProps> = ({ campaignId }) =
           <table className="w-full text-sm text-left text-gray-300">
             <thead className="text-xs text-electric-teal/80 uppercase bg-charcoal/80">
               <tr>
-                {/* TODO: Add checkbox for select all */} 
+                {/* TODO: Add checkbox for select all */}
                 <th scope="col" className="py-3 px-4">
                     <input type="checkbox" disabled className="opacity-50" /> {/* Placeholder */} 
                 </th>

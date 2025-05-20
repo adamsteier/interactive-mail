@@ -309,206 +309,309 @@ The store also contains key actions like:
 7. Once authenticated, the overlay closes and the user can see their leads
 8. The system searches for leads matching the selected business types in the target area
 9. User can select leads of interest and export or save them for future marketing efforts
-10. User can navigate to the postcard designer to create marketing materials
-11. In the postcard designer, user can choose a design method:
-    - Upload existing designs
-    - AI-generated designs (`AIDesignWizard` -> `PostcardGeneration`)
-    - Work with a human designer (Not fully implemented)
-    - AI Design + Expert Review (`HumanAssistedWizard`):
-        - User is guided through the wizard.
-        - **If multiple business types were selected in the previous stage:** User first chooses whether to create one postcard for all types or a separate one for each.
-        - **Brand Identity:** User defines global brand details (name, colors, style, logo upload) once.
-        - **Campaign Details:** User fills out Marketing Goals, Target Audience, Business Details, and Visual Elements.
-            - If designing multiple postcards, user can switch between business types to fill details for each.
-        - **Early Admin Notification (Multi-Design):** When the multi-design flow starts, a document is created in Firestore (`status: 'draft_multiple'`) and the backend is called to send an initial notification to the admin.
-        - **Progressive Saving (Multi-Design):** As the user completes steps for each business type, the data is saved to the corresponding campaign within the Firestore document.
-        - **Final Submission (`handleSubmitRequest`):**
-            - User reaches the Review step.
-            - Clicking "Submit Design Request":
-                - **Single Design:** Creates the Firestore request document (`status: 'pending_prompt'`).
-                - **Multi-Design:** Updates the existing Firestore document status to `pending_prompt` and saves the final state of all campaigns.
-                - Calls the `/api/generate-design-prompt` API.
-        - **API Route (`/api/generate-design-prompt`):**
-            - **Checks Status:** Determines action based on Firestore status (`draft_multiple` or `pending_prompt`).
-            - **`draft_multiple`:** Sends only initial admin notification.
-            - **`pending_prompt`:** Fetches full data, calls OpenAI (using first campaign data as basis) for `aiGeneratedPrompt` and `aiSummary`, updates Firestore with AI results and status `pending_review`, sends detailed SendGrid email to admin, updates Firestore `notifiedAdmin: true`.
-        - User UI shows processing/waiting state, listening for status changes.
-12. **Admin Workflow:**
-    - Admin receives email notification(s) with a link.
-    - Link goes to `/admin/requests/{id}` page.
-    - **Admin Page (`src/app/admin/requests/[id]/page.tsx`):**
-        - Fetches and displays the full request details from Firestore (user inputs, logo, AI prompt/summary).
-        - (TODO) Provides interface for admin to review, add notes, change status, and upload final design images.
-        - (TODO) Once admin uploads final images and marks complete, Firestore status is updated to `completed` and `finalImageUrls` are saved.
-13. **User Results:**
-    - User's application (via listener/polling) detects the `completed` status.
-    - Fetches `finalImageUrls` from Firestore.
-    - Displays the final postcard designs uploaded by the admin.
-    - (TODO) User can proceed to payment/sending flow.
-14. (Previous Step) User can save AI-generated designs (from `PostcardGeneration`) and view them in the postcard preview page (`/postcard_preview`).
-15. All saved designs (and potentially completed human-assisted requests?) are accessible for future reference.
-
-This application combines market analysis, lead generation, and customized marketing material creation in one integrated workflow to help businesses reach their target audience effectively.
+10. User can navigate to the campaign build flow by clicking "Start Campaign":
+    - The client generates a unique campaign ID (`cid`)
+    - The system collects all found leads and selected place_ids
+    - The client calls the `createCampaignWithLeads` Cloud Function with the campaign data
+    - Upon success, user is redirected to `/build/{cid}`
+11. In the Campaign Build page (`/build/[campaignId]`), the system:
+    - Fetches campaign data based on the URL parameter
+    - Displays leads data and allows further refinement
+    - Detects `campaignMode` ("one_off" or "autopilot") and adapts UI accordingly
+12. User proceeds to postcard design:
+    - For "one_off" mode: User creates a single postcard design
+    - For "autopilot" mode: User can set up a recurring campaign with design reuse options
+    - User can choose from three design methods:
+        - **Upload Own Design:** Upload a pre-designed postcard image
+            - Specifications: 4×6 inches (152.4mm × 101.6mm + 3mm bleed margins)
+            - Required resolution: 1871 × 1271 pixels at 300 DPI
+            - System validates dimensions and resolution
+            - Template overlay option to ensure proper placement of text/elements
+        - **AI-Generated Design:** Use the AI Design Wizard
+            - **Basic Mode:** Quick design generation with minimal input
+                - Business goals (awareness, sales, etc.)
+                - Simple brand information (name, colors)
+                - Target audience selection
+                - Basic copy preferences
+            - **Advanced Mode:** Detailed customization options
+                - Comprehensive brand identity (colors, style preferences, logo)
+                - Detailed marketing goals and messaging
+                - Custom copy creation or user-provided copy
+                - Image style preferences and subject matter
+                - Layout preferences and visual element placement
+            - The system generates a prompt combining all inputs
+            - Calls AI image generation service via Cloud Function
+            - Renders multiple design options for user selection
+            - Design can be saved to the `campaigns/{cid}/designs/` subcollection
+            - For "autopilot" mode: Design can be locked for reuse (`designIdLocked` field)
+        - **Human Designer Service:** Professional design service
+            - $50 additional fee
+            - Customer completes a simpler design brief
+            - System creates a `designRequests/{requestId}` document
+            - Sends notification to human designer via SendGrid
+            - Designer receives brief and creates design
+            - Designer uploads final design through admin interface
+            - Customer receives notification when design is ready
+            - Design is automatically added to campaign
+13. Once design is complete, user proceeds to approval:
+    - System calculates pricing based on selected leads and product type
+    - User can request a quote via the `quoteAndCreatePaymentIntent` Cloud Function
+14. After approval, user proceeds to checkout:
+    - For "one_off" mode: One-time payment for the campaign
+    - For "autopilot" mode: Payment model based on subscription or pay-per-drop
+15. After payment, for "one_off" mode:
+    - User can schedule the campaign via the `scheduleCampaign` Cloud Function
+    - System connects to Stannp API to send postcards to selected leads
+16. For "autopilot" mode:
+    - Initial setup is saved with `nextRunAt` and `recurrence` settings
+    - The system's Cron-triggered Cloud Function will periodically:
+      - Check for due campaigns
+      - Scrape new data from configured sources
+      - Deduplicate against existing leads
+      - Send postcards to new leads
+      - Update campaign with next run date
+17. User can track all campaigns in the Customer Console (`/console`):
+    - View list of campaigns with status, mode, and metrics
+    - Filter by status, mode, and other parameters
+    - For autopilot campaigns: view upcoming schedule and past performance
+18. Staff can access the Admin Console (`/admin`) to:
+    - View all user campaigns
+    - Impersonate users when needed
+    - Manage campaign details and statuses
+    - Force-send or cancel campaigns
+    - View detailed logs and analytics
 
 ## Database Implementation Plan
 
-This section outlines the step-by-step process for implementing database storage in the application, including handling anonymous sessions and transitioning to authenticated user data.
+This section outlines the Firestore schema implementation for our campaign management system, supporting both one-off and autopilot campaigns.
 
 ### Database Structure
 
-#### 1. Sessions Collection
-```
-sessions/
-  ├─ session_id/
-  │  ├─ createdAt: timestamp
-  │  ├─ lastActive: timestamp
-  │  ├─ status: "anonymous" | "converted" | "abandoned"
-  │  ├─ convertedToUserId: string (null if anonymous)
-  │  ├─ businessData: {
-  │  │  ├─ targetArea: string
-  │  │  ├─ businessName: string
-  │  │  ├─ industry: string
-  │  │  ├─ description: string
-  │  │  ├─ boundingBox: object
-  │  │  └─ businessAnalysis: object
-  │  ├─ marketingStrategy: {
-  │  │  ├─ recommendedMethods: array
-  │  │  ├─ primaryRecommendation: string
-  │  │  ├─ totalEstimatedReach: number
-  │  │  ├─ method1Analysis: object
-  │  │  └─ method2Analysis: object
-  │  └─ selectedBusinessTypes: array
-```
-
-#### 2. Users Collection
-```
-users/
-  ├─ user_id/
-  │  ├─ email: string
-  │  ├─ createdAt: timestamp
-  │  ├─ lastLogin: timestamp
-  │  ├─ businesses: [businessId1, businessId2]
-  │  └─ activeCampaigns: [campaignId1, campaignId2]
-```
-
-#### 3. Businesses Collection
-```
-businesses/
-  ├─ business_id/
-  │  ├─ userId: string (owner)
-  │  ├─ createdAt: timestamp
-  │  ├─ lastModified: timestamp
-  │  ├─ targetArea: string
-  │  ├─ businessName: string
-  │  ├─ industry: string
-  │  ├─ description: string
-  │  ├─ boundingBox: object
-  │  ├─ businessAnalysis: object
-  │  └─ marketingStrategies: [strategyId1, strategyId2]
-```
-
-#### 4. Marketing Strategies Collection
-```
-marketingStrategies/
-  ├─ strategy_id/
-  │  ├─ businessId: string (reference)
-  │  ├─ createdAt: timestamp
-  │  ├─ recommendedMethods: array
-  │  ├─ primaryRecommendation: string
-  │  ├─ totalEstimatedReach: number
-  │  ├─ method1Analysis: object
-  │  ├─ method2Analysis: object
-  │  └─ campaigns: [campaignId1, campaignId2]
-```
-
-#### 5. Campaigns Collection
+#### 1. Campaigns Collection
 ```
 campaigns/
-  ├─ campaign_id/
-  │  ├─ businessId: string (reference)
-  │  ├─ strategyId: string (reference)
+  ├─ {cid}/ (Client-generated campaign ID)
+  │  ├─ ownerUid: string            // User who created the campaign
+  │  ├─ strategyId: string | null   // Marketing strategy reference
+  │  ├─ campaignMode: "one_off" | "autopilot"
+  │  ├─ status: "draft" | "approved" | "processing" | "completed" | "error"
+  │  ├─ productType: "postcard_4x6"
+  │  ├─ quantity: number            // Number of selected leads
+  │  ├─ price: {
+  │  │  ├─ tierApplied: string | null
+  │  │  ├─ unitCost: number | null
+  │  │  ├─ total: number | null
+  │  │  └─ currency: "CAD"
+  │  ├─ recurrence: string | null   // RRULE string for autopilot
+  │  ├─ nextRunAt: timestamp | null // Next run date for autopilot
+  │  ├─ designIdLocked: string | null // For autopilot design reuse
   │  ├─ createdAt: timestamp
-  │  ├─ status: "draft" | "active" | "completed" | "canceled"
-  │  ├─ selectedBusinessTypes: array
-  │  ├─ leads: {
-  │  │  ├─ lead_id: {
-  │  │  │  ├─ place_id: string
-  │  │  │  ├─ name: string
-  │  │  │  ├─ vicinity: string
-  │  │  │  ├─ businessType: string
-  │  │  │  └─ selected: boolean
-  │  │  ├─ ...
-  │  └─ postcardDesigns: [designId1, designId2]
+  │  ├─ updatedAt: timestamp
+  │  ├─ teamId: string | null
+  │  └─ typeStats: {                // Denormalized counters by business type
+  │     ├─ [businessType]: {
+  │     │  ├─ found: number
+  │     │  ├─ selected: number
+  │     │  └─ sent: number
+  │     └─ ...
 ```
 
-#### 6. Postcard Designs Collection
+#### 2. Leads Subcollection
 ```
-postcardDesigns/
-  ├─ design_id/
-  │  ├─ campaignId: string (reference)
+campaigns/{cid}/leads/
+  ├─ {leadId}/
+  │  ├─ status: "found" | "selected" | "autopilot_found" | "autopilot_selected"
+  │  ├─ businessType: string
   │  ├─ createdAt: timestamp
-  │  ├─ designType: "ai" | "upload" | "designer"
-  │  ├─ designData: object
-  │  ├─ previewUrl: string
-  │  └─ status: "draft" | "final"
+  │  ├─ selectedAt: timestamp | null
+  │  ├─ place_id: string          // Google Maps place ID
+  │  ├─ name: string              // Business name
+  │  ├─ vicinity: string          // Address
+  │  └─ ... (other trimmed business data fields)
 ```
+
+#### 3. Designs Subcollection
+```
+campaigns/{cid}/designs/
+  ├─ {designId}/
+  │  ├─ createdAt: timestamp
+  │  ├─ updatedAt: timestamp
+  │  ├─ designType: "ai" | "upload" | "human"
+  │  ├─ status: "draft" | "final"
+  │  ├─ imageUrl: string
+  │  ├─ thumbnailUrl: string
+  │  └─ designData: {
+  │     ├─ width: number        // Width in pixels
+  │     ├─ height: number       // Height in pixels
+  │     ├─ dpi: number          // Resolution (typically 300)
+  │     ├─ prompt: string       // For AI-generated designs
+  │     ├─ brandColors: string[]// Color codes used
+  │     ├─ style: string        // Design style description
+  │     ├─ copyText: string     // Text content on the design
+  │     └─ metadata: { ... }    // Additional design-specific data
+  │  }
+```
+
+#### 4. Design Requests Collection (For Human Designer Service)
+```
+designRequests/
+  ├─ {requestId}/
+  │  ├─ campaignId: string      // Reference to campaign
+  │  ├─ userId: string          // User who requested the design
+  │  ├─ createdAt: timestamp
+  │  ├─ updatedAt: timestamp
+  │  ├─ status: "pending" | "in_progress" | "completed" | "rejected"
+  │  ├─ price: number           // Typically $50
+  │  ├─ paymentStatus: "pending" | "paid"
+  │  ├─ designBrief: {
+  │  │  ├─ goals: string
+  │  │  ├─ targetAudience: string
+  │  │  ├─ brandInfo: { ... }
+  │  │  ├─ copyText: string
+  │  │  └─ preferences: { ... }
+  │  ├─ designerNotes: string   // Notes from the designer
+  │  ├─ designerId: string      // Assigned designer (if any)
+  │  └─ finalDesignId: string   // Reference to final design in campaign
+```
+
+### Firestore Indexes
+- `campaigns`: `(ownerUid, campaignMode, createdAt)`
+- `campaigns`: `(ownerUid, status, createdAt)`
+- `campaigns`: `(ownerUid, createdAt DESC)` // For console pagination
+- `leads` (collection group): `(businessType, status)`
+- `campaigns`: `(campaignMode ASC, nextRunAt ASC)` // Critical for Autopilot Cron
 
 ### Implementation Steps
 
-#### Phase 1: Anonymous Session Tracking
-- [x] 1. Create a Firebase service module to access Firestore
-- [x] 2. Implement session generation and storage in localStorage
-- [x] 3. Create a session document in Firestore when a user first visits
-- [x] 4. Update the session with business data as the user progresses through steps
-- [x] 5. Implement real-time synchronization for session updates
-- [x] 6. Add status tracking for anonymous sessions
+#### Phase 1: Core Campaign Structure
+- [x] 1. Create Firebase service module for Campaigns
+- [x] 2. Implement client-side campaign ID generation (using `ulid()`)
+- [x] 3. Create the `createCampaignWithLeads` Cloud Function
+- [x] 4. Implement batch processing for leads
+- [x] 5. Develop type-safe Firestore converters
 
-#### Phase 2: Business Data Storage
-- [x] 7. Enhance marketingStore to synchronize with Firestore
-- [x] 8. Store business information and analysis in the session document
-- [x] 9. Save marketing strategy data when generated
-- [x] 10. Implement error handling and offline capabilities
-- [x] 11. Add functions to retrieve session data when returning
+#### Phase 2: Campaign Build Interface
+- [ ] 6. Create the campaign build page with dynamic routing
+- [ ] 7. Implement campaign data fetching with real-time updates
+- [ ] 8. Develop lead management components for the build interface
+- [ ] 9. Create campaign mode detection and conditional UI
 
-#### Phase 3: Authentication Integration
-- [x] 12. Enhance AuthContext to handle session conversion
-- [x] 13. Create function to transfer anonymous session data to authenticated user
-- [x] 14. Create a proper business document when a session is converted
-- [x] 15. Link the new business to the user's document
-- [x] 16. Implement proper error handling for the conversion process
-- [x] 17. Add session cleanup for converted sessions
+#### Phase 3: One-Off Campaign Flow
+- [ ] 10. Implement postcard design interface
+   - [ ] 10.1. Create image upload component with validation for 4×6 (1871×1271px) specs
+   - [ ] 10.2. Implement AI Design Wizard with Basic and Advanced modes
+   - [ ] 10.3. Develop Human Designer Service request flow
+   - [ ] 10.4. Create AI prompt generation service
+   - [ ] 10.5. Implement Cloud Function for AI image generation
+   - [ ] 10.6. Create SendGrid integration for designer notifications
+- [ ] 11. Develop quote and payment intent creation
+- [ ] 12. Implement checkout flow
+- [ ] 13. Create scheduling interface and API
+- [ ] 14. Implement Stannp API integration for postcard sending
 
-#### Phase 4: Campaign and Leads Management
-- [ ] 18. Create a campaign document when business types are selected
-- [ ] 19. Store selected business types in the campaign
-- [ ] 20. Implement leads storage within campaigns as they are found
-- [ ] 21. Add functionality to update lead selection status
-- [ ] 22. Implement batch operations for efficiency with multiple leads
-- [ ] 23. Add functionality to retrieve and display campaign leads
+#### Phase 4: Autopilot Campaign Flow
+- [ ] 15. Develop autopilot configuration interface
+- [ ] 16. Implement recurrence settings with RRULE
+- [ ] 17. Create Cron-triggered Cloud Function
+- [ ] 18. Develop data scraping mechanisms
+- [ ] 19. Implement deduplication and mailing automation
 
-#### Phase 5: Postcard Design Storage
-- [x] 24. Create postcard design documents linked to campaigns
-- [x] 25. Implement simple image upload and storage for postcard designs
-- [x] 26. Add functionality to save uploaded postcard images
-- [x] 27. Implement preview image generation and storage
-- [x] 28. Add retrieval functions for the postcard preview page
-- [x] 29. Implement deletion and archive capabilities
+#### Phase 5: Console Interface
+- [ ] 20. Develop customer console for campaign management
+- [ ] 21. Implement filtering and pagination
+- [ ] 22. Create detailed campaign analytics views
+- [ ] 23. Develop campaign status monitoring
 
-**Note:** The postcard design implementation has been simplified to focus on basic image uploads connected to campaigns. The comprehensive design wizard functionality will be implemented at a later stage.
+#### Phase 6: Admin Interface
+- [ ] 24. Implement admin console with all campaigns view
+- [ ] 25. Create user impersonation functionality
+- [ ] 26. Develop campaign management controls
+- [ ] 27. Create detailed logging and analytics dashboard
 
-#### Phase 6: UI Integration and Cleanup
-- [ ] 30. Add loading states and error handling in UI components
-- [ ] 31. Implement data fetching for returning users
-- [ ] 32. Add dashboard showing user's businesses and campaigns
-- [ ] 33. Implement session timeout and auto-save functionality
-- [ ] 34. Add analytics tracking for conversion rates
-- [ ] 35. Set up automatic cleanup of abandoned anonymous sessions
+#### Phase 7: Security & Optimization
+- [ ] 28. Implement comprehensive Firestore security rules
+- [ ] 29. Add App Check integration
+- [ ] 30. Optimize queries and indexing
+- [ ] 31. Add background cleanup processes
+- [ ] 32. Implement rate limiting and quotas
 
-#### Phase 7: Performance Optimization
-- [ ] 36. Implement data pagination for large collections
-- [ ] 37. Add caching strategies for frequently accessed data
-- [ ] 38. Optimize queries with proper indexing
-- [ ] 39. Implement rate limiting for write operations
-- [ ] 40. Add monitoring for database usage and costs
+This implementation plan focuses on a more streamlined Firestore structure centered around campaigns as the primary entity, with leads and designs as subcollections. The approach supports both one-off and recurring autopilot campaigns, with clear separation of concerns in the codebase.
 
-This implementation plan will be executed incrementally, with each phase building upon the previous one. The approach prioritizes early capture of user data (even when anonymous) and smooth transition to authenticated sessions, ensuring no data is lost during the process.
+## Application Structure
+
+### Routing Architecture
+
+The application uses Next.js 15 route groups for organization, with the following structure:
+
+```
+src/app/
+  ├─ (campaignBuild)/
+  │  ├─ build/
+  │  │  ├─ [campaignId]/
+  │  │  │  ├─ page.tsx           // Build/Design Page (shared by modes)
+  ├─ (console)/
+  │  ├─ console/
+  │  │  ├─ page.tsx              // Customer Console
+  │  ├─ (admin)/
+  │  │  ├─ admin/
+  │  │  │  ├─ page.tsx              // Staff-only Admin Console
+```
+
+### Feature-First Organization
+
+Components, hooks, and non-page logic are organized within feature directories:
+
+```
+src/features/
+  ├─ campaignBuild/
+  │  ├─ components/
+  │  │  ├─ LeadSelector.tsx
+  │  │  ├─ DesignWizard.tsx
+  │  │  ├─ DesignUploader.tsx
+  │  │  ├─ HumanDesignRequest.tsx
+  │  │  ├─ CampaignApproval.tsx
+  │  ├─ hooks/
+  │  │  ├─ useCampaignData.tsx
+  │  │  ├─ useDesignGeneration.tsx
+  ├─ console/
+  │  ├─ components/
+  │  │  ├─ CampaignList.tsx
+  │  │  ├─ CampaignCard.tsx
+  │  │  ├─ CampaignDetails.tsx
+  │  │  ├─ FilterControls.tsx
+  │  ├─ hooks/
+  │  │  ├─ useCampaignList.tsx
+  │  │  ├─ useCampaignFilters.tsx
+  ├─ admin/
+  │  ├─ components/
+  │  │  ├─ UserList.tsx
+  │  │  ├─ AllCampaigns.tsx
+  │  │  ├─ ImpersonationControls.tsx
+  │  │  ├─ DesignRequestHandler.tsx
+  │  ├─ hooks/
+  │  │  ├─ useAdminData.tsx
+```
+
+### Services & Utilities
+
+Shared services and utilities are organized in dedicated directories:
+
+```
+src/services/
+  ├─ campaignService.ts          // Client-side service for campaigns
+  ├─ designService.ts            // Design generation and management
+  ├─ leadService.ts              // Lead management functions
+  
+src/store/
+  ├─ useCampaignFlowStore.ts     // State for build and console
+
+src/types/
+  ├─ campaign.ts                 // Campaign, CampaignLead, CampaignMode types
+  ├─ autopilot.ts                // AutopilotConfig type
+  ├─ firestoreConverters.ts      // Typed Firestore converters
+
+src/lib/
+  ├─ chunkArray.ts               // Utility for batch processing
+```
+
+This feature-first directory structure enables clear separation of concerns, improves code maintainability, and facilitates team collaboration by organizing related components and logic together rather than by technical role.

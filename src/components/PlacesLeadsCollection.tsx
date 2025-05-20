@@ -1,328 +1,421 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import SelectionSummary from './SelectionSummary';
 import { useMarketingStore } from '@/store/marketingStore';
-import { useLeadsStore } from '@/store/leadsStore';
 import LoadingBar from './LoadingBar';
-import type { GooglePlace } from '@/types/places';
-import { useAuth } from '@/contexts/AuthContext';
-import { saveAllPlaces, saveSelectedPlaces } from '@/lib/placeStorageService';
+import { CampaignLead } from '@/lib/campaignService';
+import { collection, query, where, onSnapshot, Timestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { createCampaign, navigateToCampaignBuild, CampaignMode, LeadData } from '@/services/campaignService';
+
+interface DisplayCampaignLead extends CampaignLead {
+    rating?: number | null;
+    relevanceScore?: number | null;
+}
 
 interface PlacesLeadsCollectionProps {
   onClose: () => void;
 }
 
-const PlacesLeadsCollection = ({ onClose }: PlacesLeadsCollectionProps) => {
-  // Subscribe to specific fields we need from marketingStore
-  const places = useMarketingStore(state => state.searchResults.places);
-  const isLoading = useMarketingStore(state => state.searchResults.isLoading);
+const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }) => {
+  const campaignId = useMarketingStore(state => state.currentCampaign?.id ?? null);
+  const isLoadingSearch = useMarketingStore(state => state.searchResults.isLoading);
   const progress = useMarketingStore(state => state.searchResults.progress);
-  // Get the action from leadsStore
-  const processSelectedLeads = useLeadsStore(state => state.processSelectedLeads);
-  const { user } = useAuth();
 
-  const [selectedPlaces, setSelectedPlaces] = useState<Set<string>>(new Set());
+  const [leads, setLeads] = useState<DisplayCampaignLead[]>([]);
+  const [isLoadingLeads, setIsLoadingLeads] = useState<boolean>(true);
+  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
 
-  // Get unique business types for filtering
+  const [searchFinalized, setSearchFinalized] = useState<boolean>(false);
+  const [isUpdatingSelection, setIsUpdatingSelection] = useState<boolean>(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!campaignId) {
+        console.log("No campaignId, waiting...");
+        setIsLoadingLeads(false);
+        setLeads([]);
+        setSelectedLeadIds(new Set());
+        setSearchFinalized(false);
+        return;
+    }
+
+    console.log(`Setting up Firestore listener for campaignLeads, campaignId: ${campaignId}`);
+    setIsLoadingLeads(true);
+
+    const leadsQuery = query(
+      collection(db, 'campaignLeads'),
+      where('campaignId', '==', campaignId)
+    );
+
+    const unsubscribe = onSnapshot(leadsQuery, (querySnapshot) => {
+      console.log(`Firestore snapshot received for campaign ${campaignId}, docs: ${querySnapshot.size}`);
+      const fetchedLeads: DisplayCampaignLead[] = [];
+      const initialSelected = new Set<string>();
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+         const createdAtTimestamp = data.createdAt instanceof Timestamp ? data.createdAt : null;
+
+         const leadDoc: DisplayCampaignLead = {
+             id: doc.id,
+             campaignId: data.campaignId,
+             placeId: data.placeId,
+             businessName: data.businessName,
+             address: data.address,
+             phoneNumber: data.phoneNumber,
+             website: data.website,
+             businessType: data.businessType,
+             selected: data.selected,
+             location: data.location,
+             contacted: data.contacted,
+             notes: data.notes,
+             createdAt: createdAtTimestamp,
+             ...(data.rating !== undefined && { rating: data.rating }),
+             ...(data.relevanceScore !== undefined && { relevanceScore: data.relevanceScore }),
+         };
+
+         if (!leadDoc.businessName) {
+            console.warn("Skipping lead doc due to missing business name:", doc.id, data);
+            return;
+         }
+
+         fetchedLeads.push(leadDoc);
+         if (leadDoc.selected) {
+            initialSelected.add(leadDoc.id!);
+         }
+      });
+      
+      fetchedLeads.sort((a, b) => a.businessName.localeCompare(b.businessName));
+      setLeads(fetchedLeads);
+      setSelectedLeadIds(initialSelected); 
+      setSearchFinalized(!isLoadingSearch);
+      setIsLoadingLeads(false);
+    }, (err) => {
+      console.error(`Error fetching leads snapshot for campaign ${campaignId}:`, err);
+      setUpdateError("Failed to load leads in real-time. Please try refreshing.");
+      setIsLoadingLeads(false);
+    });
+
+    return () => {
+        console.log(`Cleaning up Firestore listener for campaign ${campaignId}`);
+        unsubscribe();
+    };
+  }, [campaignId, isLoadingSearch]);
+
+  useEffect(() => {
+      if (!isLoadingSearch) {
+          setSearchFinalized(true);
+      }
+  }, [isLoadingSearch]);
+
   const businessTypes = useMemo(() => {
-    const types = new Set(places.map(place => place.businessType));
+    const types = new Set(leads.map(lead => lead.businessType).filter(Boolean));
     return Array.from(types);
-  }, [places]);
+  }, [leads]);
 
-  // Filter places based on active filter
-  const filteredPlaces: GooglePlace[] = useMemo(() => {
-    const filtered = activeFilter === 'all' 
-      ? places 
-      : places.filter(place => place.businessType === activeFilter);
-    
-    return filtered;
-  }, [places, activeFilter]);
+  const filteredLeads: DisplayCampaignLead[] = useMemo(() => {
+    return activeFilter === 'all' 
+      ? leads 
+      : leads.filter(lead => lead.businessType === activeFilter);
+  }, [leads, activeFilter]);
 
-  useEffect(() => {
-    console.log('Places updated in component:', {
-      count: places.length,
-      sample: places[0]
-    });
-  }, [places]);
+  const handleSelectLead = (leadId: string, shiftKey: boolean) => {
+    if (isUpdatingSelection || !searchFinalized) return;
 
-  // Log updates after all variables are defined
-  useEffect(() => {
-    console.log('PlacesLeadsCollection render:', {
-      placesLength: places.length,
-      isLoading,
-      progress,
-      hasPlaces: places.length > 0,
-      firstPlace: places[0],
-      filteredLength: filteredPlaces.length,
-      businessTypes
-    });
-
-    console.log('Filtered places:', {
-      activeFilter,
-      totalPlaces: places.length,
-      filteredCount: filteredPlaces.length
-    });
-  }, [places, isLoading, progress, filteredPlaces, businessTypes, activeFilter]);
-
-  const handleSelectPlace = (placeId: string, shiftKey: boolean) => {
-    if (!shiftKey) {
-      // Normal selection
-      setSelectedPlaces(prev => {
+    if (!shiftKey || !lastSelectedId) {
+      setSelectedLeadIds(prev => {
         const newSet = new Set(prev);
-        if (newSet.has(placeId)) {
-          newSet.delete(placeId);
+        if (newSet.has(leadId)) {
+          newSet.delete(leadId);
         } else {
-          newSet.add(placeId);
+          newSet.add(leadId);
         }
-        setLastSelectedId(placeId);
+        setLastSelectedId(leadId);
         return newSet;
       });
-    } else if (lastSelectedId) {
-      // Shift selection
-      const currentIndex = filteredPlaces.findIndex(p => p.place_id === placeId);
-      const lastIndex = filteredPlaces.findIndex(p => p.place_id === lastSelectedId);
+    } else {
+      const currentIndex = filteredLeads.findIndex(p => p.id === leadId);
+      const lastIndex = filteredLeads.findIndex(p => p.id === lastSelectedId);
       
       if (currentIndex !== -1 && lastIndex !== -1) {
         const start = Math.min(currentIndex, lastIndex);
         const end = Math.max(currentIndex, lastIndex);
         
-        setSelectedPlaces(prev => {
+        setSelectedLeadIds(prev => {
           const newSet = new Set(prev);
+          const isSelecting = !prev.has(leadId); 
           for (let i = start; i <= end; i++) {
-            newSet.add(filteredPlaces[i].place_id);
+            if (filteredLeads[i]?.id) {
+              if (isSelecting) {
+                 newSet.add(filteredLeads[i].id!);
+              } else {
+                 newSet.delete(filteredLeads[i].id!);
+              }
+            }
           }
           return newSet;
         });
       }
     }
+    setUpdateError(null);
   };
 
-  const handleBulkSelect = (filter: string = activeFilter) => {
-    setSelectedPlaces(prev => {
+  const handleBulkSelectFiltered = (select = true) => {
+    if (isUpdatingSelection || !searchFinalized) return;
+    setSelectedLeadIds(prev => {
       const newSet = new Set(prev);
-      const placesToSelect = filter === 'all' 
-        ? places 
-        : places.filter(place => place.businessType === filter);
-      
-      placesToSelect.forEach(place => newSet.add(place.place_id));
-      return newSet;
-    });
-  };
-
-  const handleBulkDeselect = (filter: string = activeFilter) => {
-    setSelectedPlaces(prev => {
-      const newSet = new Set(prev);
-      const placesToDeselect = filter === 'all' 
-        ? places 
-        : places.filter(place => place.businessType === filter);
-      
-      placesToDeselect.forEach(place => newSet.delete(place.place_id));
-      return newSet;
-    });
-  };
-
-  // Handle starting the campaign - Updated to use direct location change
-  const handleStartCampaign = () => {
-    // Get the currently selected place objects
-    const selectedBusinesses = places.filter(place => 
-      selectedPlaces.has(place.place_id)
-    );
-    
-    try {
-        console.log("Attempting to process leads in store...");
-        // Call the action from the leadsStore to process and store them
-        processSelectedLeads(selectedBusinesses);
-        console.log("Successfully processed leads in store.");
-
-        // Save places to Firestore in the background
-        if (user) {
-          console.log("Saving places to Firestore in the background...");
-          
-          // Save all places grouped by business type
-          saveAllPlaces(user.uid, places)
-            .then(() => console.log("Successfully saved all places to Firestore"))
-            .catch(error => console.error("Error saving all places to Firestore:", error));
-          
-          // Save selected places grouped by business type
-          saveSelectedPlaces(user.uid, selectedBusinesses)
-            .then(() => console.log("Successfully saved selected places to Firestore"))
-            .catch(error => console.error("Error saving selected places to Firestore:", error));
+      filteredLeads.forEach(lead => {
+        if (select) {
+            newSet.add(lead.id!);
         } else {
-          console.warn("User not authenticated, skipping Firestore save");
+            newSet.delete(lead.id!);
         }
+      });
+      return newSet;
+    });
+     setUpdateError(null);
+  };
 
-        console.log("Navigating directly to /design...");
-        // Use direct location change instead of router.push
-        window.location.href = '/design';
-      } catch (error) {
-        console.error("!!! Error during processSelectedLeads or navigation !!!", error); 
-        alert("An error occurred while preparing the campaign. Please check the console."); 
+  const handleStopSearch = () => {
+      console.log("User requested stop search.");
+      setSearchFinalized(true);
+  };
+
+  const handleConfirmSelection = async () => {
+      if (selectedLeadIds.size === 0) {
+          if (!confirm("You haven't selected any leads. Do you still want to proceed?")) {
+              return;
+          }
+      }
+
+      setIsUpdatingSelection(true);
+      setUpdateError(null);
+
+      try {
+          // Convert the leads array to the format expected by the Cloud Function
+          const allFoundLeadsData: LeadData[] = leads.map(lead => ({
+              place_id: lead.placeId,
+              name: lead.businessName,
+              vicinity: lead.address,
+              businessType: lead.businessType,
+              // Add any other relevant fields from your leads
+              ...(lead.phoneNumber && { phoneNumber: lead.phoneNumber }),
+              ...(lead.website && { website: lead.website }),
+              ...(lead.rating !== undefined && { rating: lead.rating }),
+          }));
+
+          // Get selected place IDs as an array
+          const selectedPlaceIds = Array.from(selectedLeadIds);
+
+          // Get strategy ID from the marketing store if available - a simple identifier is fine
+          const strategyId = null; // We'll implement proper strategy ID handling later
+
+          // Call the Cloud Function (one-off mode for now)
+          const result = await createCampaign(
+              allFoundLeadsData,
+              selectedPlaceIds,
+              strategyId,
+              CampaignMode.ONE_OFF
+          );
+
+          console.log("Campaign created:", result);
+
+          // Navigate to the campaign build page
+          navigateToCampaignBuild(result.campaignId);
+      } catch (err) {
+          console.error("Error creating campaign:", err);
+          const message = err instanceof Error ? err.message : "Unknown error";
+          setUpdateError(`Failed to create campaign: ${message}. Please try again.`);
+      } finally {
+          setIsUpdatingSelection(false);
       }
   };
 
+  const showRatingColumn = leads.some(l => l.rating !== undefined);
+  const showScoreColumn = leads.some(l => l.relevanceScore !== undefined);
+
   return (
     <div className="min-h-screen bg-charcoal p-2 sm:p-4">
-      <div className="rounded-lg border-2 border-electric-teal bg-charcoal shadow-glow">
-        {/* Header */}
-        <div className="border-b border-electric-teal/20 p-3 sm:p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-          <h2 className="text-xl sm:text-2xl font-semibold text-electric-teal">
-            Found Places ({places.length}) {isLoading && <span>- Searching...</span>}
-          </h2>
-          <button 
-            onClick={onClose}
-            className="text-electric-teal hover:text-electric-teal/80"
-          >
-            Close
-          </button>
+      <div className="rounded-lg border-2 border-electric-teal bg-charcoal shadow-glow flex flex-col max-h-[95vh]">
+        <div className="border-b border-electric-teal/20 p-3 sm:p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 flex-shrink-0">
+            <h2 className="text-xl sm:text-2xl font-semibold text-electric-teal">
+                Leads Found ({leads.length}) 
+                {(isLoadingLeads && leads.length === 0) && <span> - Initializing...</span>}
+                {isLoadingSearch && !searchFinalized && <span> - Searching...</span>}
+            </h2>
+            <button onClick={onClose} className="text-electric-teal hover:text-electric-teal/80">
+                Close
+            </button>
         </div>
 
-        {/* Loading Progress */}
-        {isLoading && <LoadingBar progress={progress} />}
+        {isLoadingSearch && !searchFinalized && <LoadingBar progress={progress} />} 
 
-        {/* Bulk Selection Controls */}
-        <div className="border-b border-electric-teal/20 p-3">
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-electric-teal/80">Quick Select:</span>
-            <button
-              onClick={() => handleBulkSelect('all')}
-              className="px-4 py-2 rounded-lg border border-electric-teal/50 bg-electric-teal/10 
-                text-electric-teal hover:bg-electric-teal/20 transition-colors duration-200"
-            >
-              Select All ({places.length})
-            </button>
-            <button
-              onClick={() => handleBulkDeselect('all')}
-              className="px-4 py-2 rounded-lg border border-electric-teal/50 bg-electric-teal/10 
-                text-electric-teal hover:bg-electric-teal/20 transition-colors duration-200"
-            >
-              Deselect All
-            </button>
-            {activeFilter !== 'all' && (
-              <>
-                <div className="w-px h-6 bg-electric-teal/20" /> {/* Divider */}
+        <div className="border-b border-electric-teal/20 p-3 flex-shrink-0">
+          <div className="flex flex-wrap gap-2 items-center justify-between">
+            <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-electric-teal/80 text-sm">Quick Select:</span>
                 <button
-                  onClick={() => handleBulkSelect(activeFilter)}
-                  className="px-4 py-2 rounded-lg border border-electric-teal text-electric-teal 
-                    bg-electric-teal/10 hover:bg-electric-teal/20 transition-colors duration-200"
+                  onClick={() => handleBulkSelectFiltered(true)}
+                  disabled={!searchFinalized || isUpdatingSelection}
+                  className="px-3 py-1 rounded text-xs border border-electric-teal/50 bg-electric-teal/10 text-electric-teal hover:bg-electric-teal/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  Select All {activeFilter} ({filteredPlaces.length})
+                  Select All ({filteredLeads.length})
                 </button>
                 <button
-                  onClick={() => handleBulkDeselect(activeFilter)}
-                  className="px-4 py-2 rounded-lg border border-electric-teal/50 bg-electric-teal/10 
-                    text-electric-teal hover:bg-electric-teal/20 transition-colors duration-200"
+                  onClick={() => handleBulkSelectFiltered(false)}
+                   disabled={!searchFinalized || isUpdatingSelection}
+                  className="px-3 py-1 rounded text-xs border border-electric-teal/50 bg-electric-teal/10 text-electric-teal hover:bg-electric-teal/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  Deselect All {activeFilter}
+                  Deselect All
                 </button>
-              </>
+            </div>
+            {isLoadingSearch && !searchFinalized && (
+                <button
+                    onClick={handleStopSearch}
+                    className="px-4 py-1.5 rounded bg-yellow-600 hover:bg-yellow-500 text-white text-sm font-semibold transition-colors"
+                >
+                    Stop Search
+                </button>
             )}
           </div>
+           {updateError && <p className="text-xs text-red-400 mt-2">{updateError}</p>}
         </div>
 
-        {/* Filters */}
-        <div className="border-b border-electric-teal/20 p-2 overflow-x-auto">
+        <div className="border-b border-electric-teal/20 p-2 overflow-x-auto flex-shrink-0">
           <div className="flex gap-2 min-w-max">
             <button
               onClick={() => setActiveFilter('all')}
-              className={`rounded px-3 py-1 ${
+              className={`rounded px-3 py-1 text-sm ${
                 activeFilter === 'all' 
-                  ? 'bg-electric-teal text-charcoal' 
+                  ? 'bg-electric-teal text-charcoal font-medium' 
                   : 'text-electric-teal hover:bg-electric-teal/10'
               }`}
             >
-              All ({places.length})
+              All ({leads.length})
             </button>
             {businessTypes.map(type => (
               <button
                 key={type}
                 onClick={() => setActiveFilter(type)}
-                className={`rounded px-3 py-1 ${
+                 className={`rounded px-3 py-1 text-sm ${
                   activeFilter === type 
-                    ? 'bg-electric-teal text-charcoal' 
+                    ? 'bg-electric-teal text-charcoal font-medium' 
                     : 'text-electric-teal hover:bg-electric-teal/10'
                 }`}
               >
-                {type} ({places.filter(p => p.businessType === type).length})
+                {type} ({leads.filter(p => p.businessType === type).length})
               </button>
             ))}
           </div>
         </div>
 
-        {/* Results Table */}
-        <div className="p-2 overflow-x-auto">
-          <table className="w-full min-w-[640px]">
-            <thead>
-              <tr className="text-left text-electric-teal/60">
-                <th className="p-2 w-10">Select</th>
-                <th className="p-2 w-1/4">Name</th>
-                <th className="p-2 w-1/3">Address</th>
-                <th className="p-2 w-1/6">Type</th>
-                <th className="p-2 w-16">Rating</th>
-                <th className="p-2 w-16">Score</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading && places.length === 0 ? (
-                // Show loading skeleton rows while loading
-                Array.from({ length: 5 }).map((_, index) => (
-                  <tr key={`loading-${index}`} className="animate-pulse">
-                    <td className="p-2"><div className="h-4 w-4 bg-electric-teal/20 rounded" /></td>
-                    <td className="p-2"><div className="h-4 w-48 bg-electric-teal/20 rounded" /></td>
-                    <td className="p-2"><div className="h-4 w-64 bg-electric-teal/20 rounded" /></td>
-                    <td className="p-2"><div className="h-4 w-32 bg-electric-teal/20 rounded" /></td>
-                    <td className="p-2"><div className="h-4 w-16 bg-electric-teal/20 rounded" /></td>
-                    <td className="p-2"><div className="h-4 w-16 bg-electric-teal/20 rounded" /></td>
-                  </tr>
-                ))
-              ) : (
-                // Show actual results as they come in
-                filteredPlaces.map((place, index) => (
-                  <motion.tr
-                    key={place.place_id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="text-electric-teal/80 hover:bg-electric-teal/5 cursor-pointer"
-                    onClick={(e) => handleSelectPlace(place.place_id, e.shiftKey)}
-                  >
-                    <td className="p-2">
-                      <input
-                        type="checkbox"
-                        checked={selectedPlaces.has(place.place_id)}
-                        onChange={() => {}}
-                        className="rounded border-electric-teal text-electric-teal focus:ring-electric-teal"
-                      />
-                    </td>
-                    <td className="p-2 break-words">{place.name}</td>
-                    <td className="p-2 break-words">{place.vicinity}</td>
-                    <td className="p-2 break-words">{place.businessType}</td>
-                    <td className="p-2">{place.rating || 'N/A'}</td>
-                    <td className="p-2">
-                      <div className="flex items-center">
-                        <div className={`h-1.5 w-1.5 rounded-full mr-1 ${
-                          place.relevanceScore >= 15 ? 'bg-green-500' :
-                          place.relevanceScore >= 10 ? 'bg-yellow-500' :
-                          'bg-orange-500'
-                        }`} />
-                        {place.relevanceScore}
-                      </div>
-                    </td>
-                  </motion.tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        <div className="p-2 overflow-auto flex-grow">
+          {isLoadingLeads && leads.length === 0 ? (
+             <table className="w-full min-w-[700px]">
+                 <thead className="sticky top-0 z-10 bg-charcoal">
+                      <tr className="text-left text-electric-teal/60">
+                          <th className="p-2 w-10"></th>
+                          <th className="p-2 w-1/4">Name</th>
+                          <th className="p-2 w-1/3">Address</th>
+                          <th className="p-2 w-1/6">Type</th>
+                          {showRatingColumn && <th className="p-2 w-16">Rating</th>}
+                          {showScoreColumn && <th className="p-2 w-16">Score</th>}
+                      </tr>
+                  </thead>
+                  <tbody>
+                      {Array.from({ length: 10 }).map((_, i) => (
+                        <tr key={`loading-${i}`} className="animate-pulse">
+                            <td className="p-2"><div className="h-4 w-4 bg-electric-teal/20 rounded" /></td>
+                            <td className="p-2"><div className="h-4 w-48 bg-electric-teal/20 rounded" /></td>
+                            <td className="p-2"><div className="h-4 w-64 bg-electric-teal/20 rounded" /></td>
+                            <td className="p-2"><div className="h-4 w-32 bg-electric-teal/20 rounded" /></td>
+                            {showRatingColumn && <td className="p-2"><div className="h-4 w-16 bg-electric-teal/20 rounded" /></td>}
+                            {showScoreColumn && <td className="p-2"><div className="h-4 w-16 bg-electric-teal/20 rounded" /></td>}
+                        </tr>
+                      ))}
+                  </tbody>
+              </table>
+          ) : filteredLeads.length === 0 ? (
+              <p className="text-center text-gray-400 italic py-6">
+                  {activeFilter === 'all' ? 'No leads found yet.' : `No ${activeFilter} leads found.`}
+              </p>
+          ) : (
+             <table className="w-full min-w-[700px]">
+                <thead className="sticky top-0 z-10 bg-charcoal">
+                    <tr className="text-left text-electric-teal/60">
+                      <th className="p-2 w-10">
+                           <input 
+                              type="checkbox" 
+                              disabled={!searchFinalized || isUpdatingSelection || filteredLeads.length === 0}
+                              className="rounded border-electric-teal text-electric-teal focus:ring-electric-teal disabled:opacity-50"
+                              onChange={(e) => handleBulkSelectFiltered(e.target.checked)} 
+                              checked={filteredLeads.length > 0 && filteredLeads.every(lead => selectedLeadIds.has(lead.id!))}
+                            /> 
+                      </th>
+                      <th className="p-2 w-1/4">Name</th>
+                      <th className="p-2 w-1/3">Address</th>
+                      <th className="p-2 w-1/6">Type</th>
+                      {showRatingColumn && <th className="p-2 w-16">Rating</th>}
+                      {showScoreColumn && <th className="p-2 w-16">Score</th>}
+                    </tr>
+                </thead>
+                <tbody>
+                  {filteredLeads.map((lead) => (
+                    <motion.tr
+                      key={lead.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: 0.3 }}
+                      className={`text-electric-teal/80 hover:bg-electric-teal/5 cursor-pointer ${selectedLeadIds.has(lead.id!) ? 'bg-electric-teal/10' : ''}`}
+                      onClick={(e) => handleSelectLead(lead.id!, e.shiftKey)}
+                    >
+                      <td className="p-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedLeadIds.has(lead.id!)}
+                          onChange={(e) => {
+                              e.stopPropagation(); 
+                              handleSelectLead(lead.id!, e.target.checked)
+                          }}
+                          className="rounded border-electric-teal text-electric-teal focus:ring-electric-teal"
+                          disabled={!searchFinalized || isUpdatingSelection}
+                        />
+                      </td>
+                      <td className="p-2 break-words font-medium text-white">{lead.businessName}</td>
+                      <td className="p-2 break-words">{lead.address}</td>
+                      <td className="p-2 break-words">{lead.businessType}</td>
+                      {showRatingColumn && 
+                          <td className="p-2">{lead.rating ?? 'N/A'}</td>
+                      }
+                      {showScoreColumn && (
+                         <td className="p-2">
+                           <div className="flex items-center">
+                             <div className={`h-1.5 w-1.5 rounded-full mr-1 ${ 
+                               lead.relevanceScore && lead.relevanceScore >= 15 ? 'bg-green-500' :
+                               lead.relevanceScore && lead.relevanceScore >= 10 ? 'bg-yellow-500' :
+                               'bg-orange-500'
+                             }`} /> 
+                             {lead.relevanceScore ?? 'N/A'}
+                           </div>
+                         </td>
+                      )}
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+          )}
         </div>
 
-        {/* Selection Summary */}
-        <SelectionSummary
-          selectedPlaces={selectedPlaces}
-          onStartCampaign={handleStartCampaign}
-        />
+        <div className="flex-shrink-0 border-t border-electric-teal/20 mt-auto">
+            <SelectionSummary
+                selectedPlaces={selectedLeadIds}
+                onStartCampaign={handleConfirmSelection}
+            />
+        </div>
       </div>
     </div>
   );

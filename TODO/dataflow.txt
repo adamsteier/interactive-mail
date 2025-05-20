@@ -10,6 +10,103 @@ This document traces the user journey and associated data operations.
     *   Stores the target location in application state (e.g., `marketingStore.businessInfo.location`).
     *   Navigates the user to the next step, typically the lead selection/map view (e.g., `/leads`).
 
+## Step 2: User Identifies Own Business
+
+1.  **User Action:** Enters their own business name into an input field and initiates a search.
+2.  **System Action (Frontend):**
+    *   Captures the business name.
+    *   Stores name in state (e.g., `marketingStore.businessInfo.businessName`).
+    *   Triggers an API call to the backend (e.g., `/api/find-business-details`) with the name and potentially the location from Step 1.
+3.  **System Action (Backend):**
+    *   Receives name/location.
+    *   Uses an external service (e.g., Google Places API) to search for matching businesses.
+    *   Returns potential matches to the frontend.
+4.  **System Action (Frontend):**
+    *   Displays potential matches to the user.
+    *   User selects their correct business listing (or indicates not found).
+    *   Stores selected business details (address, phone, website, etc.) or 'not found' status in state (e.g., `marketingStore.businessInfo`).
+    *   Navigates user to the next step (e.g., selecting target lead business types).
+
+## Step 3: Review Marketing Analysis
+
+1.  **System Action (Frontend):** Navigates to or displays a Marketing Analysis view.
+2.  **System Action (Backend Interaction - Potential):**
+    *   Frontend may call an API (e.g., `/api/generate-marketing-analysis`) with user business details and target location.
+    *   Backend generates analysis using internal/external data sources (demographics, business counts, AI insights).
+    *   Analysis results are returned.
+3.  **System Action (Frontend):**
+    *   Displays the marketing analysis (e.g., market size, demographics).
+    *   Shows a confirmation button (e.g., "Looks good, show me my leads").
+4.  **User Action:** Reviews analysis, clicks the confirmation button.
+5.  **System Action (Frontend):**
+    *   Navigates user to the lead generation/selection interface (e.g., `/leads`, `/map`), passing necessary context (target location, etc.).
+
+## Step 4: Initiate Lead Search & Real-time Display
+
+1.  **User Action:** On the Marketing Analysis view (`MarketingResults.tsx`), selects checkboxes for desired target business types.
+2.  **System Action (Frontend - `MarketingResults.tsx`):**
+    *   Local state (`selectedBusinessTypes`) updated.
+3.  **User Action:** Clicks "Get Data for Selected Business Types".
+4.  **System Action (Frontend - `MarketingResults.tsx` -> `handleGetData`):**
+    *   Sets global loading state (`marketingStore`).
+    *   Saves selected types to store.
+    *   Triggers API call (e.g., `/api/google-places-search`) with criteria.
+    *   Checks auth; triggers login overlay if needed.
+    *   Renders `PlacesLeadsCollection.tsx`.
+5.  **System Action (Backend - API Route e.g., `/api/google-places-search`):**
+    *   Receives search criteria.
+    *   Determines/Creates `campaignId` (Firestore `campaigns` collection, `status: 'searching'` or similar).
+    *   Initiates Google Places API search loop.
+    *   **Saves Leads Incrementally:** As results arrive, calls `campaignService.addLeadsToCampaign(campaignId, leadsBatch)` which saves `CampaignLead` docs (Firestore `campaignLeads` collection) and increments `leadCount` on `Campaign` doc.
+    *   **(Optional):** Update `Campaign` status to `'gathering_complete'` when finished.
+    *   **(Optional):** Provide progress updates back to frontend (e.g., via Firestore status update or WebSocket).
+6.  **System Action (Frontend - `PlacesLeadsCollection.tsx`):**
+    *   Component renders.
+    *   Retrieves `campaignId`.
+    *   **Uses `onSnapshot`** on `campaignLeads` collection (filtered by `campaignId`) to listen for leads saved by the backend.
+    *   Displays leads as they arrive in the UI.
+    *   Displays overall loading progress/status (based on `marketingStore` or `Campaign` status).
+    *   Shows a "Stop Search & Proceed" button *while* loading.
+    *   Shows a "Confirm Leads & Proceed" button *when* loading is complete.
+
+## Step 5: Select Leads & Proceed to Design
+
+1.  **User Action Option A (Stop Early):** Clicks "Stop Search & Proceed" while leads are still loading.
+    *   **System Action (Frontend):** (Optional: signal backend to stop). Proceeds to lead selection UI with currently loaded leads.
+2.  **User Action Option B (Wait):** Waits for loading to complete, then clicks "Confirm Leads & Proceed".
+3.  **User Action (Lead Selection):** Uses UI controls (e.g., checkboxes) to select specific leads from the available list (partial or full).
+4.  **System Action (Frontend):**
+    *   UI state tracks selected lead IDs.
+    *   User clicks a confirmation/next button (e.g., the "Stop/Confirm & Proceed" button might change label after selection, or it's a separate final step button).
+    *   Calls `campaignService.batchUpdateLeads` to update `selected` status for `CampaignLead` docs in Firestore and update `selectedLeadCount` on the parent `Campaign` doc.
+5.  **System Action (Frontend):**
+    *   Navigates user to `AIHumanWizard`, passing the `campaignId`.
+    *   *(Continues to Step 2 of "Data Flow for Campaign Creation...")*
+
+## Step 6: Design Path Selection
+
+*   After confirming lead selections (Step 5), the user is presented with options for the postcard design.
+
+## Step 6a: Upload Custom Design (Alternative Path)
+
+1.  **User Action:** Selects "Upload My Own Design".
+2.  **System Action (Frontend):** Displays file upload interface.
+3.  **User Action:** Uploads design file.
+4.  **System Action (Frontend):**
+    *   Validates file.
+    *   Uploads file to Firebase Storage (e.g., `userUploads/{userId}/{campaignId}/...`).
+    *   Updates associated `Campaign` document in Firestore:
+        *   Sets `designType: 'custom'` (or similar).
+        *   Stores file URL (e.g., in `finalDesignUrl`).
+        *   Updates `Campaign` status (e.g., to `'ready_for_payment'`).
+    *   Navigates user to final review/payment step for the campaign.
+
+## Step 6b: Use AI Human Wizard (Primary Path)
+
+1.  **User Action:** Selects "Create Design with AI + Human Help".
+2.  **System Action (Frontend):** Navigates to `AIHumanWizard`, passing `campaignId`.
+3.  **Flow Continues:** Follows steps detailed in the "**Data Flow for Campaign Creation & Design Association (Revised)**" section below (starting from its Step 2).
+
 --------------------
 
 # Data Flow for Campaign Creation & Design Association (Revised)
