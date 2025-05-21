@@ -61,11 +61,22 @@
     - [ ] **Batch Write Limit (Critical):** Chunk `data.allFoundLeadsData` (e.g., slices of <=450) to stay under the 500-operation limit per batch. Loop through chunks, creating a new batch for each.
         - [ ] The campaign root document should be set in the first batch.
     - [ ] **Iterate through `data.allFoundLeadsData` and batch-set documents in `campaigns/{data.cid}/leads/`:**
-        - [ ] For each `leadData` in a chunk:
-            - [ ] **Data Trimming (Critical):** Persist only necessary/used fields.
-            - [ ] Determine lead `status`: Use `LeadStatus` enum (e.g., `data.selectedPlaceIds.includes(leadData.place_id) ? (data.mode === 'autopilot' ? 'autopilot_selected' : 'selected') : (data.mode === 'autopilot' ? 'autopilot_found' : 'found')`).
-            - [ ] Update `typeStats` map for the lead's `businessType`.
-            - [ ] Create lead document with selected fields, `status`, `businessType`, `createdAt`, and `selectedAt`.
+        - [ ] For each `leadPayload` in a chunk:
+            - [ ] **Data to Persist (Critical):**
+                - `status` (derived from `selectedGooglePlaceIds` and `mode`)
+                - `searchBusinessType` (from `leadPayload` - the category user selected)
+                - `aiReasoning` (from `leadPayload` - AI reasoning for the `searchBusinessType`)
+                - `googlePlaceId` (from `leadPayload` - use as document ID)
+                - `googleBusinessName` (from `leadPayload`)
+                - `googleFormattedAddress` (from `leadPayload`)
+                - `googleTypes` (from `leadPayload`, array of strings)
+                - `googlePostalCode` (optional, from `leadPayload` - will be populated later post-payment)
+                - `googlePhoneNumber` (optional, from `leadPayload`)
+                - `googleWebsite` (optional, from `leadPayload`)
+                - `googleRating` (optional, from `leadPayload`)
+                - `createdAt: serverTimestamp()`
+                - `selectedAt: serverTimestamp()` (if selected, else null)
+            - [ ] Update `typeStats` map for the lead's `searchBusinessType`.
     - [ ] After all lead batches are processed, update the main campaign document with the final `typeStats`.
 - [ ] Return `{ success: true, campaignId: data.cid }` or similar confirmation.
 
