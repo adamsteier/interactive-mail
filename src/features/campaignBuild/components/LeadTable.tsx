@@ -88,12 +88,12 @@ const LeadTable: React.FC<LeadTableProps> = ({ campaignId }) => {
       enableSorting: false,
       size: 40, // As per your plan
     }),
-    columnHelper.accessor('name', {
+    columnHelper.accessor('googleBusinessName', {
       header: 'Name',
       cell: info => <span className="font-medium text-off-white truncate">{info.getValue()}</span>,
       size: 250, // flex-2 equivalent, adjust as needed
     }),
-    columnHelper.accessor('businessType', {
+    columnHelper.accessor('searchBusinessType', {
       header: 'Type',
       cell: info => (
         <span 
@@ -105,12 +105,12 @@ const LeadTable: React.FC<LeadTableProps> = ({ campaignId }) => {
       ),
       size: 140,
     }),
-    columnHelper.accessor('vicinity', {
+    columnHelper.accessor('googleFormattedAddress', {
       header: 'Address',
       cell: info => <span className="text-cool-gray truncate">{info.getValue()}</span>,
       size: 250, // flex-2 equivalent
     }),
-    columnHelper.accessor('rating', {
+    columnHelper.accessor('googleRating', {
       header: () => <span className="block w-full text-right">★ Rating</span>, // Ensure header text is also aligned
       cell: info => <span className="block w-full text-right">{info.getValue() ?? 'N/A'}</span>,
       size: 90, // Increased size slightly
