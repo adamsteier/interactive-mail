@@ -198,14 +198,16 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
       try {
           // Convert the leads array to the format expected by the Cloud Function
           const allFoundLeadsData: LeadData[] = leads.map(lead => ({
-              place_id: lead.placeId,
-              name: lead.businessName,
-              vicinity: lead.address,
-              businessType: lead.businessType,
-              // Add any other relevant fields from your leads
-              ...(lead.phoneNumber && { phoneNumber: lead.phoneNumber }),
-              ...(lead.website && { website: lead.website }),
-              ...(lead.rating !== undefined && { rating: lead.rating }),
+              searchBusinessType: lead.businessType || 'Unknown',
+              aiReasoning: 'N/A',
+              
+              googlePlaceId: lead.placeId,
+              googleBusinessName: lead.businessName,
+              googleFormattedAddress: lead.address,
+              googleTypes: lead.businessType ? [lead.businessType] : [],
+              googlePhoneNumber: lead.phoneNumber,
+              googleWebsite: lead.website,
+              googleRating: lead.rating === null ? undefined : lead.rating,
           }));
 
           // Get selected place IDs as an array

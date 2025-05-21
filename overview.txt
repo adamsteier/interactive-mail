@@ -419,15 +419,21 @@ campaigns/
 #### 2. Leads Subcollection
 ```
 campaigns/{cid}/leads/
-  ├─ {leadId}/
-  │  ├─ status: "found" | "selected" | "autopilot_found" | "autopilot_selected"
-  │  ├─ businessType: string
+  ├─ {googlePlaceId}/ (Using Google Place ID as document ID)
+  │  ├─ status: "found" | "selected" | "autopilot_found" | "autopilot_selected" | "removed"
+  │  ├─ searchBusinessType: string    // The user-selected category that was searched (e.g., "Pharmaceutical Wholesalers")
+  │  ├─ aiReasoning: string           // AI's reasoning for targeting this searchBusinessType
+  │  ├─ googlePlaceId: string         // Google's unique Place ID (same as document ID)
+  │  ├─ googleBusinessName: string    // Business name from Google
+  │  ├─ googleFormattedAddress: string // Full address from Google
+  │  ├─ googleTypes: string[]         // Array of types from Google Places API
+  │  ├─ googlePostalCode?: string    // Explicitly stored postal code (populated later, post-payment)
+  │  ├─ googlePhoneNumber?: string   // Phone number from Google
+  │  ├─ googleWebsite?: string       // Website from Google
+  │  ├─ googleRating?: number        // Rating from Google
   │  ├─ createdAt: timestamp
   │  ├─ selectedAt: timestamp | null
-  │  ├─ place_id: string          // Google Maps place ID
-  │  ├─ name: string              // Business name
-  │  ├─ vicinity: string          // Address
-  │  └─ ... (other trimmed business data fields)
+  │  └─ ... (other relevant google fields or custom data)
 ```
 
 #### 3. Designs Subcollection

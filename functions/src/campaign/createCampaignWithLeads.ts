@@ -4,11 +4,12 @@ import { getFirestore, Timestamp, DocumentReference } from "firebase-admin/fires
 import { initializeApp } from "firebase-admin/app";
 import { 
   Campaign, 
-  CampaignLead, 
+  CampaignLead,
   CreateCampaignData, 
   LeadStatus, 
   CreateCampaignResponse,
-  CampaignMode
+  CampaignMode,
+  LeadData
 } from "../types/campaign";
 import { chunkArray } from "../lib/chunkArray";
 
@@ -99,10 +100,10 @@ export const createCampaignWithLeads = onCall({
 
     // Process first chunk of leads
     await processLeadChunk(
-      leadChunks[0], 
+      leadChunks[0] ?? [], // Handle case where leadChunks[0] might be undefined if allFoundLeadsData is empty
       campaignRef, 
       firstBatch, 
-      data.selectedPlaceIds, 
+      data.selectedPlaceIds, // Array of googlePlaceId
       data.mode as CampaignMode,
       typeStats
     );
@@ -153,21 +154,38 @@ export const createCampaignWithLeads = onCall({
  * Processes a chunk of leads for batch operations
  */
 async function processLeadChunk(
-  leads: any[], 
+  leads: LeadData[], // Expecting updated LeadData structure
   campaignRef: DocumentReference,
   batch: FirebaseFirestore.WriteBatch,
-  selectedPlaceIds: string[],
+  selectedGooglePlaceIds: string[], // Renamed for clarity
   mode: CampaignMode,
   typeStats: Campaign["typeStats"]
 ): Promise<void> {
-  
-  // Process each lead in the chunk
-  for (const leadData of leads) {
-    const { place_id, businessType } = leadData;
-    
-    // Determine lead status based on selection and campaign mode
+  for (const leadPayload of leads) {
+    // Destructure all new fields from leadPayload
+    const {
+      searchBusinessType, 
+      aiReasoning,
+      googlePlaceId,
+      googleBusinessName,
+      googleFormattedAddress,
+      googleTypes,
+      googlePostalCode,
+      googlePhoneNumber,
+      googleWebsite,
+      googleRating,
+      // Spread remaining properties into otherData if any, to be stored under a generic key or individually
+      ...otherData // Contains any extra fields from client, or old fields if still sent
+    } = leadPayload;
+
+    // Ensure googlePlaceId is present (it's the primary identifier for leads now)
+    if (!googlePlaceId) {
+      logger.warn("Skipping lead due to missing googlePlaceId", { leadPayload });
+      continue;
+    }
+
     let status: LeadStatus;
-    const isSelected = selectedPlaceIds.includes(place_id);
+    const isSelected = selectedGooglePlaceIds.includes(googlePlaceId);
     
     if (mode === CampaignMode.AUTOPILOT) {
       status = isSelected ? LeadStatus.AUTOPILOT_SELECTED : LeadStatus.AUTOPILOT_FOUND;
@@ -175,39 +193,37 @@ async function processLeadChunk(
       status = isSelected ? LeadStatus.SELECTED : LeadStatus.FOUND;
     }
     
-    // Initialize typeStats for this business type if not already done
-    if (!typeStats[businessType]) {
-      typeStats[businessType] = {
-        found: 0,
-        selected: 0,
-        sent: 0
-      };
+    // Use searchBusinessType for typeStats
+    if (!typeStats[searchBusinessType]) {
+      typeStats[searchBusinessType] = { found: 0, selected: 0, sent: 0 };
     }
-    
-    // Update counts in typeStats
     if (isSelected) {
-      typeStats[businessType].selected++;
+      typeStats[searchBusinessType].selected++;
     } else {
-      typeStats[businessType].found++;
+      typeStats[searchBusinessType].found++;
     }
     
-    // Prepare lead document data
     const leadDocData: CampaignLead = {
       status,
-      businessType,
+      searchBusinessType, 
+      aiReasoning,
+      googlePlaceId,
+      googleBusinessName,
+      googleFormattedAddress,
+      googleTypes: googleTypes || [], // Default to empty array
+      googlePostalCode: googlePostalCode || undefined, // Store if present
+      googlePhoneNumber: googlePhoneNumber || undefined,
+      googleWebsite: googleWebsite || undefined,
+      googleRating: googleRating || undefined,
       createdAt: Timestamp.now(),
       selectedAt: isSelected ? Timestamp.now() : null,
-      place_id,
-      name: leadData.name,
-      vicinity: leadData.vicinity,
-      // Copy other available fields from the lead data
-      ...Object.entries(leadData)
-        .filter(([key]) => !["status", "businessType", "createdAt", "selectedAt"].includes(key))
-        .reduce((obj, [key, value]) => ({ ...obj, [key]: value }), {})
+      // Store otherData if necessary, perhaps under a specific key or merge carefully
+      // For now, we are explicitly mapping known fields.
+      // If otherData contains fields that match CampaignLead, they will be overwritten by explicit assignments above.
+      // If you want to merge all otherData fields: ...otherData
     };
     
-    // Add lead to batch
-    const leadDocRef = campaignRef.collection("leads").doc(place_id);
+    const leadDocRef = campaignRef.collection("leads").doc(googlePlaceId); // Use googlePlaceId as doc ID
     batch.set(leadDocRef, leadDocData);
   }
 } 
