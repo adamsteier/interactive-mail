@@ -7,7 +7,8 @@ export enum LeadStatus {
   FOUND = "found", 
   SELECTED = "selected",
   AUTOPILOT_FOUND = "autopilot_found",
-  AUTOPILOT_SELECTED = "autopilot_selected"
+  AUTOPILOT_SELECTED = "autopilot_selected",
+  REMOVED = "removed"
 }
 
 export interface CampaignPrice {
@@ -42,24 +43,47 @@ export interface Campaign {
   typeStats: TypeStats;
 }
 
-// Minimal lead data for client-to-CF communication
-export interface LeadData {
-  place_id: string;
-  name: string;
-  vicinity: string;
-  businessType: string;
-  [key: string]: any; // Allow for additional fields
-}
-
+// Updated CampaignLead interface for Cloud Function internal use
 export interface CampaignLead {
   status: LeadStatus;
-  businessType: string;
+  searchBusinessType: string;
+  aiReasoning: string;
+
+  googlePlaceId: string;
+  googleBusinessName: string;
+  googleFormattedAddress: string;
+  googleTypes: string[];
+  googlePostalCode?: string;
+  googlePhoneNumber?: string;
+  googleWebsite?: string;
+  googleRating?: number;
+  
   createdAt: FirebaseFirestore.Timestamp;
   selectedAt: FirebaseFirestore.Timestamp | null;
-  place_id: string;
-  name: string;
-  vicinity: string;
-  [key: string]: any; // Allow for additional trimmed business data fields
+  
+  [key: string]: any;
+}
+
+// Minimal lead data for client-to-CF communication (this will also need updating)
+export interface LeadData {
+  searchBusinessType: string;
+  aiReasoning: string;
+
+  googlePlaceId: string;
+  googleBusinessName: string;
+  googleFormattedAddress: string;
+  googleTypes: string[];
+  googlePostalCode?: string;
+  googlePhoneNumber?: string;
+  googleWebsite?: string;
+  googleRating?: number;
+  
+  place_id?: string;
+  name?: string;
+  vicinity?: string;
+  businessType?: string;
+
+  [key: string]: any;
 }
 
 export interface CreateCampaignData {

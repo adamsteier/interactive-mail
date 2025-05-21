@@ -38,27 +38,35 @@ export const campaignConverter: FirestoreDataConverter<CampaignData> = {
   }
 };
 
-// Define CampaignLeadData type for client-side use (similar to functions/src/types/campaign.ts CampaignLead)
+// Updated CampaignLeadData interface for client-side Firestore data
 export interface CampaignLeadData {
   id: string; // Document ID from Firestore
-  status: 'found' | 'selected' | 'autopilot_found' | 'autopilot_selected' | 'removed'; // Add 'removed' for soft delete
-  businessType: string;
-  createdAt: Timestamp;
-  selectedAt: Timestamp | null;
-  place_id: string;        // Google Maps place ID
-  name: string;
-  vicinity: string;        // Address
-  phoneNumber?: string;
-  website?: string;
-  rating?: number;
-  // Add any other fields from your Lead document
-  [key: string]: unknown; // Allow for other fields not explicitly defined
+  status: 'found' | 'selected' | 'autopilot_found' | 'autopilot_selected' | 'removed';
+  
+  searchBusinessType: string;    // The category that was searched for
+  aiReasoning: string;           // AI's reasoning for targeting this searchBusinessType
+
+  googlePlaceId: string;         // Google's unique Place ID
+  googleBusinessName: string;    // Business name from Google
+  googleFormattedAddress: string; // Full address from Google
+  googleTypes: string[];         // Array of types from Google Places API
+  googlePostalCode?: string;     // Explicitly stored postal code
+  googlePhoneNumber?: string;    // Phone number from Google
+  googleWebsite?: string;        // Website from Google
+  googleRating?: number;         // Rating from Google
+  
+  createdAt: Timestamp;          // Firestore Timestamp
+  selectedAt: Timestamp | null;  // Firestore Timestamp
+  
+  [key: string]: unknown;        // Allow for other fields not explicitly defined
 }
 
 export const leadConverter: FirestoreDataConverter<CampaignLeadData> = {
   toFirestore(lead: CampaignLeadData): DocumentData {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { id, ...data } = lead;
+    // Ensure Timestamps are correctly formatted if they were JS Dates client-side before saving
+    // For this example, we assume they are already Firestore Timestamps if being written back
     return data;
   },
   fromFirestore(
@@ -69,16 +77,19 @@ export const leadConverter: FirestoreDataConverter<CampaignLeadData> = {
     return {
       id: snapshot.id,
       status: data.status,
-      businessType: data.businessType,
-      createdAt: data.createdAt as Timestamp,
-      selectedAt: data.selectedAt as Timestamp | null,
-      place_id: data.place_id,
-      name: data.name,
-      vicinity: data.vicinity,
-      phoneNumber: data.phoneNumber,
-      website: data.website,
-      rating: data.rating,
-      ...data // Spread other fields that might exist
-    } as CampaignLeadData;
+      searchBusinessType: data.searchBusinessType,
+      aiReasoning: data.aiReasoning,
+      googlePlaceId: data.googlePlaceId,
+      googleBusinessName: data.googleBusinessName,
+      googleFormattedAddress: data.googleFormattedAddress,
+      googleTypes: data.googleTypes || [], // Default to empty array if undefined
+      googlePostalCode: data.googlePostalCode,
+      googlePhoneNumber: data.googlePhoneNumber,
+      googleWebsite: data.googleWebsite,
+      googleRating: data.googleRating,
+      createdAt: data.createdAt as Timestamp, // Ensure correct type from Firestore
+      selectedAt: data.selectedAt as Timestamp | null, // Ensure correct type
+      ...data // Spread other fields that might exist, but known ones take precedence
+    } as CampaignLeadData; // Cast to ensure all properties are covered
   }
 }; 
