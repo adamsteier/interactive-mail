@@ -12,6 +12,7 @@
     "@anthropic-ai/sdk": "^0.37.0",
     "@google/generative-ai": "^0.24.0",
     "@sendgrid/mail": "^8.1.4",
+    "@tanstack/react-table": "^8.21.3",
     "@types/uuid": "^10.0.0",
     "axios": "^1.7.9",
     "firebase": "^11.3.1",
@@ -22,6 +23,8 @@
     "openai": "^4.87.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-firebase-hooks": "^5.1.1",
+    "react-icons": "^5.5.0",
     "ulid": "^3.0.0",
     "uuid": "^11.1.0",
     "zustand": "^5.0.3"

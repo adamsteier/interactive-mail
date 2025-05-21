@@ -491,9 +491,15 @@ designRequests/
 - [x] 5. Develop type-safe Firestore converters
 
 #### Phase 2: Campaign Build Interface
-- [ ] 6. Create the campaign build page with dynamic routing
+- [x] 6. Create the campaign build page with dynamic routing
 - [ ] 7. Implement campaign data fetching with real-time updates
+    - [ ] 7.1. Create `src/features/campaignBuild/hooks/useCampaignDoc.ts`
+    - [ ] 7.2. Create `src/features/campaignBuild/hooks/useCampaignLeads.ts`
 - [ ] 8. Develop lead management components for the build interface
+    - [ ] 8.1. Update `page.tsx` layout for tabs (Leads, Design, Schedule)
+    - [ ] 8.2. Create `LeadTable.tsx` component
+    - [ ] 8.3. Augment Zustand store for view state & filters
+    - [ ] 8.4. Create write helpers for lead actions
 - [ ] 9. Create campaign mode detection and conditional UI
 
 #### Phase 3: One-Off Campaign Flow
