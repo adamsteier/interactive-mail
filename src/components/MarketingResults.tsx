@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import AuthOverlay from '@/components/AuthOverlay';
 import PlacesLeadsCollection from '@/components/PlacesLeadsCollection';
 import { showAuthOverlay as triggerGlobalAuth } from '@/lib/auth';
+import { createDraftCampaign } from '@/services/campaignService';
 
 interface MarketingResultsProps {
   strategy: MarketingStrategy;
@@ -26,7 +27,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
   const [interestedInDatabase, setInterestedInDatabase] = useState(false);
   const [authCompleted, setAuthCompleted] = useState(false);
   
-  const { user } = useAuth();
+  const { user, isAnonymous } = useAuth();
   
   const { 
     setMarketingStrategy, 
@@ -34,6 +35,8 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
     updateSearchResults,
     handleGoogleSearch,
     setSelectedBusinessTypes: setStoreSelectedBusinessTypes,
+    setCurrentCampaign,
+    businessInfo,
   } = useMarketingStore();
 
   // Mock values for the UI for the estimated reach if not present in the strategy object
@@ -89,11 +92,46 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       // Update the global store's selectedBusinessTypes
       setStoreSelectedBusinessTypes(selectedBusinessTypes);
       
+      try {
+        // Create a draft campaign for both anonymous and authenticated users
+        if (user) {
+          const draftCampaign = await createDraftCampaign(
+            user.uid,
+            {
+              targetArea: businessInfo.targetArea,
+              businessName: businessInfo.businessName,
+              industry: businessInfo.businessAnalysis?.industry,
+              description: businessInfo.businessAnalysis?.description,
+            },
+            isAnonymous
+          );
+          
+          // Set the draft campaign in the store
+          setCurrentCampaign({
+            id: draftCampaign.id,
+            name: `${businessInfo.businessName} - ${new Date().toLocaleDateString()}`,
+            status: 'draft',
+            createdAt: null, // Will be set by Firestore
+            updatedAt: null,
+            leadCount: 0,
+            selectedLeadCount: 0,
+            userId: user.uid,
+            businessId: 'temp_' + draftCampaign.id, // Temporary ID until business is created
+            businessTypes: Array.from(selectedBusinessTypes)
+          });
+          
+          console.log('Draft campaign created:', draftCampaign.id);
+        }
+      } catch (error) {
+        console.error('Failed to create draft campaign:', error);
+        // Continue anyway - we can still show leads even if campaign creation fails
+      }
+      
       // ALWAYS trigger the search in the background
       handleGoogleSearch();
       
-      // Check if user is authenticated
-      if (!user) {
+      // Check if user is authenticated (but not just anonymous)
+      if (!user || isAnonymous) {
         // Show the auth overlay without interrupting the process
         triggerGlobalAuth();
       }

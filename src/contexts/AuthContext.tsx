@@ -10,7 +10,12 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   UserCredential,
-  updateProfile
+  updateProfile,
+  signInAnonymously,
+  linkWithCredential,
+  EmailAuthProvider,
+  linkWithPopup,
+  AuthCredential
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { getSessionId, updateSessionStatus } from '@/lib/sessionService';
@@ -22,10 +27,13 @@ interface AuthContextType {
   userData: UserData | null;
   loading: boolean;
   showAuthOverlay: boolean;
+  isAnonymous: boolean;
   setShowAuthOverlay: (show: boolean) => void;
   signIn: (email: string, password: string) => Promise<UserCredential>;
   signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<UserCredential>;
   signInWithGoogle: () => Promise<UserCredential>;
+  signInAnonymously: () => Promise<UserCredential>;
+  linkAnonymousAccount: (credential: AuthCredential) => Promise<UserCredential>;
   logout: () => Promise<void>;
   refreshUserData: () => Promise<void>;
 }
@@ -39,6 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAuthOverlay, setShowAuthOverlay] = useState(false);
+  const [isAnonymous, setIsAnonymous] = useState(false);
   
   // Get store actions for business operations
   const { 
@@ -75,13 +84,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
       setUser(authUser);
+      setIsAnonymous(authUser?.isAnonymous || false);
       
       if (authUser) {
-        // User is signed in, refresh their data
+        // User is signed in (anonymous or regular), refresh their data
         await refreshUserData();
       } else {
         // User is signed out
         setUserData(null);
+        setIsAnonymous(false);
       }
       
       setLoading(false);
@@ -89,6 +100,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return unsubscribe;
   }, []);
+
+  // Initialize anonymous auth if no user is logged in
+  useEffect(() => {
+    const initializeAnonymousAuth = async () => {
+      if (!loading && !user) {
+        try {
+          console.log('No user detected, signing in anonymously...');
+          await signInAnonymouslyHandler();
+        } catch (error) {
+          console.error('Failed to sign in anonymously:', error);
+        }
+      }
+    };
+
+    initializeAnonymousAuth();
+  }, [loading, user]);
 
   // Helper function to convert anonymous session after authentication
   const handlePostAuthentication = async (user: User, firstName?: string, lastName?: string) => {
@@ -103,6 +130,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('User has businesses after auth:', userData.businesses);
       }
       
+      // Update session status to converted if it was anonymous
+      const sessionId = getSessionId();
+      if (sessionId && isAnonymous) {
+        await updateSessionStatus('converted', user.uid);
+      }
+      
       return userData;
     } catch (error) {
       console.error('Failed to handle post-authentication tasks:', error);
@@ -110,19 +143,64 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const signInAnonymouslyHandler = async () => {
+    try {
+      const credential = await signInAnonymously(auth);
+      setIsAnonymous(true);
+      console.log('Signed in anonymously with UID:', credential.user.uid);
+      return credential;
+    } catch (error) {
+      console.error('Failed to sign in anonymously:', error);
+      throw error;
+    }
+  };
+
+  const linkAnonymousAccount = async (credential: AuthCredential) => {
+    if (!user || !isAnonymous) {
+      throw new Error('No anonymous user to link');
+    }
+    
+    try {
+      const linkedCredential = await linkWithCredential(user, credential);
+      setIsAnonymous(false);
+      return linkedCredential;
+    } catch (error) {
+      console.error('Failed to link anonymous account:', error);
+      throw error;
+    }
+  };
+
   const signIn = async (email: string, password: string) => {
+    // If user is anonymous, link the account instead of signing in
+    if (user && isAnonymous) {
+      const credential = EmailAuthProvider.credential(email, password);
+      const linkedCredential = await linkAnonymousAccount(credential);
+      await handlePostAuthentication(linkedCredential.user);
+      return linkedCredential;
+    }
+    
+    // Regular sign in
     const credential = await signInWithEmailAndPassword(auth, email, password);
-    // No names passed on regular sign-in
     await handlePostAuthentication(credential.user);
     return credential;
   };
 
   const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
-    const credential = await createUserWithEmailAndPassword(auth, email, password);
+    let credential: UserCredential;
+    
+    // If user is anonymous, link the account instead of creating new one
+    if (user && isAnonymous) {
+      const authCredential = EmailAuthProvider.credential(email, password);
+      credential = await linkAnonymousAccount(authCredential);
+      setIsAnonymous(false);
+    } else {
+      // Regular sign up
+      credential = await createUserWithEmailAndPassword(auth, email, password);
+    }
     
     // Update Firebase Auth user profile
     try {
-      if (auth.currentUser) { // Check if currentUser is available
+      if (auth.currentUser) {
           await updateProfile(auth.currentUser, { 
               displayName: `${firstName} ${lastName}` 
           });
@@ -144,9 +222,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
-    const credential = await signInWithPopup(auth, provider);
-    // Google sign-in automatically provides displayName, etc.
-    // No need to pass separate first/last names here
+    let credential: UserCredential;
+    
+    // If user is anonymous, link the account
+    if (user && isAnonymous) {
+      credential = await linkWithPopup(user, provider);
+      setIsAnonymous(false);
+    } else {
+      // Regular Google sign in
+      credential = await signInWithPopup(auth, provider);
+    }
+    
     await handlePostAuthentication(credential.user);
     return credential;
   };
@@ -164,6 +250,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     await signOut(auth);
     setUserData(null);
+    setIsAnonymous(false);
   };
 
   const value = {
@@ -171,10 +258,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     userData,
     loading,
     showAuthOverlay,
+    isAnonymous,
     setShowAuthOverlay,
     signIn,
     signUp,
     signInWithGoogle,
+    signInAnonymously: signInAnonymouslyHandler,
+    linkAnonymousAccount,
     logout,
     refreshUserData
   };

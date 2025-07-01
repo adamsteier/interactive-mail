@@ -1,19 +1,258 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow open read/write access to postcard_template collection
-    match /postcard_template/{document=**} {
-      allow read, write: if true;
+    
+    // ========================================
+    // HELPER FUNCTIONS
+    // ========================================
+    
+    // Check if user is authenticated (including anonymous)
+    function isAuthenticated() {
+      return request.auth != null;
     }
     
-    // Allow open read/write access to postcard_images collection
-    match /postcard_images/{document=**} {
-      allow read, write: if true;
+    // Check if user owns the resource
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
     }
     
-    // Keep other collections secure (optional)
-    match /{document=**} {
-      allow read, write: if false;
+    // Check if user is the owner or the resource is anonymous and being claimed
+    function canAccessResource(ownerId) {
+      return isOwner(ownerId);
+    }
+    
+    // Validate that required fields exist
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+    
+    // Check if user has admin role (for future use)
+    function isAdmin() {
+      return request.auth != null && 
+        request.auth.token.admin == true;
+    }
+    
+    // ========================================
+    // USERS COLLECTION
+    // ========================================
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && 
+        hasRequiredFields(['email', 'createdAt']);
+      allow update: if isOwner(userId) && 
+        request.resource.data.createdAt == resource.data.createdAt; // Can't change createdAt
+      allow delete: if false; // Users can't delete their accounts via client
+    }
+    
+    // ========================================
+    // SESSIONS COLLECTION
+    // ========================================
+    match /sessions/{sessionId} {
+      // Anyone can create a session (for anonymous tracking)
+      allow create: if true;
+      
+      // Can read: anyone who knows the sessionId (it's a random UUID)
+      // This is safe because sessionIds are unguessable
+      allow read: if true;
+      
+      // Can update: anyone who knows the sessionId
+      // We rely on the sessionId being secret/unguessable
+      allow update: if true;
+      
+      allow delete: if false; // Sessions should expire, not be deleted
+    }
+    
+    // ========================================
+    // BUSINESSES COLLECTION
+    // ========================================
+    match /businesses/{businessId} {
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.ownerUid) || 
+        request.auth.uid in resource.data.teamMembers ||
+        isAdmin()
+      );
+      
+      allow create: if isAuthenticated() && 
+        request.resource.data.ownerUid == request.auth.uid &&
+        hasRequiredFields(['ownerUid', 'businessName', 'createdAt']);
+      
+      allow update: if isAuthenticated() && (
+        isOwner(resource.data.ownerUid) || 
+        request.auth.uid in resource.data.teamMembers
+      );
+      
+      allow delete: if isOwner(resource.data.ownerUid) || isAdmin();
+    }
+    
+    // ========================================
+    // CAMPAIGNS COLLECTION
+    // ========================================
+    match /campaigns/{campaignId} {
+      // Read access for owner, admin, or business team members
+      allow read: if isAuthenticated() && (
+        canAccessResource(resource.data.ownerUid) ||
+        (resource.data.businessId != null && 
+         exists(/databases/$(database)/documents/businesses/$(resource.data.businessId)) &&
+         request.auth.uid in get(/databases/$(database)/documents/businesses/$(resource.data.businessId)).data.teamMembers) ||
+        isAdmin()
+      );
+      
+      // Create campaigns (including anonymous users)
+      allow create: if isAuthenticated() && 
+        request.resource.data.ownerUid == request.auth.uid &&
+        hasRequiredFields(['ownerUid', 'status', 'createdAt']);
+      
+      // Update own campaigns
+      allow update: if isAuthenticated() && 
+        canAccessResource(resource.data.ownerUid) &&
+        request.resource.data.ownerUid == resource.data.ownerUid; // Can't change owner
+      
+      // Delete own campaigns
+      allow delete: if isAuthenticated() && 
+        canAccessResource(resource.data.ownerUid) || isAdmin();
+      
+      // ========================================
+      // CAMPAIGN LEADS SUB-COLLECTION
+      // ========================================
+      match /leads/{leadId} {
+        allow read, write: if isAuthenticated() && 
+          canAccessResource(get(/databases/$(database)/documents/campaigns/$(campaignId)).data.ownerUid);
+      }
+      
+      // ========================================
+      // CAMPAIGN DESIGNS SUB-COLLECTION
+      // ========================================
+      match /designs/{designId} {
+        allow read: if isAuthenticated() && 
+          canAccessResource(get(/databases/$(database)/documents/campaigns/$(campaignId)).data.ownerUid);
+        
+        allow create, update: if isAuthenticated() && 
+          canAccessResource(get(/databases/$(database)/documents/campaigns/$(campaignId)).data.ownerUid) &&
+          hasRequiredFields(['status', 'createdAt']);
+          
+        allow delete: if false; // Designs should not be deleted
+      }
+    }
+    
+    // ========================================
+    // CAMPAIGN LEADS COLLECTION (Flat structure)
+    // ========================================
+    match /campaignLeads/{leadId} {
+      // Read if you own the campaign
+      allow read: if isAuthenticated() && 
+        exists(/databases/$(database)/documents/campaigns/$(resource.data.campaignId)) &&
+        canAccessResource(get(/databases/$(database)/documents/campaigns/$(resource.data.campaignId)).data.ownerUid);
+      
+      // Create if you own the campaign
+      allow create: if isAuthenticated() && 
+        exists(/databases/$(database)/documents/campaigns/$(request.resource.data.campaignId)) &&
+        canAccessResource(get(/databases/$(database)/documents/campaigns/$(request.resource.data.campaignId)).data.ownerUid) &&
+        hasRequiredFields(['campaignId', 'placeId', 'businessName']);
+      
+      // Update if you own the campaign
+      allow update: if isAuthenticated() && 
+        exists(/databases/$(database)/documents/campaigns/$(resource.data.campaignId)) &&
+        canAccessResource(get(/databases/$(database)/documents/campaigns/$(resource.data.campaignId)).data.ownerUid) &&
+        request.resource.data.campaignId == resource.data.campaignId; // Can't change campaign
+      
+      // Delete if you own the campaign
+      allow delete: if isAuthenticated() && 
+        exists(/databases/$(database)/documents/campaigns/$(resource.data.campaignId)) &&
+        canAccessResource(get(/databases/$(database)/documents/campaigns/$(resource.data.campaignId)).data.ownerUid);
+    }
+    
+    // ========================================
+    // MARKETING STRATEGIES COLLECTION
+    // ========================================
+    match /marketingStrategies/{strategyId} {
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.businessId) ||
+        (exists(/databases/$(database)/documents/businesses/$(resource.data.businessId)) &&
+         request.auth.uid == get(/databases/$(database)/documents/businesses/$(resource.data.businessId)).data.ownerUid)
+      );
+      
+      allow create: if isAuthenticated() && 
+        exists(/databases/$(database)/documents/businesses/$(request.resource.data.businessId)) &&
+        request.auth.uid == get(/databases/$(database)/documents/businesses/$(request.resource.data.businessId)).data.ownerUid;
+      
+      allow update: if isAuthenticated() && 
+        exists(/databases/$(database)/documents/businesses/$(resource.data.businessId)) &&
+        request.auth.uid == get(/databases/$(database)/documents/businesses/$(resource.data.businessId)).data.ownerUid &&
+        request.resource.data.businessId == resource.data.businessId; // Can't change business
+      
+      allow delete: if false; // Strategies should not be deleted
+    }
+    
+    // ========================================
+    // BRANDING DATA COLLECTION
+    // ========================================
+    match /users/{userId}/brandingData/{brandId} {
+      allow read, write: if isOwner(userId);
+    }
+    
+    // ========================================
+    // CAMPAIGN DESIGNS COLLECTION (Global)
+    // ========================================
+    match /campaignDesigns/{designId} {
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.userId) ||
+        (resource.data.campaignId != null && 
+         exists(/databases/$(database)/documents/campaigns/$(resource.data.campaignId)) &&
+         canAccessResource(get(/databases/$(database)/documents/campaigns/$(resource.data.campaignId)).data.ownerUid))
+      );
+      
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid;
+      
+      allow update: if isAuthenticated() && 
+        isOwner(resource.data.userId) &&
+        request.resource.data.userId == resource.data.userId; // Can't change owner
+      
+      allow delete: if false; // Designs should not be deleted
+    }
+    
+    // ========================================
+    // DESIGN REQUESTS COLLECTION
+    // ========================================
+    match /design_requests/{requestId} {
+      allow read: if isAuthenticated() && 
+        isOwner(resource.data.userId);
+      
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid &&
+        hasRequiredFields(['userId', 'status', 'createdAt']);
+      
+      allow update: if isAuthenticated() && 
+        isOwner(resource.data.userId) &&
+        request.resource.data.userId == resource.data.userId; // Can't change owner
+      
+      allow delete: if false; // Design requests should not be deleted
+    }
+    
+    // ========================================
+    // PAYMENTS COLLECTION (Future)
+    // ========================================
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated() && 
+        isOwner(resource.data.userId);
+      
+      // Payments should only be created/updated by Cloud Functions
+      allow create, update: if false;
+      
+      allow delete: if false;
+    }
+    
+    // ========================================
+    // ADMIN COLLECTIONS
+    // ========================================
+    match /adminUsers/{adminId} {
+      allow read: if isAdmin();
+      allow write: if false; // Only server-side
+    }
+    
+    match /systemLogs/{logId} {
+      allow read: if isAdmin();
+      allow write: if false; // Only server-side
     }
   }
 } 

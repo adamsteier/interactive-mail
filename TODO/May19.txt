@@ -1,163 +1,141 @@
-# New Campaign Build & Console Implementation Plan (v4)
+# New Campaign Build & Console Implementation Plan (v4) - UPDATED Dec 2024
+
+## CRITICAL BUG TO FIX FIRST: Campaign Creation Flow ✅ SOLUTION IMPLEMENTED
+
+### Issue: PlacesLeadsCollection expects a campaignId that doesn't exist
+- [x] **Fix the circular dependency**: PlacesLeadsCollection needs currentCampaign.id but campaign is only created after selecting leads
+- [x] **Option 1 IMPLEMENTED**: Create a draft campaign when user clicks "show me my leads"
+  - [x] Added Firebase Anonymous Authentication
+  - [x] Created `createDraftCampaign` function in campaignService.ts
+  - [x] Updated AuthContext to automatically sign in anonymous users
+  - [x] Updated MarketingResults to create draft campaign before showing leads
+  - [x] Created Firestore security rules documentation
+
+### Next Steps to Complete the Fix:
+- [x] Update Firestore security rules in Firebase Console (see firestore.rules)
+- [ ] Test the complete flow with anonymous users
+- [x] Update PlacesLeadsCollection to save leads to the campaign (implemented in handleGoogleSearch)
+- [ ] Implement proper campaign finalization when user confirms selection
+
+## Anonymous User Conversion Strategy ✅ IMPLEMENTED
+
+### Conversion Points:
+1. **Soft Ask (After Seeing Leads)** - Shows 3 seconds after leads load
+   - [x] Created AnonymousUserPrompt component with 3 stages
+   - [x] Integrated into PlacesLeadsCollection with auto-show timer
+   - Benefits shown: Save campaigns, access from any device, get updates
+
+2. **Medium Ask (Before Campaign Finalization)** - When clicking "Start Campaign"
+   - [x] Shows modal prompting account creation
+   - [x] Option to continue as guest with email capture
+   - [x] EmailCaptureModal for collecting contact info
+
+3. **Hard Requirement (Before Payment)** - Must create account
+   - [ ] Implement in payment flow
+   - [ ] No option to skip - required for Stripe
+
+### Data Collection for Anonymous Users:
+- [x] Business info saved to draft campaign
+- [x] Contact info (email/phone) saved to campaign and session
+- [ ] Set up Cloud Function to send campaign links via email
+- [ ] Create abandoned cart email automation
 
 ## Phase 1: Build Flow & Initial Handoff (Focus on "One-Off" Mode First)
 
 ### 1. Establish Feature-First Directory Structure & Routing
-- [ ] **Routing (Critical):** Structure page routes within the project-level `/app` directory using Route Groups for organization.
+- [x] **Routing (Critical):** Structure page routes within the project-level `/app` directory using Route Groups for organization.
     - [ ] `src/app/(campaignBuild)/build/[campaignId]/page.tsx` (Build/Design Page - will be shared by "one-off" and "autopilot" modes, detecting mode from Firestore data)
     - [ ] `src/app/(console)/console/page.tsx` (Customer Console)
-    - [ ] `src/app/(admin)/admin/page.tsx` (Staff-only Admin Console - (NEW))
-- [ ] **Feature Co-location:** Organize UI components, hooks, and non-page logic within `src/features/...` directories.
-    - [ ] `src/features/campaignBuild/components/`, `src/features/campaignBuild/hooks/`, etc.
-    - [ ] `src/features/console/components/`, `src/features/console/hooks/`, etc.
-    - [ ] `src/features/admin/components/`, `src/features/admin/hooks/`, etc. (NEW)
-    - [ ] *Consider using barrel files (`index.ts`) within feature directories for cleaner imports.*
-- [ ] Create or augment `src/services/campaignService.ts` for client-side service calls (e.g., invoking Cloud Functions).
-- [ ] Create or augment `src/store/useCampaignFlowStore.ts` for state related to build, console, and campaign modes.
-- [ ] Create/Augment `src/types/campaign.ts` to consolidate Campaign, CampaignLead, `CampaignMode`, `AutopilotConfig`, `LeadStatus` enum - (UPDATED to include autopilot statuses like `autopilot_found`, `autopilot_selected`).
+    - [x] `src/app/(admin)/admin/page.tsx` (Staff-only Admin Console - EXISTS but needs implementation)
+- [x] **Feature Co-location:** Organize UI components, hooks, and non-page logic within `src/features/...` directories.
+    - [x] Components organized in `src/components/`, `src/features/`
+    - [x] Services in `src/services/`
+    - [x] Store in `src/store/`
+- [x] Create or augment `src/services/campaignService.ts` for client-side service calls (EXISTS).
+- [x] Create or augment `src/store/useCampaignFlowStore.ts` (using marketingStore.ts instead)
+- [x] Create/Augment `src/types/campaign.ts` to consolidate types (types distributed across files)
 - [ ] Create `src/types/firestoreConverters.ts` for typed Firestore data converters.
 - [ ] Create reusable utility `src/lib/chunkArray.ts` for batch processing. (NEW)
 
 ### 2. Refactor "Start Campaign" in `PlacesLeadsCollection.tsx` (for "One-Off" flow)
-- [ ] Locate the `handleStartCampaign` function.
-- [ ] Modify `handleStartCampaign`:
-    - [ ] Client generates a unique campaign ID (`cid`) for idempotency (e.g., using `ulid()`). (NEW)
-    - [ ] Retrieve `strategyId` from `useMarketingStore.getState()`.
-    - [ ] Retrieve *all found/displayed leads* (e.g., from `useMarketingStore.getState().searchResults.places`).
-    - [ ] Retrieve the `Set<string>` of *selected place_ids*.
-    - [ ] Wrap the call to the Cloud Function in a `try/catch` block:
-        - [ ] On success (Cloud Function returns confirmation): Navigate using Next.js router: `router.push(\`/build/\${cid}\`);` (using client-generated `cid`)
-        - [ ] On failure: Display an error message to the user.
-    - [ ] Invoke the Callable Cloud Function `createCampaignWithLeads` with a payload including:
-        - `cid` (client-generated)
-        - `mode: "one_off"` (NEW)
-        - `allFoundLeadsData` (minimal, pre-filtered data)
-        - `selectedPlaceIds` (as an array)
-        - `strategyId`
-        - *(Critical: `userId` removed from payload; CF uses `context.auth.uid`)*
+- [x] Locate the `handleStartCampaign` function (exists as `handleConfirmSelection`).
+- [ ] **BLOCKED BY CAMPAIGN FLOW BUG** - Need to fix campaign creation before this works properly
+- [x] Client generates a unique campaign ID (`cid`) for idempotency (using `ulid()`). 
+- [ ] Retrieve `strategyId` from `useMarketingStore.getState()` (currently passing null).
+- [x] Retrieve *all found/displayed leads* (implemented).
+- [x] Retrieve the `Set<string>` of *selected place_ids* (implemented).
+- [x] Wrap the call to the Cloud Function in a `try/catch` block (implemented).
+- [x] Invoke the Callable Cloud Function `createCampaignWithLeads` (implemented in campaignService.ts).
 
 ### 3. Develop Callable Cloud Function: `createCampaignWithLeads`
-- [ ] **Definition (Critical):** `onCall({ enforceAppCheck: true }, async (data, context) => { ... });` (NEW - App Check)
-- [ ] **Input Validation (Critical):** Validate `allFoundLeadsData` length/size. Alternatively, design to accept only `place_id`s and `businessType` if client-side trimming is insufficient for large lead lists.
-- [ ] **Authentication (Critical):** Ensure `context.auth` exists. Use `context.auth.uid` exclusively for `ownerUid`.
-- [ ] **Idempotency Check (Critical):** `const campaignRef = doc(db, "campaigns", data.cid); if ((await getDoc(campaignRef)).exists()) return { campaignId: data.cid, status: 'already_exists' };` (NEW)
-- [ ] **Firestore Interaction (`writeBatch`):**
-    - [ ] Get Firestore instance.
-    - [ ] **Construct the main `campaigns/{data.cid}` document data (using the client-provided `cid`):**
-        - `ownerUid: context.auth.uid`
-        - `strategyId: data.strategyId`
-        - `campaignMode: data.mode` (NEW - "one_off" or "autopilot")
-        - `status: \'draft\'`
-        - `productType: \'postcard_4x6\'`
-        - `quantity: data.selectedPlaceIds.length`
-        - `price: { tierApplied: null, unitCost: null, total: null, currency: \'CAD\' }`
-        - `recurrence: data.mode === 'autopilot' ? data.recurrence : null` (from payload for autopilot)
-        - `nextRunAt: data.mode === 'autopilot' ? data.nextRunAt : null` (from payload for autopilot)
-        - `designIdLocked: data.mode === 'autopilot' ? data.designIdLocked : null` (NEW - for autopilot design reuse)
-        - `createdAt: serverTimestamp()`
-        - `updatedAt: serverTimestamp()`
-        - `teamId: null`
-        - `typeStats: {}` (Shell for denormalized counters)
-    - [ ] **Batch Write Limit (Critical):** Chunk `data.allFoundLeadsData` (e.g., slices of <=450) to stay under the 500-operation limit per batch. Loop through chunks, creating a new batch for each.
-        - [ ] The campaign root document should be set in the first batch.
-    - [ ] **Iterate through `data.allFoundLeadsData` and batch-set documents in `campaigns/{data.cid}/leads/`:**
-        - [ ] For each `leadPayload` in a chunk:
-            - [ ] **Data to Persist (Critical):**
-                - `status` (derived from `selectedGooglePlaceIds` and `mode`)
-                - `searchBusinessType` (from `leadPayload` - the category user selected)
-                - `aiReasoning` (from `leadPayload` - AI reasoning for the `searchBusinessType`)
-                - `googlePlaceId` (from `leadPayload` - use as document ID)
-                - `googleBusinessName` (from `leadPayload`)
-                - `googleFormattedAddress` (from `leadPayload`)
-                - `googleTypes` (from `leadPayload`, array of strings)
-                - `googlePostalCode` (optional, from `leadPayload` - will be populated later post-payment)
-                - `googlePhoneNumber` (optional, from `leadPayload`)
-                - `googleWebsite` (optional, from `leadPayload`)
-                - `googleRating` (optional, from `leadPayload`)
-                - `createdAt: serverTimestamp()`
-                - `selectedAt: serverTimestamp()` (if selected, else null)
-            - [ ] Update `typeStats` map for the lead's `searchBusinessType`.
-    - [ ] After all lead batches are processed, update the main campaign document with the final `typeStats`.
-- [ ] Return `{ success: true, campaignId: data.cid }` or similar confirmation.
+- [x] **Function exists** at `functions/src/campaign/createCampaignWithLeads.ts`
+- [ ] **Need to verify implementation matches spec**:
+    - [ ] Validate `allFoundLeadsData` length/size
+    - [ ] Authentication check using `context.auth`
+    - [ ] Idempotency check
+    - [ ] Batch write limits
+    - [ ] Proper error handling
+- [x] Function is exported in `functions/src/index.ts`
 
 ### 4. Build Page Placeholder (`src/app/(campaignBuild)/build/[campaignId]/page.tsx`)
 - [ ] Basic Next.js dynamic route page component.
 - [ ] Will fetch and display data based on `campaignId`, adapting UI for `campaignMode`.
 - [ ] *Consider Error Boundary component.*
 
-### 5. State Management for Build & Console (`src/store/useCampaignFlowStore.ts`)
-- [ ] Define state including `campaignMode: CampaignMode`, `autopilotConfig?: AutopilotConfig` (NEW).
-- [ ] Actions: `fetchCampaignData(campaignId: string)` (adapts to fetch autopilot config if mode is autopilot), `fetchUserCampaigns(userId: string)`, `reset()`.
-- [ ] *Streaming leads enhancement still applies.*
+### 5. State Management for Build & Console (`src/store/marketingStore.ts`)
+- [x] State management exists in `marketingStore.ts`
+- [x] Has campaign-related state and actions
+- [ ] Need to add `campaignMode: CampaignMode`, `autopilotConfig?: AutopilotConfig`
 
-## Phase 2: Customer Console (`src/app/(console)/console/page.tsx`)
+## Phase 2: Customer Console
+
+### Current Dashboard Implementation Status:
+- [x] Dashboard exists at `/dashboard` with tabs:
+    - [x] Overview (DashboardSummary.tsx) - placeholder UI
+    - [x] Brands (BrandProfileManager.tsx) - mostly implemented
+    - [x] Designs (PostcardDesigns.tsx) - basic implementation  
+    - [x] Campaigns (CampaignHistory.tsx) - basic listing
+    - [x] Leads (CampaignLeadViewer.tsx) - exists but not integrated in dashboard
+    - [x] Settings (UserSettings.tsx) - basic implementation
 
 ### 1. UI Enhancements for Campaign Modes
-- [ ] Display "Mode" column (One-off / Autopilot).
-- [ ] If `campaignMode === "autopilot"`, show `nextRunAt`, recurrence details, and drops sent (from `typeStats`).
+- [ ] Display "Mode" column (One-off / Autopilot) in CampaignHistory.
+- [ ] If `campaignMode === "autopilot"`, show `nextRunAt`, recurrence details.
 
 ### 2. Filtering & Sorting (UPDATED Indexes)
 - [ ] **Firestore Composite Indexes (Critical/Helpful):**
-    - `campaigns`: `(ownerUid, campaignMode, createdAt)`
-    - `campaigns`: `(ownerUid, status, createdAt)`
-    - `campaigns`: `(ownerUid, createdAt DESC)` (NEW - for console pagination with `limit()`)
-    - `leads` (collection group): `(businessType, status)`
-    - **(NEW - Critical for Autopilot Cron)** `campaigns`: `(campaignMode ASC, nextRunAt ASC)` 
+    - [ ] `campaigns`: `(ownerUid, campaignMode, createdAt)`
+    - [ ] `campaigns`: `(ownerUid, status, createdAt)`
+    - [ ] `campaigns`: `(ownerUid, createdAt DESC)`
+    - [ ] `leads` (collection group): `(businessType, status)`
+    - [ ] `campaigns`: `(campaignMode ASC, nextRunAt ASC)` (for Autopilot)
 
 ## Phase 3: Autopilot Campaign Implementation (NEW)
+- [ ] All autopilot features pending
 
-### 1. Autopilot Campaign Creation Flow (UI/Service Layer)
-- [ ] Develop UI for admin/power-user to define autopilot campaigns (e.g., feed source, recurrence RRULE).
-- [ ] This flow will call the `createCampaignWithLeads` Callable Cloud Function with:
-    - `cid` (client-generated)
-    - `mode: "autopilot"`
-    - `allFoundLeadsData: []` (empty array, no initial leads for autopilot)
-    - `selectedPlaceIds: []`
-    - `strategyId: null` (or link to a general template/strategy if applicable)
-    - Payload should include `recurrence` (RRULE string) and initial `nextRunAt` (e.g., tomorrow 09:00 UTC).
-- [ ] The CF will adapt step 1.3 to populate `recurrence` and `nextRunAt` in the campaign root. The `leads/` sub-collection will start empty.
+## Phase 4: Admin Console Implementation
+- [x] Admin page exists at `/admin` but needs implementation
+- [ ] User Roles & Permissions
+- [ ] Firestore Security Rules Patch
+- [ ] Admin Console UI implementation
 
-### 2. Cron-Triggered Cloud Function for Autopilot Processing (Hourly/Daily)
-- [ ] **Query:** Find `campaigns` where `campaignMode == "autopilot" && nextRunAt <= now && status in ("draft", "approved")` (or just `approved` if payment is upfront).
-- [ ] **For each due campaign:**
-    - [ ] **Scrape Data:** Implement logic to scrape the defined `feedSource` (e.g., MLS, Realtor.ca, internal CSV). (This is a major sub-task).
-    - [ ] **Deduplicate:** Compare new scraped items against existing `place_id`s or other unique identifiers in the `campaigns/{cid}/leads/` sub-collection to avoid duplicate mailings.
-    - [ ] **Batch Add New Leads:** Add new, unique leads to the `campaigns/{cid}/leads/` sub-collection with `status: "selected"` (or `"autopilot_selected"`). Update `typeStats`.
-    - [ ] **Trigger Mailing:** Call Stannp API (or similar) to send postcards for these new leads.
-    - [ ] **Update Campaign:** Increment `nextRunAt` based on the `recurrence` RRULE. Update `typeStats` (e.g., increment `sent` count for relevant `businessType`).
+## Phase 5: Remaining Features
+- [ ] Postcard Design UI (partial implementation exists in PostcardDesigns.tsx)
+- [ ] Cloud Function for AI Image Generation
+- [ ] Cloud Function for `quoteAndCreatePaymentIntent` (Stripe)
+- [ ] Stripe Elements integration (some UI exists in UserSettings.tsx)
+- [ ] Cloud Function for `scheduleCampaign` (Stannp API)
+- [ ] Stannp Webhook handler Cloud Function
 
-## Phase 4: Admin Console Implementation (NEW)
+## Immediate Action Items:
+1. **Fix the campaign creation flow bug** - This is blocking the entire lead selection process
+2. **Verify Cloud Function implementation** matches the spec
+3. **Complete the build page** at `/build/[campaignId]`
+4. **Test the complete flow** from home → leads → campaign creation → build
 
-### 1. User Roles & Permissions
-- [ ] Add `roles: { admin: true }` or similar to Firebase Auth custom claims for admin users.
-- [ ] Implement `isAdmin()` helper function for use in Firestore security rules.
-
-### 2. Firestore Security Rules Patch
-- [ ] Modify existing rules (e.g., for `/campaigns/{cid}` and its sub-collections) to grant `read, write` access if `isAdmin()` is true, alongside existing owner checks.
-
-### 3. Admin Console UI (`src/app/(admin)/admin/page.tsx`)
-- [ ] Develop UI to list all users and all campaigns (bypassing owner checks via admin privileges).
-- [ ] Implement admin-specific actions (these will likely require dedicated Callable Cloud Functions for secure execution):
-    - Impersonate user (e.g., via custom token generation or server-side context switching).
-    - View/Edit any campaign details (including design, leads, status).
-    - Re-quote, cancel campaigns.
-    - Force-send/re-send mailings.
-    - View detailed logs (e.g., Stannp webhook events, CF execution logs).
-
-## Phase 5: Remaining Blueprint Items & Autopilot Integration (Previously Future Phases)
-- [ ] Implement UI for Postcard Design (shared by one-off & autopilot if design is locked for autopilot runs).
-- [ ] Cloud Function for AI Image Generation.
-- [ ] Firestore updates for `designs` sub-collection.
-- [ ] UI for Campaign Approval.
-- [ ] Cloud Function for `quoteAndCreatePaymentIntent` (Stripe) - (Consider how this works for Autopilot: upfront for X drops, subscription, or pay-per-drop).
-- [ ] Stripe Elements integration.
-- [ ] UI for Scheduling Send (for one-off; Autopilot uses `nextRunAt`).
-- [ ] Cloud Function for `scheduleCampaign` (Stannp API) - (Used by one-off manual schedule and by Autopilot cron job).
-- [ ] Stannp Webhook handler Cloud Function.
-- [ ] Cron job for general status reconciliation (if needed beyond Autopilot).
-
-## Notes & Decisions Still Open (from v4 Feedback)
-- [ ] Autopilot billing model (Subscription vs. Pay-per-drop).
-- [ ] Feed scraper technical details (CF vs. external worker, specific data sources).
-- [ ] Admin UX for impersonation (JWT swap vs. dedicated admin mutations).
-- [ ] Design reuse/variation strategy for Autopilot campaigns.
+## Notes from Investigation:
+- The project uses Next.js 15 with the new params Promise pattern
+- Firebase Functions are set up but only createCampaignWithLeads is implemented
+- Authentication is handled via Firebase Auth with AuthContext
+- Offline support is partially implemented via IndexedDB
+- The main flow is: Home → Business Analysis → Marketing Strategy → Lead Search → Campaign Creation

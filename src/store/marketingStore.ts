@@ -759,6 +759,10 @@ const createMarketingStore = () => {
 
       const allPlacesAcrossTypes: GooglePlace[] = [];
 
+      // Check if we have a current campaign to save leads to
+      const campaignId = state.currentCampaign?.id;
+      const shouldSaveLeads = !!campaignId;
+
       for (const businessType of state.selectedBusinessTypes) {
         const gridConfig = generateHexagonalGrid(
           businessType,
@@ -831,6 +835,17 @@ const createMarketingStore = () => {
                 currentGridPoint: i + 1,
                 progress: 5 + ((i + 1) / gridConfig.searchPoints.length * 95)
               });
+
+              // Save leads to campaign if we have one
+              if (shouldSaveLeads && newPlaces.length > 0) {
+                try {
+                  await addLeadsToCampaign(campaignId, newPlaces);
+                  console.log(`Saved ${newPlaces.length} leads to campaign ${campaignId}`);
+                } catch (error) {
+                  console.error('Failed to save leads to campaign:', error);
+                  // Continue searching even if save fails
+                }
+              }
 
               console.log('Store updated:', {
                 totalPlaces: allPlacesAcrossTypes.length,

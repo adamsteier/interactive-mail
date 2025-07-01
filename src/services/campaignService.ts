@@ -1,10 +1,20 @@
 import { Functions, getFunctions, httpsCallable } from 'firebase/functions';
 import { ulid } from 'ulid';
+import { doc, setDoc, serverTimestamp, FieldValue } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 // Define types for client-side use
 export enum CampaignMode {
   ONE_OFF = "one_off",
   AUTOPILOT = "autopilot"
+}
+
+export enum CampaignStatus {
+  DRAFT = "draft",
+  APPROVED = "approved",
+  SCHEDULED = "scheduled",
+  SENT = "sent",
+  CANCELLED = "cancelled"
 }
 
 // Updated LeadData for client-to-CF communication
@@ -42,6 +52,22 @@ export interface CreateCampaignResponse {
   status?: "already_exists";
 }
 
+export interface DraftCampaign {
+  id: string;
+  ownerUid: string;
+  status: CampaignStatus;
+  mode: CampaignMode;
+  createdAt: FieldValue;
+  updatedAt: FieldValue;
+  isAnonymous?: boolean;
+  businessData?: {
+    targetArea?: string;
+    businessName?: string;
+    industry?: string;
+    description?: string;
+  };
+}
+
 let functionsInstance: Functions | null = null;
 
 /**
@@ -52,6 +78,45 @@ const getFunctionsInstance = (): Functions => {
     functionsInstance = getFunctions();
   }
   return functionsInstance;
+};
+
+/**
+ * Creates a draft campaign for collecting leads
+ * Works for both anonymous and authenticated users
+ */
+export const createDraftCampaign = async (
+  userId: string,
+  businessData?: {
+    targetArea?: string;
+    businessName?: string;
+    industry?: string;
+    description?: string;
+  },
+  isAnonymous: boolean = false
+): Promise<DraftCampaign> => {
+  try {
+    const campaignId = ulid();
+    const draftCampaign: DraftCampaign = {
+      id: campaignId,
+      ownerUid: userId,
+      status: CampaignStatus.DRAFT,
+      mode: CampaignMode.ONE_OFF,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      isAnonymous,
+      ...(businessData && { businessData })
+    };
+
+    // Create the campaign document in Firestore
+    const campaignRef = doc(db, 'campaigns', campaignId);
+    await setDoc(campaignRef, draftCampaign);
+
+    console.log('Draft campaign created:', campaignId);
+    return { ...draftCampaign, id: campaignId };
+  } catch (error) {
+    console.error('Error creating draft campaign:', error);
+    throw error;
+  }
 };
 
 /**

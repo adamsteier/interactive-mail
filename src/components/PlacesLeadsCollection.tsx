@@ -9,6 +9,10 @@ import { CampaignLead } from '@/lib/campaignService';
 import { collection, query, where, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { createCampaign, navigateToCampaignBuild, CampaignMode, LeadData } from '@/services/campaignService';
+import AnonymousUserPrompt from './AnonymousUserPrompt';
+import EmailCaptureModal from './EmailCaptureModal';
+import { useAuth } from '@/contexts/AuthContext';
+import { showAuthOverlay } from '@/lib/auth';
 
 interface DisplayCampaignLead extends CampaignLead {
     rating?: number | null;
@@ -23,6 +27,7 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
   const campaignId = useMarketingStore(state => state.currentCampaign?.id ?? null);
   const isLoadingSearch = useMarketingStore(state => state.searchResults.isLoading);
   const progress = useMarketingStore(state => state.searchResults.progress);
+  const { isAnonymous } = useAuth();
 
   const [leads, setLeads] = useState<DisplayCampaignLead[]>([]);
   const [isLoadingLeads, setIsLoadingLeads] = useState<boolean>(true);
@@ -33,6 +38,11 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
   const [searchFinalized, setSearchFinalized] = useState<boolean>(false);
   const [isUpdatingSelection, setIsUpdatingSelection] = useState<boolean>(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
+  
+  // New state for account prompts
+  const [showAccountPrompt, setShowAccountPrompt] = useState(false);
+  const [showEmailCapture, setShowEmailCapture] = useState(false);
+  const [hasSeenSoftPrompt, setHasSeenSoftPrompt] = useState(false);
 
   useEffect(() => {
     if (!campaignId) {
@@ -185,6 +195,18 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
       setSearchFinalized(true);
   };
 
+  // Show soft prompt after leads are loaded (once per session)
+  useEffect(() => {
+    if (!isLoadingLeads && leads.length > 0 && isAnonymous && !hasSeenSoftPrompt && !showAccountPrompt) {
+      const timer = setTimeout(() => {
+        setShowAccountPrompt(true);
+        setHasSeenSoftPrompt(true);
+      }, 3000); // Show after 3 seconds
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isLoadingLeads, leads.length, isAnonymous, hasSeenSoftPrompt, showAccountPrompt]);
+
   const handleConfirmSelection = async () => {
       if (selectedLeadIds.size === 0) {
           if (!confirm("You haven't selected any leads. Do you still want to proceed?")) {
@@ -192,6 +214,33 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
           }
       }
 
+      // Check if user is anonymous and show medium prompt
+      if (isAnonymous) {
+          setShowAccountPrompt(true);
+          return;
+      }
+
+      // Call the internal handler
+      handleConfirmSelectionInternal();
+  };
+
+  const handleCreateAccount = () => {
+      setShowAccountPrompt(false);
+      showAuthOverlay();
+  };
+
+  const handleContinueAsGuest = () => {
+      setShowAccountPrompt(false);
+      if (hasSeenSoftPrompt) {
+          // If they've already dismissed the soft prompt, show email capture
+          setShowEmailCapture(true);
+      } else {
+          // Otherwise, continue with the selection
+          handleConfirmSelectionInternal();
+      }
+  };
+
+  const handleConfirmSelectionInternal = async () => {
       setIsUpdatingSelection(true);
       setUpdateError(null);
 
@@ -242,6 +291,17 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
 
   return (
     <div className="min-h-screen bg-charcoal p-2 sm:p-4">
+      {/* Anonymous user prompt banner (soft ask) */}
+      {isAnonymous && leads.length > 0 && !hasSeenSoftPrompt && (
+        <div className="mb-4">
+          <AnonymousUserPrompt
+            stage="soft"
+            onCreateAccount={handleCreateAccount}
+            onContinueAnonymous={() => setHasSeenSoftPrompt(true)}
+          />
+        </div>
+      )}
+
       <div className="rounded-lg border-2 border-electric-teal bg-charcoal shadow-glow flex flex-col max-h-[95vh]">
         <div className="border-b border-electric-teal/20 p-3 sm:p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 flex-shrink-0">
             <h2 className="text-xl sm:text-2xl font-semibold text-electric-teal">
@@ -419,6 +479,33 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
             />
         </div>
       </div>
+
+      {/* Medium prompt modal when confirming selection */}
+      {showAccountPrompt && hasSeenSoftPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="max-w-md mx-4">
+            <AnonymousUserPrompt
+              stage="medium"
+              onCreateAccount={handleCreateAccount}
+              onContinueAnonymous={handleContinueAsGuest}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Email capture modal */}
+      <EmailCaptureModal
+        isOpen={showEmailCapture}
+        onClose={() => {
+          setShowEmailCapture(false);
+          handleConfirmSelectionInternal();
+        }}
+        onComplete={() => {
+          setShowEmailCapture(false);
+          handleConfirmSelectionInternal();
+        }}
+        campaignId={campaignId || undefined}
+      />
     </div>
   );
 };
