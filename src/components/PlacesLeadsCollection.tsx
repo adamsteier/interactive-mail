@@ -24,10 +24,14 @@ interface PlacesLeadsCollectionProps {
 }
 
 const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }) => {
-  const campaignId = useMarketingStore(state => state.currentCampaign?.id ?? null);
+  const currentCampaign = useMarketingStore(state => state.currentCampaign);
+  const campaignId = currentCampaign?.id ?? null;
   const isLoadingSearch = useMarketingStore(state => state.searchResults.isLoading);
   const progress = useMarketingStore(state => state.searchResults.progress);
   const { isAnonymous } = useAuth();
+  
+  console.log('PlacesLeadsCollection - currentCampaign:', currentCampaign);
+  console.log('PlacesLeadsCollection - campaignId:', campaignId);
 
   const [leads, setLeads] = useState<DisplayCampaignLead[]>([]);
   const [isLoadingLeads, setIsLoadingLeads] = useState<boolean>(true);

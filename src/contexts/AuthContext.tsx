@@ -83,6 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
+      console.log('Auth state changed:', authUser ? `User ${authUser.uid} (anonymous: ${authUser.isAnonymous})` : 'No user');
       setUser(authUser);
       setIsAnonymous(authUser?.isAnonymous || false);
       
@@ -107,7 +108,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!loading && !user) {
         try {
           console.log('No user detected, signing in anonymously...');
-          await signInAnonymouslyHandler();
+          const result = await signInAnonymouslyHandler();
+          console.log('Anonymous sign in completed:', result.user.uid);
         } catch (error) {
           console.error('Failed to sign in anonymously:', error);
         }

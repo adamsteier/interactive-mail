@@ -25,6 +25,8 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
   
   const { user, isAnonymous } = useAuth();
   
+  console.log('MarketingResults - user:', user, 'isAnonymous:', isAnonymous);
+  
   const { 
     setMarketingStrategy, 
     setBusinessAnalysis,
@@ -80,6 +82,11 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       
       try {
         // Create a draft campaign for both anonymous and authenticated users
+        if (!user) {
+          console.error('No user available - anonymous auth should have completed by now');
+          console.log('isAnonymous:', isAnonymous, 'user:', user);
+        }
+        
         if (user) {
           const draftCampaign = await createDraftCampaign(
             user.uid,
@@ -107,6 +114,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
           });
           
           console.log('Draft campaign created:', draftCampaign.id);
+          console.log('Campaign set in store with ID:', draftCampaign.id);
         }
       } catch (error) {
         console.error('Failed to create draft campaign:', error);

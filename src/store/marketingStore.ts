@@ -762,6 +762,9 @@ const createMarketingStore = () => {
       // Check if we have a current campaign to save leads to
       const campaignId = state.currentCampaign?.id;
       const shouldSaveLeads = !!campaignId;
+      
+      console.log('handleGoogleSearch - campaignId:', campaignId, 'shouldSaveLeads:', shouldSaveLeads);
+      console.log('currentCampaign:', state.currentCampaign);
 
       for (const businessType of state.selectedBusinessTypes) {
         const gridConfig = generateHexagonalGrid(
