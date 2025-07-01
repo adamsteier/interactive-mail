@@ -482,8 +482,24 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
 
       {/* Medium prompt modal when confirming selection */}
       {showAccountPrompt && hasSeenSoftPrompt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="max-w-md mx-4">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setShowAccountPrompt(false)}
+        >
+          <div 
+            className="max-w-md mx-4 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* X button to close */}
+            <button
+              onClick={() => setShowAccountPrompt(false)}
+              className="absolute -top-2 -right-2 z-10 bg-charcoal border-2 border-electric-teal 
+                rounded-full p-1 text-electric-teal hover:text-electric-teal/80"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
             <AnonymousUserPrompt
               stage="medium"
               onCreateAccount={handleCreateAccount}

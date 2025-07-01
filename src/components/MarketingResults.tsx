@@ -4,9 +4,7 @@ import { useState, useEffect } from 'react';
 import { useMarketingStore } from '@/store/marketingStore';
 import { MarketingStrategy, BusinessTarget, DatabaseTarget } from '@/types/marketing';
 import { useAuth } from '@/contexts/AuthContext';
-import AuthOverlay from '@/components/AuthOverlay';
 import PlacesLeadsCollection from '@/components/PlacesLeadsCollection';
-import { showAuthOverlay as triggerGlobalAuth } from '@/lib/auth';
 import { createDraftCampaign } from '@/services/campaignService';
 
 interface MarketingResultsProps {
@@ -22,10 +20,8 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
   const [selectedBusinessTypes, setSelectedBusinessTypes] = useState<Set<string>>(new Set());
   const [showLeadsCollection, setShowLeadsCollection] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [showAuthOverlay, setShowAuthOverlay] = useState(false);
   const [activeTab, setActiveTab] = useState<'business' | 'database'>('business');
   const [interestedInDatabase, setInterestedInDatabase] = useState(false);
-  const [authCompleted, setAuthCompleted] = useState(false);
   
   const { user, isAnonymous } = useAuth();
   
@@ -47,17 +43,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
   // Check if method2 (database targeting) is recommended in the strategy
   const hasMethod2 = strategy.recommendedMethods?.includes('method2') || false;
 
-  // Force auth overlay to stay visible until explicit auth completion
-  useEffect(() => {
-    if (showAuthOverlay && !authCompleted) {
-      const timer = setInterval(() => {
-        // Force the auth overlay to stay visible
-        setShowAuthOverlay(true);
-      }, 500);
-      
-      return () => clearInterval(timer);
-    }
-  }, [showAuthOverlay, authCompleted]);
+
 
   useEffect(() => {
     if (strategy) {
@@ -130,14 +116,11 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       // ALWAYS trigger the search in the background
       handleGoogleSearch();
       
-      // Check if user is authenticated (but not just anonymous)
-      if (!user || isAnonymous) {
-        // Show the auth overlay without interrupting the process
-        triggerGlobalAuth();
-      }
+      // Remove the immediate auth overlay - let users see their leads first!
+      // The PlacesLeadsCollection component will handle prompting for account creation
+      // after they've seen the value
       
       // ALWAYS show leads collection after a short delay
-      // This will continue in the background even if auth overlay is shown
       setTimeout(() => {
         setShowLeadsCollection(true);
         setIsLoading(false);
@@ -145,20 +128,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
     }
   };
 
-  // Handle auth completion - modified to track explicit completion
-  const handleAuthComplete = () => {
-    if (user) {
-      // Mark auth as explicitly completed
-      setAuthCompleted(true);
-      // Now it's safe to hide the overlay
-      setShowAuthOverlay(false);
-      
-      setTimeout(() => {
-        setShowLeadsCollection(true);
-        setIsLoading(false);
-      }, 300);
-    }
-  };
+
 
   const handleCheckboxChange = (targetType: string) => {
     setSelectedBusinessTypes(prev => {
@@ -408,16 +378,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
         </div>
       )}
       
-      {/* Show auth overlay when needed and user isn't authenticated yet */}
-      {!user && showLeadsCollection && (
-        <div className="fixed inset-0 z-50">
-          <AuthOverlay 
-            isOpen={true}
-            onClose={handleAuthComplete}
-            className="z-50"
-          />
-        </div>
-      )}
+      {/* Auth overlay removed - PlacesLeadsCollection handles account prompts */}
     </>
   );
 };
