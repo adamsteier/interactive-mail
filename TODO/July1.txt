@@ -1447,8 +1447,8 @@ sessions/{sessionId}
 
 ### Common Scenarios:
 1. **No brands exist**: Auto-redirect to brand creation
-2. **Logo upload fails**: Retry with fallback to manual color selection
-3. **AI generation fails**: Show retry button, offer human design option
+2. **Logo upload fails**: Retry with fallback to manual color lin
+3. **AI generation fails**: Show retry button, offer human deslin
 4. **Payment fails**: Save progress, allow retry
 5. **Print API down**: Queue for later, notify user
 
@@ -1485,7 +1485,7 @@ router.push(`/v2/build/${result.campaignId}/brand`);
 ```json
 {
   "campaignId": "01JZ2Z1CM7Y1ABZZYYBQNPWCTW",
-  "businessTypes": ["restaurant", "auto_repair", "hair_salon"],
+  "businessTypes": ["restaurant", "auto_repair", "hair_salon"]lin
   "leadCounts": {
     "restaurant": 45,
     "auto_repair": 23,
@@ -1516,7 +1516,7 @@ router.push(`/v2/build/${result.campaignId}/brand`);
 ### AI Prompt Example:
 ```
 "Create a 6x4 inch landscape postcard front design. 
-Leave 1.5 x 0.5 inch light colored or white space in top-left corner. 
+Leave 1.5 x 0.5 inch light colored or white space in top-left lin
 Avoid using #1a1a1a, #333333, #0066cc near the logo area.
 Use colors #00F0FF and #FF00B8.
 Friendly tone for a Food Service business.

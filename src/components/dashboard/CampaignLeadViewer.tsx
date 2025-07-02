@@ -101,7 +101,7 @@ const CampaignLeadViewer: React.FC<CampaignLeadViewerProps> = ({ campaignId }) =
 
       try {
           console.log("Batch updating leads:", updatesToBatch);
-          await batchUpdateLeads(updatesToBatch);
+          await batchUpdateLeads(campaignId, updatesToBatch);
           console.log("Batch update successful");
           // Update the local 'leads' state to reflect the persisted changes
           // This prevents needing a full refetch
