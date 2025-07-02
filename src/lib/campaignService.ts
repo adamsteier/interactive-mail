@@ -158,13 +158,17 @@ export const convertPlaceToLead = (
   place: GooglePlace,
   campaignId: string
 ): CampaignLead => {
-  return {
+  // Ensure we have valid location data
+  if (!place.geometry?.location) {
+    console.error('Place missing geometry/location:', place);
+    throw new Error(`Place ${place.name} is missing location data`);
+  }
+  
+  const lead: CampaignLead = {
     campaignId,
     placeId: place.place_id,
     businessName: place.name,
     address: place.vicinity || place.formatted_address || '',
-    phoneNumber: place.formatted_phone_number,
-    website: place.website,
     businessType: place.businessType || '',
     selected: false,
     location: {
@@ -174,6 +178,22 @@ export const convertPlaceToLead = (
     contacted: false,
     createdAt: serverTimestamp() as Timestamp
   };
+  
+  // Only add optional fields if they have values (not undefined)
+  if (place.formatted_phone_number) {
+    lead.phoneNumber = place.formatted_phone_number;
+  }
+  
+  if (place.website) {
+    lead.website = place.website;
+  }
+  
+  if (place.rating !== undefined && place.rating !== null) {
+    // Add rating to the lead if we want to store it
+    // Note: rating is not currently in the CampaignLead interface
+  }
+  
+  return lead;
 };
 
 // Add leads to a campaign
@@ -189,14 +209,17 @@ export const addLeadsToCampaign = async (
     const batch = writeBatch(db);
     const leadRefs: DocumentReference[] = [];
     
+    // Store leads in the campaign's subcollection
+    const campaignRef = doc(db, 'campaigns', campaignId);
+    const leadsCollectionRef = collection(campaignRef, 'leads');
+    
     campaignLeads.forEach(lead => {
-      const leadRef = doc(collection(db, 'campaignLeads'));
+      const leadRef = doc(leadsCollectionRef);
       leadRefs.push(leadRef);
       batch.set(leadRef, lead);
     });
     
     // Update the campaign with the new lead count using increment
-    const campaignRef = doc(db, 'campaigns', campaignId);
     batch.update(campaignRef, {
       // Use Firestore increment
       leadCount: increment(campaignLeads.length),
@@ -216,12 +239,11 @@ export const addLeadsToCampaign = async (
 // Get leads for a campaign
 export const getCampaignLeads = async (campaignId: string): Promise<CampaignLead[]> => {
   try {
-    const leadsQuery = query(
-      collection(db, 'campaignLeads'),
-      where('campaignId', '==', campaignId)
-    );
+    // Query leads from the campaign's subcollection
+    const campaignRef = doc(db, 'campaigns', campaignId);
+    const leadsRef = collection(campaignRef, 'leads');
     
-    const leadDocs = await getDocs(leadsQuery);
+    const leadDocs = await getDocs(leadsRef);
     return leadDocs.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -234,19 +256,28 @@ export const getCampaignLeads = async (campaignId: string): Promise<CampaignLead
 
 // Update a single lead
 export const updateLead = async (
+  campaignId: string,
   leadId: string,
   data: Partial<Omit<CampaignLead, 'id' | 'campaignId' | 'createdAt'>>
 ): Promise<void> => {
   try {
-    const leadRef = doc(db, 'campaignLeads', leadId);
+    // Reference lead in the campaign's subcollection
+    const campaignRef = doc(db, 'campaigns', campaignId);
+    const leadRef = doc(campaignRef, 'leads', leadId);
+    
+    // Get current lead data to check if selected status is changing
+    let previousSelected = false;
+    if (data.selected !== undefined) {
+      const leadDoc = await getDoc(leadRef);
+      if (leadDoc.exists()) {
+        previousSelected = leadDoc.data().selected || false;
+      }
+    }
+    
     await updateDoc(leadRef, data);
     
     // If selected status changed, update the campaign's selectedLeadCount
-    if (data.selected !== undefined) {
-      const leadDoc = await getDoc(leadRef);
-      const lead = leadDoc.data() as CampaignLead;
-      
-      const campaignRef = doc(db, 'campaigns', lead.campaignId);
+    if (data.selected !== undefined && data.selected !== previousSelected) {
       await updateDoc(campaignRef, {
         // Use Firestore increment with 1 or -1
         selectedLeadCount: increment(data.selected ? 1 : -1),
@@ -261,59 +292,49 @@ export const updateLead = async (
 
 // Batch update leads (for efficiency when selecting/deselecting multiple leads)
 export const batchUpdateLeads = async (
+  campaignId: string,
   leads: Array<{ id: string; updates: Partial<Omit<CampaignLead, 'id' | 'campaignId' | 'createdAt'>> }>
 ): Promise<void> => {
   try {
     if (leads.length === 0) return;
     
     const batch = writeBatch(db);
-    const selectCountChanges: Record<string, number> = {};
+    const campaignRef = doc(db, 'campaigns', campaignId);
+    let selectCountChange = 0;
     
-    // First, get the campaign IDs for each lead
+    // Process each lead update
     for (const { id, updates } of leads) {
-      // Only process selected state changes
-      if (updates.selected === undefined) continue;
+      const leadRef = doc(campaignRef, 'leads', id);
       
-      const leadRef = doc(db, 'campaignLeads', id);
-      const leadDoc = await getDoc(leadRef);
-      
-      if (leadDoc.exists()) {
-        const lead = leadDoc.data() as CampaignLead;
-        const campaignId = lead.campaignId;
+      // If selected status is changing, we need to track it
+      if (updates.selected !== undefined) {
+        const leadDoc = await getDoc(leadRef);
         
-        // Calculate changes per campaign
-        if (!selectCountChanges[campaignId]) {
-          selectCountChanges[campaignId] = 0;
+        if (leadDoc.exists()) {
+          const currentSelected = leadDoc.data().selected || false;
+          
+          // If the lead was not previously selected and is now selected, increment
+          if (!currentSelected && updates.selected) {
+            selectCountChange++;
+          }
+          // If the lead was previously selected and is now deselected, decrement
+          else if (currentSelected && !updates.selected) {
+            selectCountChange--;
+          }
         }
-        
-        // If the lead was not previously selected and is now selected, increment
-        if (!lead.selected && updates.selected) {
-          selectCountChanges[campaignId]++;
-        }
-        // If the lead was previously selected and is now deselected, decrement
-        else if (lead.selected && !updates.selected) {
-          selectCountChanges[campaignId]--;
-        }
-        
-        // Add lead update to batch
-        batch.update(leadRef, updates);
       }
+      
+      // Add lead update to batch
+      batch.update(leadRef, updates);
     }
     
-    // Update the campaigns with the new selected lead counts using increment
-    for (const [campaignId, countChange] of Object.entries(selectCountChanges)) {
-      if (countChange !== 0) {
-        const campaignRef = doc(db, 'campaigns', campaignId);
-        // Check existence before incrementing (optional but safer)
-        const campaignDoc = await getDoc(campaignRef); 
-        if (campaignDoc.exists()) {
-            batch.update(campaignRef, {
-                // Use Firestore increment
-                selectedLeadCount: increment(countChange),
-                updatedAt: serverTimestamp()
-            });
-        }
-      }
+    // Update the campaign with the new selected lead count if it changed
+    if (selectCountChange !== 0) {
+      batch.update(campaignRef, {
+        // Use Firestore increment
+        selectedLeadCount: increment(selectCountChange),
+        updatedAt: serverTimestamp()
+      });
     }
     
     await batch.commit();

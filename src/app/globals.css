@@ -78,28 +78,44 @@ body {
   --container-padding: var(--space-lg);
 }
 
-/* Custom scrollbar styles */
+/* Custom scrollbar styles - Brand Guidelines */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(0, 163, 176, 0.1); /* electric-teal with 10% opacity */
-  border-radius: 5px;
+  background: #2F2F2F; /* Cool Gray from brand guidelines */
+  border-radius: 6px;
+  margin: 4px 0;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(0, 163, 176, 0.3); /* electric-teal with 30% opacity */
-  border-radius: 5px;
+  background: #00F0FF; /* Electric Teal from brand guidelines */
+  border-radius: 6px;
+  border: 2px solid #2F2F2F; /* Creates a subtle gap effect */
+  box-shadow: 0 0 5px rgba(0, 240, 255, 0.3); /* Subtle glow */
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 163, 176, 0.5); /* electric-teal with 50% opacity */
+  background: #FF00B8; /* Neon Magenta on hover */
+  box-shadow: 0 0 10px rgba(255, 0, 184, 0.5); /* Stronger glow on hover */
 }
 
 /* For Firefox */
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(0, 163, 176, 0.3) rgba(0, 163, 176, 0.1);
+  scrollbar-color: #00F0FF #2F2F2F;
+}
+
+/* Button hover effects */
+.cta-button-glow {
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.5),
+              0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.cta-button-glow:hover {
+  box-shadow: 0 0 30px rgba(0, 240, 255, 0.7),
+              0 4px 20px rgba(0, 0, 0, 0.4),
+              inset 0 0 20px rgba(255, 255, 255, 0.1);
 }

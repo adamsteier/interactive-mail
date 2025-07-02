@@ -6,6 +6,7 @@ import { MarketingStrategy, BusinessTarget, DatabaseTarget } from '@/types/marke
 import { useAuth } from '@/contexts/AuthContext';
 import PlacesLeadsCollection from '@/components/PlacesLeadsCollection';
 import { createDraftCampaign } from '@/services/campaignService';
+import { showAuthOverlay } from '@/lib/auth';
 
 interface MarketingResultsProps {
   strategy: MarketingStrategy;
@@ -23,7 +24,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
   const [activeTab, setActiveTab] = useState<'business' | 'database'>('business');
   const [interestedInDatabase, setInterestedInDatabase] = useState(false);
   
-  const { user, isAnonymous } = useAuth();
+  const { user, isAnonymous, anonymousAuthFailed } = useAuth();
   
   console.log('MarketingResults - user:', user, 'isAnonymous:', isAnonymous);
   
@@ -45,7 +46,13 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
   // Check if method2 (database targeting) is recommended in the strategy
   const hasMethod2 = strategy.recommendedMethods?.includes('method2') || false;
 
-
+  // Force sign up if anonymous auth failed
+  useEffect(() => {
+    if (anonymousAuthFailed && !user) {
+      console.log('Anonymous auth failed, showing auth overlay');
+      showAuthOverlay();
+    }
+  }, [anonymousAuthFailed, user]);
 
   useEffect(() => {
     if (strategy) {
@@ -85,37 +92,37 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
         if (!user) {
           console.error('No user available - anonymous auth should have completed by now');
           console.log('isAnonymous:', isAnonymous, 'user:', user);
+          // Don't create campaign without user - leads won't be saved properly
+          return;
         }
         
-        if (user) {
-          const draftCampaign = await createDraftCampaign(
-            user.uid,
-            {
-              targetArea: businessInfo.targetArea,
-              businessName: businessInfo.businessName,
-              industry: businessInfo.businessAnalysis?.industry,
-              description: businessInfo.businessAnalysis?.description,
-            },
-            isAnonymous
-          );
-          
-          // Set the draft campaign in the store
-          setCurrentCampaign({
-            id: draftCampaign.id,
-            name: `${businessInfo.businessName} - ${new Date().toLocaleDateString()}`,
-            status: 'draft',
-            createdAt: null, // Will be set by Firestore
-            updatedAt: null,
-            leadCount: 0,
-            selectedLeadCount: 0,
-            userId: user.uid,
-            businessId: 'temp_' + draftCampaign.id, // Temporary ID until business is created
-            businessTypes: Array.from(selectedBusinessTypes)
-          });
-          
-          console.log('Draft campaign created:', draftCampaign.id);
-          console.log('Campaign set in store with ID:', draftCampaign.id);
-        }
+        const draftCampaign = await createDraftCampaign(
+          user.uid,
+          {
+            targetArea: businessInfo.targetArea,
+            businessName: businessInfo.businessName,
+            industry: businessInfo.businessAnalysis?.industry,
+            description: businessInfo.businessAnalysis?.description,
+          },
+          isAnonymous
+        );
+        
+        // Set the draft campaign in the store
+        setCurrentCampaign({
+          id: draftCampaign.id,
+          name: `${businessInfo.businessName} - ${new Date().toLocaleDateString()}`,
+          status: 'draft',
+          createdAt: null, // Will be set by Firestore
+          updatedAt: null,
+          leadCount: 0,
+          selectedLeadCount: 0,
+          userId: user.uid,
+          businessId: 'temp_' + draftCampaign.id, // Temporary ID until business is created
+          businessTypes: Array.from(selectedBusinessTypes)
+        });
+        
+        console.log('Draft campaign created:', draftCampaign.id);
+        console.log('Campaign set in store with ID:', draftCampaign.id);
       } catch (error) {
         console.error('Failed to create draft campaign:', error);
         // Continue anyway - we can still show leads even if campaign creation fails
@@ -135,8 +142,6 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       }, 800);
     }
   };
-
-
 
   const handleCheckboxChange = (targetType: string) => {
     setSelectedBusinessTypes(prev => {

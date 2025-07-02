@@ -122,7 +122,9 @@ export class GooglePlacesService {
         rating: place.rating,
         user_ratings_total: place.user_ratings_total,
         relevanceScore: this.calculateRelevanceScore(place),
-        location: place.geometry.location
+        geometry: {
+          location: place.geometry.location
+        }
       }));
     } catch (error) {
       console.error('Places API Error:', error);

@@ -28,6 +28,7 @@ interface AuthContextType {
   loading: boolean;
   showAuthOverlay: boolean;
   isAnonymous: boolean;
+  anonymousAuthFailed: boolean;
   setShowAuthOverlay: (show: boolean) => void;
   signIn: (email: string, password: string) => Promise<UserCredential>;
   signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<UserCredential>;
@@ -48,6 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [showAuthOverlay, setShowAuthOverlay] = useState(false);
   const [isAnonymous, setIsAnonymous] = useState(false);
+  const [anonymousAuthFailed, setAnonymousAuthFailed] = useState(false);
   
   // Get store actions for business operations
   const { 
@@ -104,19 +106,74 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Initialize anonymous auth if no user is logged in
   useEffect(() => {
+    let retryCount = 0;
+    const maxRetries = 3;
+    let retryTimeout: NodeJS.Timeout;
+    
     const initializeAnonymousAuth = async () => {
       if (!loading && !user) {
         try {
           console.log('No user detected, signing in anonymously...');
           const result = await signInAnonymouslyHandler();
           console.log('Anonymous sign in completed:', result.user.uid);
+          retryCount = 0; // Reset on success
+          setAnonymousAuthFailed(false); // Clear any previous failure state
         } catch (error) {
           console.error('Failed to sign in anonymously:', error);
+          
+          // Handle different error types
+          if (error instanceof Error && 'code' in error) {
+            const errorCode = (error as { code: string }).code;
+            
+            switch (errorCode) {
+              case 'auth/admin-restricted-operation':
+                console.warn('Anonymous authentication is not enabled in Firebase. Please enable it in the Firebase Console.');
+                console.warn('Continuing without authentication - some features may be limited.');
+                setAnonymousAuthFailed(true);
+                // Don't retry for this error
+                break;
+                
+              case 'auth/network-request-failed':
+              case 'auth/internal-error':
+              case 'auth/too-many-requests':
+                // These are potentially temporary issues, retry
+                if (retryCount < maxRetries) {
+                  retryCount++;
+                  const delay = Math.min(1000 * Math.pow(2, retryCount), 10000); // Exponential backoff, max 10s
+                  console.log(`Retrying anonymous auth in ${delay}ms (attempt ${retryCount}/${maxRetries})...`);
+                  retryTimeout = setTimeout(initializeAnonymousAuth, delay);
+                } else {
+                  console.error('Max retries reached for anonymous auth. User will need to interact to continue.');
+                  setAnonymousAuthFailed(true);
+                }
+                break;
+                
+              case 'auth/web-storage-unsupported':
+                console.error('Browser storage is not available. Anonymous auth cannot persist.');
+                setAnonymousAuthFailed(true);
+                break;
+                
+              default:
+                console.error(`Unexpected auth error: ${errorCode}`);
+                // For unknown errors, try once more after a delay
+                if (retryCount === 0) {
+                  retryCount++;
+                  retryTimeout = setTimeout(initializeAnonymousAuth, 2000);
+                }
+            }
+          }
         }
       }
     };
 
     initializeAnonymousAuth();
+    
+    // Cleanup function
+    return () => {
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
+    };
   }, [loading, user]);
 
   // Helper function to convert anonymous session after authentication
@@ -261,6 +318,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loading,
     showAuthOverlay,
     isAnonymous,
+    anonymousAuthFailed,
     setShowAuthOverlay,
     signIn,
     signUp,

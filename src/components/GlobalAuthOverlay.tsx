@@ -17,7 +17,7 @@ declare global {
  * This allows us to trigger auth without interrupting the underlying flow
  */
 const GlobalAuthOverlay = () => {
-  const { user } = useAuth();
+  const { user, isAnonymous } = useAuth();
   const [showOverlay, setShowOverlay] = useState(false);
   
   // Listen for a custom event to show the auth overlay
@@ -44,39 +44,35 @@ const GlobalAuthOverlay = () => {
   
   // Separate effect to handle auth state changes
   useEffect(() => {
-    // When user logs in, hide the overlay with a slight delay
-    // to ensure proper rendering sequence
-    if (user && showOverlay) {
-      console.log('[GlobalAuthOverlay] User authenticated, hiding overlay');
-      // Small delay to ensure everything is properly rendered
-      const timer = setTimeout(() => {
-        setShowOverlay(false);
-      }, 500);
-      
-      return () => clearTimeout(timer);
+    // When user logs in (and is no longer anonymous), hide the overlay
+    if (user && !isAnonymous && showOverlay) {
+      console.log('[GlobalAuthOverlay] User authenticated (not anonymous), hiding overlay');
+      setShowOverlay(false);
     }
-  }, [user, showOverlay]);
+  }, [user, isAnonymous, showOverlay]);
   
   // Debug the current state
   useEffect(() => {
     console.log('[GlobalAuthOverlay] State changed:', { 
       showOverlay, 
-      user: user ? `${user.email} (${user.uid})` : 'null' 
+      user: user ? `${user.email || 'anonymous'} (${user.uid})` : 'null',
+      isAnonymous 
     });
-  }, [showOverlay, user]);
+  }, [showOverlay, user, isAnonymous]);
   
-  // Function to handle successful authentication
-  const handleAuthComplete = () => {
-    if (user) {
-      console.log('[GlobalAuthOverlay] Auth completed successfully');
-      // The overlay will be hidden automatically when user state updates
-    }
+  // Function to handle overlay close
+  const handleClose = () => {
+    console.log('[GlobalAuthOverlay] Overlay close requested');
+    setShowOverlay(false);
   };
+  
+  // Check if user needs to upgrade from anonymous
+  const shouldShowOverlay = showOverlay && (!user || isAnonymous);
   
   return (
     <AuthOverlay 
-      isOpen={showOverlay && !user}
-      onClose={handleAuthComplete}
+      isOpen={shouldShowOverlay}
+      onClose={handleClose}
       className="z-50"
     />
   );

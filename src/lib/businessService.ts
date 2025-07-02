@@ -21,6 +21,7 @@ import { MarketingStrategy } from '@/types/marketing';
 export interface Business {
   id?: string;
   userId: string;
+  ownerUid: string; // Required by Firestore rules
   createdAt: Timestamp | FieldValue;
   lastModified: Timestamp | FieldValue;
   targetArea: string;
@@ -89,6 +90,7 @@ export const createBusiness = async (
     const business: Business = {
       id: businessRef.id,
       userId,
+      ownerUid: userId, // Add ownerUid for Firestore rules
       createdAt: serverTimestamp(),
       lastModified: serverTimestamp(),
       targetArea: businessData.targetArea,
@@ -141,7 +143,7 @@ export const getUserBusinesses = async (userId: string): Promise<Business[]> => 
   try {
     const businessesQuery = query(
       collection(db, 'businesses'),
-      where('userId', '==', userId)
+      where('ownerUid', '==', userId)
     );
     
     const querySnapshot = await getDocs(businessesQuery);
@@ -271,6 +273,7 @@ export const convertSessionToBusiness = async (
     
     // Create a new business document from session data
     const business = await createBusiness(userId, {
+      ownerUid: userId,
       targetArea: sessionData.businessData.targetArea || '',
       businessName: sessionData.businessData.businessName || '',
       industry: sessionData.businessData.industry,

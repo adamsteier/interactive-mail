@@ -18,7 +18,12 @@ service cloud.firestore {
     
     // Check if user is the owner or the resource is anonymous and being claimed
     function canAccessResource(ownerId) {
-      return isOwner(ownerId);
+      return isOwner(ownerId) || 
+        // Allow access to anonymous resources during transition
+        (request.auth != null && 
+         request.auth.token.firebase != null &&
+         request.auth.token.firebase.sign_in_provider == 'anonymous' &&
+         resource.data.isAnonymous == true);
     }
     
     // Validate that required fields exist
@@ -255,4 +260,4 @@ service cloud.firestore {
       allow write: if false; // Only server-side
     }
   }
-} 
+}

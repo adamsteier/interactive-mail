@@ -1,0 +1,1550 @@
+# Campaign Build Architecture Plan - January 2025
+
+## Document Purpose
+This document provides a comprehensive plan for what happens after a user clicks "Create & Send with AI" from the PlacesLeadsCollection component. It covers the entire journey from lead selection to postcard delivery, including all technical implementation details, data structures, and user interactions.
+
+## Overview
+Complete redesign of the campaign build flow to support reusable brands, designs, and templates. Users can create libraries of assets they use repeatedly across campaigns. All new development will be organized in a v2 folder structure to maintain separation from existing code.
+
+## Key Features
+- **Multi-design campaigns**: Different designs for different business types
+- **Smart logo handling**: Automatic contrast detection and space calculation
+- **Reusable assets**: Brands and designs saved for future use
+- **AI-powered generation**: Using OpenAI gpt-image-1 for 6x4 postcards
+- **Progressive workflow**: Simple mode with advanced options
+
+## Quick Technical Reference
+- **Frontend**: Next.js 15 (App Router) + TypeScript
+- **Database**: Firestore with subcollections
+- **AI**: OpenAI gpt-image-1 (not DALL-E)
+- **Payment**: Stripe Elements
+- **Print**: Stannp API
+- **Image Processing**: Canvas API + color-thief
+- **State**: Zustand (campaignBuildStore)
+- **Styling**: Tailwind CSS with brand colors
+
+## V2 Folder Structure
+```
+src/
+├── app/
+│   └── v2/
+│       ├── build/
+│       │   └── [campaignId]/
+│       │       ├── brand/
+│       │       │   └── page.tsx
+│       │       ├── design/
+│       │       │   └── page.tsx
+│       │       ├── review/
+│       │       │   └── page.tsx
+│       │       └── checkout/
+│       │           └── page.tsx
+│       └── dashboard/
+│           └── page.tsx
+├── v2/
+│   ├── components/
+│   │   ├── brand/
+│   │   │   ├── BrandSelector.tsx
+│   │   │   ├── BrandCreator.tsx
+│   │   │   └── LogoUploader.tsx
+│   │   ├── design/
+│   │   │   ├── DesignAssignment.tsx
+│   │   │   ├── SimpleDesignForm.tsx
+│   │   │   ├── AdvancedDesignForm.tsx
+│   │   │   └── MultiDesignPreview.tsx
+│   │   └── shared/
+│   │       └── PostcardPreview.tsx
+│   ├── services/
+│   │   ├── brandService.ts
+│   │   ├── designService.ts
+│   │   ├── aiDesignService.ts
+│   │   ├── designAssignmentService.ts
+│   │   └── humanDesignService.ts
+│   ├── hooks/
+│   │   ├── useBrandKit.ts
+│   │   ├── useDesignAssignment.ts
+│   │   └── usePostcardGeneration.ts
+│   ├── store/
+│   │   └── campaignBuildStore.ts
+│   └── types/
+│       ├── brand.ts
+│       ├── design.ts
+│       └── campaign.ts
+```
+
+## Core Principles
+- **Reusability First**: Every brand and design can be reused
+- **Progressive Disclosure**: Simple mode by default, advanced options available
+- **Smart Defaults**: Track usage to suggest most-used items
+- **Cloneable Everything**: Any campaign, design, or brand can be cloned
+
+## Complete User Journey: From "Create & Send with AI" to Delivery
+
+### Starting Point: PlacesLeadsCollection
+```typescript
+// User has selected leads and clicks "Create & Send with AI"
+// PlacesLeadsCollection.handleConfirmSelectionInternal() executes:
+
+1. Creates campaign via Cloud Function with:
+   - allFoundLeadsData: Array<LeadData>
+   - selectedPlaceIds: string[]
+   - campaignMode: 'one-off'
+   
+2. Campaign created with:
+   - status: 'draft'
+   - leads saved to subcollection
+   - businessTypes extracted from leads
+   
+3. Redirects to: `/v2/build/${campaignId}/brand`
+```
+
+### Step 1: Brand Selection (/v2/build/[campaignId]/brand)
+```typescript
+// On mount, component:
+- Loads campaign data including businessTypes
+- Fetches user's existing brands
+- Shows brand grid or auto-proceeds if only one
+
+// User actions:
+- Select existing brand OR
+- Create new brand (logo upload → color extraction → contrast analysis)
+- System saves brandId to campaign
+- Proceeds to: `/v2/build/${campaignId}/design`
+```
+
+### Step 2: Design Assignment (/v2/build/[campaignId]/design)
+```typescript
+// If multiple businessTypes in campaign:
+- Show assignment interface
+- Options: "One for All" / "One per Type" / "Custom"
+
+// If single businessType or after assignment:
+- Show design form for first/only design
+- Auto-populate industry from businessType
+- Simple form (5 fields) or Advanced mode
+
+// For each design:
+1. Generate AI prompt with logo space requirements
+2. Call OpenAI gpt-image-1 for 6x4 landscape
+3. Save design with campaignContext
+4. If multiple designs, loop to next
+
+// Proceeds to: `/v2/build/${campaignId}/review`
+```
+
+### Step 3: Review (/v2/build/[campaignId]/review)
+```typescript
+// Display:
+- Side-by-side design previews (if multiple)
+- Business types under each design
+- Lead counts
+- Total cost calculation
+
+// User can:
+- Edit individual designs
+- Reassign business types
+- Save designs as templates
+- Approve all → `/v2/build/${campaignId}/checkout`
+```
+
+### Step 4: Payment & Scheduling (/v2/build/[campaignId]/checkout)
+```typescript
+// Process:
+1. Scheduling Interface (Before payment):
+   - Calendar component for send date selection (day picker only)
+   - Minimum: The day that falls 36+ hours from now
+     * Example: Monday 2pm → Wednesday (earliest selectable)
+     * Example: Monday 10am → Wednesday (earliest selectable)
+   - Maximum: 90 days out
+   - "ASAP" button prominently displayed:
+     * Label: "ASAP (Ships {minimumDay})"
+     * Example: "ASAP (Ships Wednesday)"
+     * Selects the earliest available day automatically
+     * Pre-selected by default to encourage quick sending
+     * Styled as primary/recommended option
+   - Show estimated arrival window:
+     * "Estimated arrival: {date + 5} to {date + 10} business days"
+     * Disclaimer: "Delivery times may vary based on USPS"
+   
+2. Create Stripe PaymentIntent via Cloud Function:
+   - Include scheduled send date in metadata
+   - Calculate final pricing (may adjust for removed leads later)
+   
+3. Display Stripe Elements with order summary:
+   - Selected send date (highlighted if ASAP chosen)
+   - Estimated arrival window
+   - Total postcards and price
+   - Clear messaging: "You selected ASAP - Postcards ship Wednesday"
+   
+4. On success:
+   - Update campaign:
+     * status: 'paid'
+     * scheduledSendDate: Date
+     * estimatedArrivalStart: Date
+     * estimatedArrivalEnd: Date
+   - Trigger post-payment processing
+   - Show confirmation with schedule
+   - Redirect to dashboard
+
+// Data structure:
+campaign.scheduling = {
+  scheduledSendDate: Timestamp,      // Customer selected
+  estimatedArrivalStart: Timestamp,  // sendDate + 5 business days
+  estimatedArrivalEnd: Timestamp,    // sendDate + 10 business days
+  actualSendDate?: Timestamp,        // When actually sent (after approval)
+  trackingUrl?: string               // Added after dispatch
+}
+```
+
+### Step 5: Post-Payment Processing
+```typescript
+// After successful payment:
+1. Geocode addresses for postal codes:
+   - Batch process leads missing postal codes
+   - Use place_id for accurate geocoding
+   - Extract full mailing address components
+   - Mark failed geocodes for manual review
+
+2. Update campaign status:
+   - status: 'pending_review'
+   - geocodingComplete: boolean
+   - readyForReview: true
+```
+
+### Step 6: Manual Review (Admin Dashboard)
+```typescript
+// Admin at /v2/admin/campaigns/[campaignId]/review
+1. Display for review:
+   - Scheduled send date (with ability to adjust if needed)
+   - All unique designs with actual size preview
+   - List of addresses with geocoding status
+   - Flagged issues (missing postal codes, etc.)
+   - Original lead count vs current count
+   - Refund calculation if leads removed
+   
+2. Admin can:
+   - Remove problematic leads (triggers refund calculation)
+   - Bulk remove all failed geocodes
+   - Edit addresses manually
+   - Approve/reject individual designs
+   - Add notes for customer
+   - Adjust scheduled send date if needed
+   
+3. When removing leads:
+   - Show refund preview: (removed/total) * originalAmount
+   - Confirm refund amount before proceeding
+   - Auto-generate refund reason for Stripe
+   
+4. On approval:
+   - If leads removed: Process partial refund
+   - Update campaign:
+     * status: 'approved'
+     * approvedBy: adminUserId
+     * approvedAt: timestamp
+     * finalLeadCount: number
+   - Trigger fulfillment (respecting scheduled date)
+   - Send confirmation email with any changes
+```
+
+### Step 7: Fulfillment (Background)
+```typescript
+// Cloud Function scheduleCampaign (triggered by approval):
+1. Check scheduled send date:
+   - If scheduledSendDate > now: Set up scheduled job
+   - If ready to send now: Continue immediately
+   
+2. For each design:
+   - Upsize AI image from 1800x1200 to 1871x1271
+   - Add 0.125" bleed on all sides
+   - Compose with logo overlay in safe zone
+   - Generate print-ready PDF @ 300 DPI
+   
+3. For each remaining lead (after removals):
+   - Verify complete mailing address
+   - Match to correct design based on businessType
+   - Add to recipient list with full postal address
+   
+4. Call Stannp API:
+   - Upload designs
+   - Submit recipient list
+   - Schedule for scheduledSendDate (or immediate)
+   - Get print job ID and tracking
+   
+5. Update campaign:
+   - status: 'scheduled'
+   - printJobId: string
+   - leadsSent: number (may be less than original)
+   - scheduling.actualSendDate: Timestamp
+   
+6. If leads were removed:
+   - Calculate refund amount
+   - Process partial refund via Stripe
+   - Send refund notification email
+```
+
+### Step 8: Tracking & Delivery
+```typescript
+// Webhook handlers update campaign:
+- 'printed' → Send "postcards printed" email
+- 'dispatched' → Update status, send tracking
+- 'delivered' → Mark complete, trigger follow-up
+
+// Dashboard shows:
+- Delivery progress
+- Response tracking
+- Performance metrics
+```
+
+## Data Architecture
+
+### 1. Global Collections (Per User)
+```
+users/{userId}/brands/{brandId}
+  ├── name: string                    // "My Coffee Shop Brand"
+  ├── logo: { 
+  │   ├── url: string               // Cloudinary/Storage URL
+  │   ├── format: 'svg' | 'png'     // SVG preferred for perfect scaling
+  │   ├── width: number             // Original dimensions
+  │   ├── height: number
+  │   ├── aspectRatio: number       // Pre-calculated for efficiency
+  │   ├── dominantColors: Array<{   // Extracted for contrast
+  │   │   ├── hex: string
+  │   │   ├── rgb: { r, g, b }
+  │   │   └── isDark: boolean
+  │   │ }>
+  │   └── requiresLightBg: boolean  // True if logo is dark
+  │ }
+  ├── colors: {
+  │   ├── primary: string            // #00F0FF (electric-teal)
+  │   ├── secondary: string          // #FF00B8 (neon-magenta)
+  │   └── accent: string             // #2F2F2F (cool-gray)
+  │ }
+  ├── fonts: {
+  │   ├── heading: string            // "Poppins"
+  │   └── body: string               // "Inter"
+  │ }
+  ├── isDefault: boolean
+  ├── usageCount: number             // Track popularity
+  ├── lastUsed: Timestamp
+  └── createdAt: Timestamp
+
+users/{userId}/designs/{designId}
+  ├── name: string                    // "Summer Sale 2024"
+  ├── brandId: string                // References brand
+  ├── designSource: {                // How design was created
+  │   ├── type: 'ai_simple' | 'ai_advanced' | 'upload' | 'human'
+  │   ├── aiPrompt?: string
+  │   ├── aiImageUrl?: string       // 6x4 landscape front
+  │   ├── uploadedFileUrl?: string
+  │   └── humanDesignRequestId?: string
+  │ }
+  ├── content: {
+  │   ├── headline?: string         // Optional for AI-generated
+  │   ├── cta?: string             // Optional for AI-generated
+  │   └── designBrief: object      // Simple/Advanced form data
+  │ }
+  ├── campaignContext?: {           // Context when created for campaign
+  │   ├── businessTypes: string[]   // Types this was designed for
+  │   ├── leadCount: number         // How many leads influenced design
+  │   └── industry: string          // Detected/selected industry
+  │ }
+  ├── postcardSpecs: {
+  │   ├── frontImageUrl: string     // 6x4 landscape with logo space
+  │   ├── backImageUrl?: string     // Address side
+  │   ├── logoPosition: {           // Calculated from brand logo
+  │   │   ├── x: number            // With padding
+  │   │   ├── y: number
+  │   │   ├── width: number        // Proportional to logo
+  │   │   └── height: number
+  │   │ }
+  │   ├── logoSpaceReserved: {     // What AI was told to leave blank
+  │   │   ├── width: number
+  │   │   └── height: number
+  │   │ }
+  │   └── dimensions: { width: 6, height: 4, unit: 'inch' }
+  │ }
+  ├── thumbnailUrl: string           // Preview image
+  ├── tags: string[]                 // ["seasonal", "sale"]
+  ├── usageCount: number
+  ├── lastUsed: Timestamp
+  ├── performanceScore?: number      // Based on response rates
+  └── createdAt: Timestamp
+```
+
+### 2. Campaign References
+```
+campaigns/{campaignId}
+  ├── ownerUid: string
+  ├── brandId: string                // References users/{uid}/brands/{id}
+  ├── designAssignments: Array<{     // Multiple designs per campaign
+  │     designId: string
+  │     businessTypes: string[]     // Which types use this design
+  │     leadCount: number
+  │   }>
+  ├── customizations: object         // Campaign-specific overrides
+  ├── status: string                 // draft → designing → paid → pending_review → approved → scheduled → sent
+  ├── scheduling: {
+  │   ├── scheduledSendDate: Timestamp      // Customer selected
+  │   ├── estimatedArrivalStart: Timestamp  // +5 business days
+  │   ├── estimatedArrivalEnd: Timestamp    // +10 business days
+  │   ├── actualSendDate?: Timestamp        // When actually sent
+  │   └── trackingUrl?: string              // From Stannp
+  │ }
+  ├── pricing: {
+  │   ├── originalAmount: number            // What customer paid
+  │   ├── refundedAmount?: number           // If leads removed
+  │   ├── finalAmount: number               // After adjustments
+  │   └── stripePaymentIntentId: string
+  │ }
+  ├── totalLeadCount: number         // Denormalized for performance
+  ├── totalCost: number              // Denormalized for performance
+  └── leads/                         // NO LONGER USED - see leadsChunks
+      └── {leadId}
+          ├── businessType: string
+          ├── assignedDesignId: string  // Which design this lead gets
+          ├── address: string           // Original from Places API
+          ├── mailingAddress?: {        // Added after geocoding
+          │   ├── street: string
+          │   ├── city: string
+          │   ├── state: string
+          │   ├── postalCode: string
+          │   └── country: string
+          │ }
+          ├── geocodingStatus?: 'pending' | 'complete' | 'failed'
+          └── geocodingError?: string
+
+// OPTIMIZED STRUCTURE FOR SCALE:
+campaigns/{campaignId}/leadsChunks/{chunkId}
+  ├── chunkIndex: number             // 0, 1, 2...
+  ├── leadCount: number              // Up to 500
+  ├── leads: Array<Lead>             // Actual lead data
+  └── lastUpdated: Timestamp
+
+// For campaigns >10k leads, prevents query/batch limits
+```
+
+## User Flow
+
+### Step 1: Brand Selection (/v2/build/[campaignId]/brand)
+- Grid view of existing brands with usage stats
+- "Recently Used" section at top
+- "Create New Brand" prominent button
+- Quick actions: Edit, Clone, Set as Default
+- Auto-proceed if only one brand exists
+- **Brand Switcher Banner**: Shows in all subsequent steps
+  - "Editing campaign as {brandName} ▾"
+  - Dropdown to switch brands without losing progress
+  - Persists throughout the flow for easy access
+
+### Step 2: Design Assignment & Creation (/v2/build/[campaignId]/design)
+
+#### Design Assignment (When multiple business types selected):
+- Quick options with lead counts:
+  - "One Design for All (80 recipients)" 
+  - "One Per Type (3 designs: 45 / 23 / 12 recipients)"
+  - Makes cost/time trade-off explicit
+- Custom assignment interface:
+  - Create multiple designs
+  - Assign any combination of business types to each design
+  - Shows lead count for each assignment
+  - No automatic grouping - full user control
+
+#### Simple Mode (Default - Black Box Magic):
+- 5-field form: Brand, Voice, Goal, Industry, Audience
+- Industry auto-populated from selected business types
+- Audience suggestions based on assigned types
+- One-click "Generate Design" 
+- AI handles all creative decisions
+- **Async Generation**: 
+  - Instant low-res placeholder "Generating..." 
+  - Background AI call with progress indicator
+  - User can continue to back-side form while rendering
+  - Polls for completion every 2 seconds
+- Generates 6x4 landscape postcard with logo space
+
+#### Advanced Mode (Toggle):
+- **Data Persistence**: Simple mode values auto-populate as defaults
+- All simple fields as starting point (pre-filled)
+- Optional fields for granular control:
+  - Custom headline/CTA text
+  - Image subject description
+  - Style preferences (photorealistic/illustrated/abstract)
+  - Color mood beyond brand colors
+  - Elements to exclude
+  - Custom prompt additions
+- Preview prompt before generation
+- Ability to regenerate with tweaks
+- Toggle back to simple mode preserves all data
+
+#### Alternative Options:
+- "Upload My Design" - Skip AI, use existing file
+- "Request Human Designer" - $50 fee, 24hr turnaround
+- "Start from My Designs" - Shows design library
+- "Clone from Campaign" - Shows successful past campaigns
+
+### Step 3: Review (/v2/build/[campaignId]/review)
+- Side-by-side design comparison (when multiple designs)
+  - Shows assigned business types under each design
+  - Lead count per design
+  - Edit assignments or individual designs
+- Front/back preview for each design
+  - While generating: Low-res placeholder with progress
+  - User can fill out back-side info during generation
+  - Real-time updates when designs complete
+- Recipient list summary with design assignments
+- Delivery timeline
+- Total cost breakdown
+- "Save as Template" option for each design
+
+### Step 4: Payment (/v2/build/[campaignId]/checkout)
+- Stripe Elements integration
+- Saved payment methods
+- Invoice/receipt generation
+- Order confirmation
+
+## Dashboard Enhancements
+
+### /v2/dashboard Tabs:
+1. **Overview**: Stats, recent activity, quick actions
+2. **Campaigns**: Full history with clone/rerun actions
+3. **Brands**: Brand library management
+4. **Designs**: Design library with performance metrics
+5. **Leads**: Lead management (existing)
+
+### Key Features:
+- Bulk actions (delete, archive, tag)
+- Advanced filtering (date, brand, performance)
+- Export capabilities
+- Performance analytics
+
+## Services Architecture
+
+### v2/services/brandService.ts
+```typescript
+- createBrand(userId, brandData)
+- updateBrand(userId, brandId, updates)
+- getUserBrands(userId)
+- setDefaultBrand(userId, brandId)
+- cloneBrand(userId, brandId)
+- deleteBrand(userId, brandId)
+- analyzeLogo(logoUrl) // Returns dimensions, aspect ratio, and colors
+- extractLogoColors(logoUrl) // Uses color-thief or canvas
+- calculateLogoContrast(logo) // Determines if light/dark bg needed
+- generateLogoPrompt(logo) // Creates AI prompt with contrast specs
+```
+
+### v2/services/designService.ts
+```typescript
+- createDesign(userId, designData)
+- updateDesign(userId, designId, updates)
+- getUserDesigns(userId, filters?)
+- getDesignsByBrand(userId, brandId)
+- cloneDesign(userId, designId)
+- generateAIContent(businessInfo, template)
+- saveAsTemplate(userId, campaignId)
+```
+
+### v2/services/campaignEnhancementService.ts
+```typescript
+- linkBrandToCompaign(campaignId, brandId)
+- linkDesignToCampaign(campaignId, designId)
+- cloneCampaign(campaignId)
+- getCampaignPerformance(campaignId)
+```
+
+### v2/services/aiDesignService.ts
+```typescript
+- generateSimpleDesign(brand, voice, goal, businessInfo)
+- generateAdvancedDesign(simpleData, advancedOptions)
+- generatePostcardPrompt(mode, data)
+- composeTwoSidedPostcard(frontUrl, brandKit)
+- retryWithModifications(designId, modifications)
+- detectIndustryFromTypes(businessTypes: string[])
+- suggestAudienceFromTypes(businessTypes: string[])
+- queueDesignGeneration(designId, params) // Returns jobId
+- getGenerationStatus(jobId) // Returns status + preview
+- pollForCompletion(jobId, callback) // Client-side polling
+```
+
+### v2/services/designAssignmentService.ts
+```typescript
+- createDesignAssignments(campaignId, strategy: 'unified' | 'per-type' | 'custom')
+- updateDesignAssignment(campaignId, assignments)
+- assignLeadsToDesigns(campaignId, assignments)
+- getDesignAssignmentSummary(campaignId)
+- reassignBusinessType(campaignId, businessType, fromDesign, toDesign)
+```
+
+### v2/services/humanDesignService.ts
+```typescript
+- createDesignRequest(campaignId, brief, brandKit)
+- getRequestStatus(requestId)
+- submitDesignerWork(requestId, designUrl)
+- approveDesign(requestId)
+- requestRevision(requestId, notes)
+```
+
+### v2/services/refundService.ts
+```typescript
+- calculateRefundAmount(originalAmount, totalLeads, removedLeads)
+- processPartialRefund(paymentIntentId, refundAmount, reason)
+- updateCampaignPricing(campaignId, refundAmount)
+- sendRefundNotification(userId, campaignId, refundDetails)
+- generateRefundReason(removedLeads, totalLeads, issues[])
+```
+
+### v2/services/schedulingService.ts
+```typescript
+- calculateBusinessDays(startDate, numberOfDays)
+- getNextAvailableSendDate() // The day that falls 36+ hours from now
+- validateSendDate(proposedDate)
+- scheduleDelayedFulfillment(campaignId, sendDate)
+- updateScheduledDate(campaignId, newDate)
+- getEstimatedDeliveryWindow(sendDate)
+- getMinimumScheduleDay() // Helper to calculate 36-hour day boundary
+```
+
+### v2/services/leadChunkService.ts
+```typescript
+- chunkLeads(leads: Lead[], chunkSize = 500) // Split into chunks
+- saveLeadChunks(campaignId, chunks) // Batch write chunks
+- getLeadChunks(campaignId, startChunk?, endChunk?) // Paginated read
+- updateLeadInChunk(campaignId, leadId, updates) // Find & update
+- fanOutGeocodingJobs(campaignId) // Queue per chunk
+- aggregateChunkStats(campaignId) // Count totals
+- migrateLeadsToChunks(campaignId) // One-time migration
+```
+
+### Summary of New Services to Build:
+1. **brandService.ts** - Brand management with logo analysis
+2. **designService.ts** - Design library and templates
+3. **campaignEnhancementService.ts** - Enhanced campaign features
+4. **aiDesignService.ts** - AI generation with async queuing
+5. **designAssignmentService.ts** - Multi-design assignment logic
+6. **humanDesignService.ts** - Human designer workflow
+7. **refundService.ts** - Stripe refund queue and calculations
+8. **schedulingService.ts** - Business day calculations and scheduling
+9. **leadChunkService.ts** - Scaled lead storage and processing
+10. **printService.ts** - Stannp API integration (from May19)
+
+## Postcard Specifications & Composition
+
+### Physical Specifications
+- **Template Size**: 6.24" x 4.24" (1871 x 1271 pixels @ 300 DPI)
+- **Trim Size**: 6" x 4" (final postcard size)
+- **Safe Zone**: 5.75" x 3.75" (keep all important content here)
+- **Bleed**: 0.125" on all sides (included in template size)
+- **AI Image**: 1800 x 1200 pixels (needs upscaling)
+
+#### Design Areas:
+- **Front**: Marketing design with dynamic logo space
+  - Logo in safe zone (top-left)
+  - Logo space calculated from actual dimensions
+  - Max 1.25" on longest side (to stay in safe zone)
+  - Contrast-aware background in logo area
+- **Back**: Address area following USPS guidelines
+  - Return address in top-left
+  - Recipient address on right side
+  - Postal indicia placement
+
+#### Image Processing Pipeline:
+1. AI generates: 1800 x 1200 pixels
+2. Upscale to: 1871 x 1271 pixels using Sharp
+   - Only ~4% upscale, no neural network needed
+   - Use Lanczos-3 kernel: `sharp.resize({ kernel: sharp.kernel.lanczos3 })`
+   - Takes <100ms vs 5-10s for neural upscalers
+3. Add bleed: 0.125" included in dimensions
+4. Place logo: Within safe zone with padding
+5. Export: PDF @ 300 DPI for print
+
+### Logo Contrast Management
+```typescript
+// Color extraction and contrast logic
+const ensureLogoVisibility = {
+  // Extract colors from PNG (handles transparency)
+  extractColors: async (logoUrl) => {
+    // Use canvas to sample non-transparent pixels
+    // Return top 3 dominant colors
+    // Calculate average luminance
+  },
+  
+  // Determine background requirements
+  getBackgroundSpec: (logoColors) => {
+    const avgLuminance = calculateAvgLuminance(logoColors);
+    if (avgLuminance < 128) {
+      return {
+        requirement: 'light',
+        suggestion: 'white, light gray, or pale colors',
+        avoidColors: logoColors.map(c => c.hex)
+      };
+    } else {
+      return {
+        requirement: 'dark', 
+        suggestion: 'dark gray, navy, or deep colors',
+        avoidColors: logoColors.map(c => c.hex)
+      };
+    }
+  }
+};
+```
+
+### AI Generation Approach
+```typescript
+// Logo Analysis & Space Calculation
+const analyzeLogoForPrompt = async (logoUrl: string) => {
+  const img = await loadImage(logoUrl);
+  const aspectRatio = img.width / img.height;
+  
+  // Extract dominant colors from logo (using canvas or color-thief)
+  const dominantColors = await extractColors(logoUrl, 3);
+  const logoIsDark = isColorDark(dominantColors[0]);
+  
+  // Calculate space dimensions
+  const maxDimension = 1.5; // inches
+  let width, height;
+  
+  if (aspectRatio >= 1) {
+    // Wider logo
+    width = maxDimension;
+    height = maxDimension / aspectRatio;
+  } else {
+    // Taller logo
+    width = maxDimension * aspectRatio;
+    height = maxDimension;
+  }
+  
+  // Create prompt with contrast requirements
+  return {
+    width,
+    height,
+    dominantColors,
+    prompt: `Leave ${width.toFixed(2)} x ${height.toFixed(2)} inch ${
+      logoIsDark ? 'light colored or white' : 'dark colored'
+    } space in top-left corner. Avoid using these colors near the logo area: ${
+      dominantColors.map(c => c.hex).join(', ')
+    }`
+  };
+};
+
+// Simple Mode Prompt Structure
+const simplePrompt = {
+  base: "Create a 6x4 inch landscape postcard front design",
+  logoSpace: "[calculated: size + contrast requirements]",
+  brand: "Use colors [primary] and [accent]", 
+  voice: "[voice] tone for [industry] business",
+  goal: "Purpose: [goal]",
+  auto: "Generate compelling headline and imagery"
+}
+
+// Example with dark logo:
+"Leave 1.5 x 0.5 inch light colored or white space in top-left corner. 
+Avoid using #1a1a1a, #333333, #0066cc near the logo area."
+
+// Example with light logo:  
+"Leave 1.0 x 1.0 inch dark colored space in top-left corner.
+Avoid using #ffffff, #f0f0f0, #ffcc00 near the logo area."
+
+// Advanced Mode Additional Controls
+const advancedControls = {
+  headline: "Specific headline text",
+  imagery: "Detailed image description",
+  style: "Photorealistic | Illustrated | Abstract",
+  exclude: "Elements to avoid",
+  custom: "Additional instructions"
+}
+```
+
+### Composition Pipeline
+1. **Logo Analysis**: Calculate dimensions and aspect ratio
+2. **AI Generation**: Create 6x4 landscape with proportional logo space
+3. **Logo Overlay**: Place logo with padding in reserved space
+4. **Text Rendering**: Apply actual fonts if needed
+5. **Back Generation**: Create address-compliant back
+6. **PDF Export**: Combine into print-ready file
+
+### Design Assignment UI Components
+```typescript
+// Async Generation UI
+interface DesignGenerationStatus {
+  jobId: string
+  status: 'queued' | 'generating' | 'complete' | 'failed'
+  progress: number  // 0-100
+  preview?: {
+    lowRes: string  // Immediate placeholder
+    fullRes?: string  // When complete
+  }
+  estimatedTime: number  // seconds
+  error?: string
+}
+
+// Polling hook:
+const useDesignGeneration = (jobId: string) => {
+  const [status, setStatus] = useState<DesignGenerationStatus>();
+  
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const update = await getGenerationStatus(jobId);
+      setStatus(update);
+      if (update.status === 'complete' || update.status === 'failed') {
+        clearInterval(interval);
+      }
+    }, 2000);
+    
+    return () => clearInterval(interval);
+  }, [jobId]);
+  
+  return status;
+};
+
+// Scheduling UI Component
+interface SchedulingInterface {
+  minDate: Date                        // Day that falls 36+ hours from now
+  maxDate: Date                        // now + 90 days
+  selectedDate: Date                   // Always midnight of selected day
+  onDateChange: (date: Date) => void
+  estimatedArrival: {
+    start: Date                        // selectedDate + 5 business days
+    end: Date                          // selectedDate + 10 business days
+  }
+  quickActions: [
+    { 
+      label: () => `ASAP (Ships ${formatDate(minDate, 'EEEE')})`,  // "ASAP (Ships Wednesday)"
+      highlight: true,  // Visual emphasis
+      action: () => setToMinimumDay() 
+    },
+    { label: "Next Week", action: () => setToNextWeek() },
+    { label: "Next Month", action: () => setToNextMonth() }
+  ]
+  disclaimer: "Delivery estimates based on USPS First-Class Mail"
+}
+
+// Example calculation:
+const getMinimumScheduleDay = () => {
+  const now = new Date();
+  const plus36Hours = addHours(now, 36);
+  // Set to midnight of that day
+  return startOfDay(plus36Hours);
+};
+
+// UI Layout suggestion:
+// ┌─────────────────────────────────────┐
+// │ When should we send your postcards? │
+// │                                     │
+// │  ┌─────────────────────────────┐   │
+// │  │ 🚀 ASAP (Ships Wednesday)   │   │ <- Prominent button
+// │  └─────────────────────────────┘   │
+// │                                     │
+// │  Or choose a specific date:         │
+// │  [📅 Calendar Component        ]    │
+// │                                     │
+// │  Estimated arrival: May 5-10        │
+// └─────────────────────────────────────┘
+
+// Assignment Interface
+interface DesignAssignmentUI {
+  designs: Array<{
+    id: string
+    name: string  // "Design 1", "Design 2", etc.
+    assignedTypes: string[]
+    leadCount: number
+  }>
+  availableTypes: Array<{
+    type: string
+    count: number
+    currentDesignId?: string
+  }>
+  onAssign: (type: string, designId: string) => void
+  onAddDesign: () => void
+  onRemoveDesign: (designId: string) => void
+}
+
+// Side-by-Side Preview
+interface MultiDesignPreview {
+  designs: Array<{
+    design: Design
+    assignedTypes: string[]
+    leadCount: number
+    thumbnailUrl: string
+  }>
+  onEditAssignment: () => void
+  onEditDesign: (designId: string) => void
+  onApproveAll: () => void
+}
+```
+
+## Production Hardening & Scale
+
+### Firestore Optimization
+
+#### Composite Indexes Required:
+```
+// firestore.indexes.json additions:
+{
+  "collectionGroup": "campaigns",
+  "fields": [
+    { "fieldPath": "status", "mode": "ASCENDING" },
+    { "fieldPath": "scheduling.scheduledSendDate", "mode": "ASCENDING" }
+  ]
+},
+{
+  "collectionGroup": "campaigns", 
+  "fields": [
+    { "fieldPath": "status", "mode": "ASCENDING" },
+    { "fieldPath": "updatedAt", "mode": "DESCENDING" }
+  ]
+}
+```
+
+### Function Concurrency & Cost Control
+
+#### generatePostcardDesign Function:
+```typescript
+// Cloud Task queue configuration:
+queue: {
+  name: 'design-generation',
+  rateLimits: {
+    maxConcurrentDispatches: 8,     // Cap OpenAI concurrent calls
+    maxDispatchesPerSecond: 2
+  }
+}
+
+// Implementation:
+- Queue design IDs in Cloud Tasks
+- Cache identical prompts per brand (24hr TTL)
+- Reuse backgrounds where possible
+- Track cost per generation in Firestore
+```
+
+#### scheduleCampaign Function:
+```typescript
+// Handle late approvals:
+if (campaign.scheduling.scheduledSendDate < now) {
+  // Reschedule to tomorrow (next available day)
+  const newSendDate = startOfDay(addDays(now, 1));
+  await updateDoc(campaignRef, {
+    'scheduling.scheduledSendDate': newSendDate,
+    'scheduling.rescheduledReason': 'approved_after_scheduled_date'
+  });
+  await sendRescheduleNotification(campaign.ownerUid, campaignId);
+}
+```
+
+#### Webhook Handlers:
+```typescript
+// Prevent out-of-order processing:
+interface WebhookEvent {
+  sequence_number: number
+  event_type: string
+  timestamp: number
+}
+
+// Store last processed:
+campaign.webhooks = {
+  lastProcessedSequence: number,
+  lastProcessedType: string,
+  events: Array<ProcessedEvent>
+}
+
+// Guard clause:
+if (event.sequence_number <= campaign.webhooks.lastProcessedSequence) {
+  console.log('Skipping stale event');
+  return;
+}
+```
+
+### Image Pipeline Optimization
+
+```typescript
+// Fast resize without neural networks:
+import sharp from 'sharp';
+
+const upscaleForPrint = async (inputBuffer: Buffer) => {
+  return sharp(inputBuffer)
+    .resize(1871, 1271, {
+      kernel: sharp.kernel.lanczos3,
+      withoutEnlargement: false
+    })
+    .jpeg({ quality: 95, progressive: true })
+    .toBuffer();
+  // <100ms vs 5-10s for neural upscalers
+};
+
+// Logo handling:
+logoUploadRules = {
+  acceptedFormats: ['image/svg+xml', 'image/png'],
+  preferredFormat: 'svg',  // Vector scales perfectly
+  maxSize: 5 * 1024 * 1024,  // 5MB
+  storageRules: 'enforce MIME type validation'
+};
+```
+
+### Stripe Refund Queue
+
+```typescript
+// Prevent concurrent refund conflicts:
+interface RefundQueue {
+  campaignId: string
+  pendingRefunds: Array<{
+    id: string
+    amount: number
+    reason: string
+    status: 'pending' | 'processing' | 'completed' | 'failed'
+    createdAt: Timestamp
+  }>
+  isProcessing: boolean
+}
+
+// Process sequentially:
+const processRefundQueue = async (campaignId: string) => {
+  const queue = await getRefundQueue(campaignId);
+  if (queue.isProcessing) return;
+  
+  await updateDoc(queueRef, { isProcessing: true });
+  
+  for (const refund of queue.pendingRefunds) {
+    if (refund.status === 'pending') {
+      await processRefund(refund);
+      await waitForStripeWebhook(); // Ensure completion
+    }
+  }
+  
+  await updateDoc(queueRef, { isProcessing: false });
+};
+```
+
+
+
+### Security & Compliance
+
+#### PII Protection:
+```typescript
+// Logging middleware:
+const sanitizeAddress = (address: any) => {
+  if (!address) return null;
+  return {
+    city: address.city,
+    state: address.state,
+    postalCode: address.postalCode?.substring(0, 3) + 'XX'
+  };
+};
+
+// Never log full addresses:
+console.log('Processing lead:', {
+  businessName: lead.businessName,
+  address: sanitizeAddress(lead.mailingAddress)
+});
+```
+
+#### Admin SLA Tooling:
+```typescript
+// Add to admin dashboard:
+interface AdminMetrics {
+  needsResponse: {
+    count: number
+    campaigns: Array<{
+      id: string
+      waitingHours: number
+      issue: string
+    }>
+  }
+  avgResponseTime: number
+  backlogByStatus: Record<string, number>
+}
+
+// Query campaigns awaiting action >24h:
+const getNeedsResponse = async () => {
+  const cutoff = subHours(new Date(), 24);
+  return query(
+    collection(db, 'campaigns'),
+    where('status', '==', 'pending_review'),
+    where('updatedAt', '<', cutoff),
+    orderBy('updatedAt', 'asc')
+  );
+};
+```
+
+#### Cost Observability:
+```typescript
+// Track OpenAI costs per campaign:
+interface AIGenerationMetrics {
+  campaignId: string
+  totalCost: number
+  generations: Array<{
+    timestamp: Timestamp
+    model: string
+    tokensUsed: number
+    cost: number
+    designId: string
+  }>
+}
+
+// Dashboard view:
+- Cost per lead acquired
+- Margin per campaign type  
+- AI generation efficiency trends
+- Design reuse savings
+```
+
+### Monitoring & Alerts
+
+```typescript
+// Critical alerts:
+const alerts = {
+  highRefundRate: {
+    threshold: 0.15,  // >15% leads removed
+    action: 'notify_admin'
+  },
+  geocodingFailureRate: {
+    threshold: 0.10,  // >10% failures
+    action: 'escalate_to_engineering'
+  },
+  aiGenerationCost: {
+    threshold: 50,    // >$50 per campaign
+    action: 'review_prompts'
+  },
+  approvalBacklog: {
+    threshold: 20,    // >20 campaigns waiting
+    action: 'scale_admin_team'
+  }
+};
+```
+
+## Implementation Phases
+
+### Phase 1: Brand Management (Week 1)
+- [ ] Create brand data model
+- [ ] Build brand CRUD operations
+- [ ] Design brand selector UI with persistent switcher banner
+- [ ] Implement logo upload with SVG preference and dimension analysis
+- [ ] Add logo color extraction for contrast
+- [ ] Add auto-calculation of logo aspect ratio
+- [ ] Add color/font pickers
+- [ ] Implement contrast detection logic
+- [ ] Set up composite Firestore indexes
+
+### Phase 2: Design System (Week 2)
+- [ ] Create design data model with source tracking
+- [ ] Build design assignment interface with lead count display
+- [ ] Auto-populate industry from business types in leads
+- [ ] Build Simple Mode form (5 fields with auto-population)
+- [ ] Implement Advanced Mode toggle with data persistence
+- [ ] Add async AI generation with Cloud Tasks (8 concurrency limit)
+- [ ] Implement low-res placeholder and polling UI
+- [ ] Create side-by-side preview for multiple designs
+- [ ] Add upload option for existing designs
+- [ ] Implement human designer request flow
+- [ ] Set up Sharp for fast image upscaling
+- [ ] Implement lead chunking for scale (500 per chunk)
+
+### Phase 3: Advanced Features (Week 3)
+- [ ] Build advanced editor
+- [ ] Add performance tracking with cost observability
+- [ ] Implement cloning system
+- [ ] Set up Stripe refund queue for sequential processing
+- [ ] Add webhook sequence number guards
+- [ ] Implement admin "Needs Response" dashboard
+- [ ] Add PII sanitization for logs
+- [ ] Set up monitoring alerts (refund rate, AI costs, etc.)
+
+### Phase 4: Integration (Week 4)
+- [ ] Update campaign flow with scheduling
+- [ ] Implement prominent ASAP button with dynamic day display
+- [ ] Migrate existing designs
+- [ ] Add denormalized totals for performance
+- [ ] Implement late approval handling
+- [ ] Polish UI/UX
+- [ ] Load testing for 10k+ lead campaigns
+- [ ] Set up cost tracking dashboard
+
+## Migration Strategy
+
+### From Current System:
+1. Keep existing campaign/lead structure
+2. Create default brand for existing users
+3. Convert any existing designs to new format
+4. Update navigation from `navigateToCampaignBuild()` to `/v2/build/[campaignId]/brand`
+5. Maintain existing code in place while building v2
+
+### V2 Transition Plan:
+- All new features built in v2 folders
+- Existing PlacesLeadsCollection redirects to v2 flow
+- Gradual migration of existing components
+- Feature flags to toggle between v1/v2
+
+### Database Updates:
+- Add composite indexes for queries
+- Set up Cloud Functions for cleanup
+- Implement usage tracking
+
+## Success Metrics
+- Time to create second campaign (should be 50% faster)
+- Brand/design reuse rate (target: 70%)
+- User retention (return within 30 days)
+- Campaign performance improvement
+
+## Technical Considerations
+- Use React.lazy() for code splitting
+- Implement optimistic UI updates
+- Cache brands/designs locally
+- Add offline support for drafts
+- Set up error boundaries
+- Use color-thief or vibrant.js for logo color extraction
+- Canvas API for handling PNG transparency
+- WCAG contrast ratio calculations for accessibility
+
+## Premium Services
+
+### Human Design Option
+- **Pricing**: $50 base fee
+- **Turnaround**: 24-48 hours
+- **Process**: Brief submission → Designer assignment → Review → Revision
+- **Integration**: Seamless switch from AI to human in design flow
+
+## Future Enhancements
+- Template marketplace
+- Team brand sharing
+- A/B testing designs
+- Industry-specific templates
+- White-label options
+- Designer network expansion
+- Rush design service (12hr)
+
+## Additional Components from May19 Integration
+
+### Cloud Functions Architecture
+
+#### createCampaignWithLeads (Existing, needs verification)
+```typescript
+- Validate allFoundLeadsData length/size
+- Authentication check using context.auth
+- Idempotency check using campaign ID
+- Batch write limits (500 docs per batch)
+- Proper error handling and retry logic
+```
+
+#### quoteAndCreatePaymentIntent (NEW)
+```typescript
+- Calculate final pricing based on lead count
+- Create Stripe PaymentIntent
+- Apply discounts/coupons
+- Store payment metadata
+- Return client secret for Stripe Elements
+```
+
+#### scheduleCampaign (NEW)
+```typescript
+- Integrate with Stannp API
+- Upload design assets
+- Create recipient list
+- Schedule print job
+- Store job ID for tracking
+```
+
+#### generatePostcardDesign (NEW)
+```typescript
+- AI image generation using OpenAI gpt-image-1
+- 6x4 landscape postcard specification
+- Logo space reservation (1 inch top-left)
+- Simple mode: Auto-generate from 5 fields
+- Advanced mode: Granular prompt control
+- Two-sided postcard composition
+- CDN upload for both sides
+```
+
+#### handlePrintWebhooks (NEW)
+```typescript
+- Stannp webhook handler
+- Update delivery status
+- Track bounces/returns
+- Update campaign analytics
+- Trigger notifications
+```
+
+### Autopilot Campaign Implementation
+
+#### Data Model Addition:
+```
+campaigns/{campaignId}
+  ├── campaignMode: 'one-off' | 'autopilot'
+  ├── autopilotConfig?: {
+  │   ├── frequency: 'weekly' | 'biweekly' | 'monthly'
+  │   ├── dayOfWeek?: number
+  │   ├── dayOfMonth?: number
+  │   ├── maxBudget: number
+  │   ├── leadRefreshStrategy: 'new' | 'all' | 'custom'
+  │   ├── nextRunAt: Timestamp
+  │   ├── endDate?: Timestamp
+  │   ├── timezone: string           // 'America/New_York' - Required for DST
+  │   ├── businessDaysOnly: boolean
+  │   ├── excludeHolidays: boolean
+  │   └── holidayRegion?: 'US' | 'CA' | 'UK'
+  │ }
+  └── autopilotHistory?: {
+      └── runs: Array<{
+          runDate: Timestamp
+          leadsCount: number
+          cost: number
+          status: string
+        }>
+    }
+```
+
+#### Autopilot Features:
+- Recurring campaign scheduler
+- Automatic lead refresh
+- Budget controls
+- Performance-based adjustments
+- Pause/resume functionality
+
+### Print & Mail Integration (Stannp API)
+
+#### Service Layer:
+```typescript
+// src/v2/services/printService.ts
+- uploadDesign(designUrl, format)
+- createRecipientList(leads)
+- schedulePrintJob(config)
+- getJobStatus(jobId)
+- cancelJob(jobId)
+- getDeliveryReports(campaignId)
+```
+
+#### Webhook Endpoints:
+```
+/api/v2/webhooks/stannp
+  ├── job.processed
+  ├── job.printed
+  ├── mail.dispatched
+  ├── mail.delivered
+  └── mail.returned
+```
+
+### Admin Console Implementation
+
+#### Routes:
+```
+/v2/admin
+  ├── users         → User management
+  ├── campaigns     → All campaigns oversight
+  │   └── [id]/review → Manual campaign review
+  ├── analytics     → System-wide metrics
+  ├── logs          → Error & activity logs
+  └── settings      → System configuration
+```
+
+#### Campaign Review Interface:
+- **Design Preview**: Actual size (6.24" x 4.24") with safe zone overlay
+- **Address List**: Sortable/filterable with geocoding status
+- **Issue Flags**: Missing postal codes, failed geocodes, design concerns
+- **Lead Removal**: 
+  - Remove individual leads (failed geocodes, bad addresses)
+  - Automatic refund calculation: (removed leads / total leads) * amount paid
+  - Trigger Stripe partial refund
+  - Update campaign total and pricing
+- **Bulk Actions**: Approve all, reject with reason, remove flagged
+- **Manual Edits**: Fix addresses, adjust designs
+- **Approval Flow**: Requires admin authentication and logs all actions
+
+#### Features:
+- User search and filtering
+- Campaign intervention tools
+- Revenue analytics
+- System health monitoring
+- Feature flags management
+- Support ticket integration
+
+#### Permissions:
+```typescript
+roles: {
+  admin: ['read:all', 'write:all', 'delete:all'],
+  support: ['read:all', 'write:limited'],
+  user: ['read:own', 'write:own']
+}
+```
+
+### Required Firestore Indexes
+
+```
+// campaigns collection
+- (ownerUid, campaignMode, createdAt DESC)
+- (ownerUid, status, createdAt DESC)
+- (campaignMode, nextRunAt ASC) // for autopilot
+- (status, createdAt DESC) // for admin
+
+// users/{userId}/designs collection
+- (brandId, lastUsed DESC)
+- (tags, performanceScore DESC)
+
+// users/{userId}/brands collection
+- (isDefault, lastUsed DESC)
+
+// Collection Group: leads
+- (campaignId, businessType, selected)
+```
+
+### Enhanced Anonymous User Flow
+
+#### Session Tracking:
+```typescript
+sessions/{sessionId}
+  ├── businessData: object      // Captured from initial flow
+  ├── campaignDraft: string     // Draft campaign ID
+  ├── contactInfo?: {           // From email capture
+  │   ├── email: string
+  │   └── phone?: string
+  │ }
+  ├── conversionEvents: Array<{
+  │   ├── event: string
+  │   ├── timestamp: Timestamp
+  │   └── data?: object
+  │ }>
+  └── abandonedAt?: Timestamp
+```
+
+#### Conversion Strategy:
+1. **Soft Ask**: 3 seconds after leads shown
+2. **Medium Ask**: Before campaign finalization
+3. **Email Capture**: For abandoned carts
+4. **Hard Requirement**: Before payment
+5. **Follow-up Automation**: Email sequences
+
+### Implementation Priority Order
+
+1. **Week 1**: Brand Management + Cloud Functions
+   - Brand CRUD with July1 architecture
+   - Verify createCampaignWithLeads function
+   - Implement quoteAndCreatePaymentIntent
+
+2. **Week 2**: Design System + Print Integration
+   - Design library with templates
+   - Stannp API integration
+   - Webhook handlers
+
+3. **Week 3**: Autopilot + Advanced Features
+   - Autopilot data model
+   - Recurring scheduler
+   - Advanced design editor
+
+4. **Week 4**: Admin Console + Polish
+   - Admin dashboard
+   - Analytics implementation
+   - Performance optimization
+
+### System Architecture Diagram
+```
+┌─────────────┐     ┌──────────────┐     ┌─────────────┐
+│   Next.js   │────▶│  Cloud       │────▶│  External   │
+│   Frontend  │     │  Functions   │     │  Services   │
+└─────────────┘     └──────────────┘     └─────────────┘
+       │                    │                     │
+       ▼                    ▼                     ▼
+┌─────────────┐     ┌──────────────┐     ┌─────────────┐
+│  Firestore  │     │  Firebase    │     │   Stripe    │
+│  Database   │     │    Auth      │     │   Stannp    │
+└─────────────┘     └──────────────┘     └─────────────┘
+```
+
+## Error Handling & Edge Cases
+
+### Common Scenarios:
+1. **No brands exist**: Auto-redirect to brand creation
+2. **Logo upload fails**: Retry with fallback to manual color selection
+3. **AI generation fails**: Show retry button, offer human design option
+4. **Payment fails**: Save progress, allow retry
+5. **Print API down**: Queue for later, notify user
+
+### State Persistence:
+- All progress saved to Firestore at each step
+- Users can leave and return to any step
+- Draft designs expire after 30 days
+
+## Integration with Existing Code
+
+### PlacesLeadsCollection Changes:
+```typescript
+// In handleConfirmSelectionInternal():
+// Replace:
+navigateToCampaignBuild(result.campaignId);
+
+// With:
+router.push(`/v2/build/${result.campaignId}/brand`);
+```
+
+### Campaign Service Updates:
+```typescript
+// Add to campaign creation:
+{
+  status: 'draft',
+  businessTypes: extractUniqueBusinessTypes(leads),
+  v2Flow: true  // Feature flag
+}
+```
+
+## Example Data Payloads
+
+### Campaign Handoff Data:
+```json
+{
+  "campaignId": "01JZ2Z1CM7Y1ABZZYYBQNPWCTW",
+  "businessTypes": ["restaurant", "auto_repair", "hair_salon"],
+  "leadCounts": {
+    "restaurant": 45,
+    "auto_repair": 23,
+    "hair_salon": 12
+  },
+  "totalLeads": 80
+}
+```
+
+### Design Assignment Example:
+```json
+{
+  "assignments": [
+    {
+      "designId": "design_1",
+      "businessTypes": ["restaurant", "cafe"],
+      "leadCount": 53
+    },
+    {
+      "designId": "design_2", 
+      "businessTypes": ["auto_repair"],
+      "leadCount": 23
+    }
+  ]
+}
+```
+
+### AI Prompt Example:
+```
+"Create a 6x4 inch landscape postcard front design. 
+Leave 1.5 x 0.5 inch light colored or white space in top-left corner. 
+Avoid using #1a1a1a, #333333, #0066cc near the logo area.
+Use colors #00F0FF and #FF00B8.
+Friendly tone for a Food Service business.
+Purpose: Promote new seasonal menu
+Generate compelling headline and imagery"
+```
+
+## Development Checklist
+
+### Phase 1 Prerequisites:
+- [ ] Set up v2 folder structure
+- [ ] Create Firestore indexes
+- [ ] Configure Stripe webhook endpoints
+- [ ] Set up color-thief library
+- [ ] Create feature flag system
+
+### Testing Requirements:
+- [ ] Unit tests for all services
+- [ ] Integration tests for complete flow
+- [ ] Load testing for AI generation
+- [ ] Accessibility testing (WCAG 2.1)
+- [ ] Mobile responsiveness
+
+### Monitoring & Analytics:
+- [ ] Track conversion at each step
+- [ ] Monitor AI generation success rates
+- [ ] Log design performance metrics
+- [ ] Set up error alerting
+
+---
+End of Unified Campaign Build Architecture Plan 

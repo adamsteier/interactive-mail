@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import GlobalAuthOverlay from '@/components/GlobalAuthOverlay';
+import AuthFailureNotice from '@/components/AuthFailureNotice';
 
 // Create a separate client component for the navigation with auth
 function Navigation() {
@@ -104,6 +105,7 @@ export default function ClientLayout({
       </header>
       {children}
       <GlobalAuthOverlay />
+      <AuthFailureNotice />
     </AuthProvider>
   );
 } 

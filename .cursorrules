@@ -11,3 +11,5 @@ request: Request,
 const { paramName } = await params;
 // Use paramName
 }
+
+Don't run npm run dev at the end of a chat.  If I want to run npm run dev or build I will do it myself

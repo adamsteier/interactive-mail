@@ -6,7 +6,7 @@ import SelectionSummary from './SelectionSummary';
 import { useMarketingStore } from '@/store/marketingStore';
 import LoadingBar from './LoadingBar';
 import { CampaignLead } from '@/lib/campaignService';
-import { collection, query, where, onSnapshot, Timestamp } from 'firebase/firestore';
+import { collection, query, onSnapshot, Timestamp, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { createCampaign, navigateToCampaignBuild, CampaignMode, LeadData } from '@/services/campaignService';
 import AnonymousUserPrompt from './AnonymousUserPrompt';
@@ -58,13 +58,13 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
         return;
     }
 
-    console.log(`Setting up Firestore listener for campaignLeads, campaignId: ${campaignId}`);
+    console.log(`Setting up Firestore listener for campaign leads, campaignId: ${campaignId}`);
     setIsLoadingLeads(true);
 
-    const leadsQuery = query(
-      collection(db, 'campaignLeads'),
-      where('campaignId', '==', campaignId)
-    );
+    // Query the leads subcollection of the campaign
+    const campaignRef = doc(db, 'campaigns', campaignId);
+    const leadsRef = collection(campaignRef, 'leads');
+    const leadsQuery = query(leadsRef);
 
     const unsubscribe = onSnapshot(leadsQuery, (querySnapshot) => {
       console.log(`Firestore snapshot received for campaign ${campaignId}, docs: ${querySnapshot.size}`);
@@ -229,8 +229,13 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
   };
 
   const handleCreateAccount = () => {
+      console.log('[PlacesLeadsCollection] handleCreateAccount called');
       setShowAccountPrompt(false);
-      showAuthOverlay();
+      // Small delay to ensure the prompt modal is closed before showing auth overlay
+      setTimeout(() => {
+          console.log('[PlacesLeadsCollection] Calling showAuthOverlay');
+          showAuthOverlay();
+      }, 100);
   };
 
   const handleContinueAsGuest = () => {
@@ -294,7 +299,7 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
   const showScoreColumn = leads.some(l => l.relevanceScore !== undefined);
 
   return (
-    <div className="min-h-screen bg-charcoal p-2 sm:p-4">
+    <div className="min-h-screen bg-charcoal p-2 sm:p-4 lg:pr-80 pb-28 lg:pb-4">
       {/* Anonymous user prompt banner (soft ask) */}
       {isAnonymous && leads.length > 0 && !hasSeenSoftPrompt && (
         <div className="mb-4">
@@ -306,7 +311,22 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
         </div>
       )}
 
-      <div className="rounded-lg border-2 border-electric-teal bg-charcoal shadow-glow flex flex-col max-h-[95vh]">
+      {/* Debug button for testing auth overlay */}
+      {isAnonymous && (
+        <div className="mb-2 text-center">
+          <button
+            onClick={() => {
+              console.log('[PlacesLeadsCollection] Debug button clicked');
+              showAuthOverlay();
+            }}
+            className="text-xs text-electric-teal underline"
+          >
+            [Debug] Test Auth Overlay
+          </button>
+        </div>
+      )}
+
+      <div className="rounded-lg border-2 border-electric-teal bg-charcoal shadow-glow flex flex-col h-[calc(100vh-12rem)] sm:h-[calc(100vh-10rem)] lg:h-[calc(100vh-3rem)] lg:mr-4">
         <div className="border-b border-electric-teal/20 p-3 sm:p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 flex-shrink-0">
             <h2 className="text-xl sm:text-2xl font-semibold text-electric-teal">
                 Leads Found ({leads.length}) 
@@ -379,7 +399,7 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
           </div>
         </div>
 
-        <div className="p-2 overflow-auto flex-grow">
+        <div className="p-2 pr-4 overflow-y-auto overflow-x-auto flex-grow min-h-0 custom-scrollbar">
           {isLoadingLeads && leads.length === 0 ? (
              <table className="w-full min-w-[700px]">
                  <thead className="sticky top-0 z-10 bg-charcoal">
@@ -417,7 +437,10 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
                            <input 
                               type="checkbox" 
                               disabled={!searchFinalized || isUpdatingSelection || filteredLeads.length === 0}
-                              className="rounded border-electric-teal text-electric-teal focus:ring-electric-teal disabled:opacity-50"
+                              className="w-5 h-5 rounded border-2 border-electric-teal text-electric-teal 
+                                focus:ring-2 focus:ring-electric-teal focus:ring-offset-0 focus:ring-offset-transparent
+                                bg-transparent checked:bg-electric-teal hover:border-electric-teal/80 
+                                cursor-pointer transition-all disabled:opacity-50"
                               onChange={(e) => handleBulkSelectFiltered(e.target.checked)} 
                               checked={filteredLeads.length > 0 && filteredLeads.every(lead => selectedLeadIds.has(lead.id!))}
                             /> 
@@ -439,15 +462,15 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
                       className={`text-electric-teal/80 hover:bg-electric-teal/5 cursor-pointer ${selectedLeadIds.has(lead.id!) ? 'bg-electric-teal/10' : ''}`}
                       onClick={(e) => handleSelectLead(lead.id!, e.shiftKey)}
                     >
-                      <td className="p-2">
+                      <td className="p-2" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={selectedLeadIds.has(lead.id!)}
-                          onChange={(e) => {
-                              e.stopPropagation(); 
-                              handleSelectLead(lead.id!, e.target.checked)
-                          }}
-                          className="rounded border-electric-teal text-electric-teal focus:ring-electric-teal"
+                          onChange={() => handleSelectLead(lead.id!, false)}
+                          className="w-5 h-5 rounded border-2 border-electric-teal text-electric-teal 
+                            focus:ring-2 focus:ring-electric-teal focus:ring-offset-0 focus:ring-offset-transparent
+                            bg-transparent checked:bg-electric-teal hover:border-electric-teal/80 
+                            cursor-pointer transition-all"
                           disabled={!searchFinalized || isUpdatingSelection}
                         />
                       </td>
@@ -476,13 +499,13 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
           )}
         </div>
 
-        <div className="flex-shrink-0 border-t border-electric-teal/20 mt-auto">
-            <SelectionSummary
-                selectedPlaces={selectedLeadIds}
-                onStartCampaign={handleConfirmSelection}
-            />
-        </div>
       </div>
+      
+      {/* Selection Summary - outside the main content container */}
+      <SelectionSummary
+        selectedPlaces={selectedLeadIds}
+        onStartCampaign={handleConfirmSelection}
+      />
 
       {/* Medium prompt modal when confirming selection */}
       {showAccountPrompt && hasSeenSoftPrompt && (

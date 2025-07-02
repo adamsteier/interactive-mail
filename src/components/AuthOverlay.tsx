@@ -246,6 +246,17 @@ const AuthOverlay = ({ isOpen, onClose, className = '' }: AuthOverlayProps) => {
       <div className="relative w-full max-w-md rounded-lg border-2 border-electric-teal 
         bg-charcoal/90 p-8 shadow-glow"
       >
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-electric-teal hover:text-electric-teal/80 
+            transition-colors z-10"
+          aria-label="Close"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
         {isCheckingAuth ? (
           <div className="py-10 text-center">
             <svg className="animate-spin h-10 w-10 text-electric-teal mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

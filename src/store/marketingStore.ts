@@ -1048,12 +1048,19 @@ const createMarketingStore = () => {
     
     updateCampaignLead: async (leadId, updates) => {
       try {
+        const state = get();
+        const campaignId = state.currentCampaign?.id;
+        
+        if (!campaignId) {
+          throw new Error('No active campaign');
+        }
+        
         // Determine if we're online or offline
         const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
         
         if (isOnline) {
           // Online - update in Firestore
-          await updateLead(leadId, updates);
+          await updateLead(campaignId, leadId, updates);
         } else {
           // Offline - update in IndexedDB
           const state = get();
@@ -1090,12 +1097,19 @@ const createMarketingStore = () => {
     
     batchUpdateCampaignLeads: async (leads) => {
       try {
+        const state = get();
+        const campaignId = state.currentCampaign?.id;
+        
+        if (!campaignId) {
+          throw new Error('No active campaign');
+        }
+        
         // Determine if we're online or offline
         const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
         
         if (isOnline) {
           // Online - batch update in Firestore
-          await batchUpdateLeads(leads);
+          await batchUpdateLeads(campaignId, leads);
         } else {
           // Offline - update in IndexedDB
           const state = get();
@@ -1178,24 +1192,43 @@ const createMarketingStore = () => {
             leadsToStore.push(lead);
             
             // Queue for sync when online
+            const leadData: {
+              campaignId: string;
+              placeId: string;
+              businessName: string;
+              address: string;
+              businessType: string;
+              selected: boolean;
+              location: { lat: number; lng: number };
+              contacted: boolean;
+              phoneNumber?: string;
+              website?: string;
+            } = {
+              campaignId,
+              placeId: place.place_id,
+              businessName: place.name,
+              address: place.vicinity || place.formatted_address || '',
+              businessType: place.businessType || '',
+              selected: false,
+              location: {
+                lat: place.geometry.location.lat,
+                lng: place.geometry.location.lng
+              },
+              contacted: false
+            };
+            
+            // Only add optional fields if they exist
+            if (place.formatted_phone_number) {
+              leadData.phoneNumber = place.formatted_phone_number;
+            }
+            if (place.website) {
+              leadData.website = place.website;
+            }
+            
             storePendingOperation({
               type: 'create',
               collection: 'campaignLeads',
-              data: {
-                campaignId,
-                placeId: place.place_id,
-                businessName: place.name,
-                address: place.vicinity || place.formatted_address || '',
-                phoneNumber: place.formatted_phone_number,
-                website: place.website,
-                businessType: place.businessType || '',
-                selected: false,
-                location: {
-                  lat: place.geometry.location.lat,
-                  lng: place.geometry.location.lng
-                },
-                contacted: false
-              }
+              data: leadData
             }).catch(error => console.error('Failed to queue operation:', error));
           });
           

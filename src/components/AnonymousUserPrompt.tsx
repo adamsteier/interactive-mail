@@ -78,7 +78,14 @@ const AnonymousUserPrompt: React.FC<AnonymousUserPromptProps> = ({
 
       <div className="flex gap-3">
         <button
-          onClick={onCreateAccount}
+          onClick={() => {
+            console.log('[AnonymousUserPrompt] Create Free Account clicked, onCreateAccount:', onCreateAccount);
+            if (onCreateAccount) {
+              onCreateAccount();
+            } else {
+              console.error('[AnonymousUserPrompt] onCreateAccount is not defined!');
+            }
+          }}
           className="flex-1 bg-electric-teal text-charcoal px-4 py-2 rounded-lg 
             font-medium hover:bg-electric-teal/90 transition-colors"
         >
