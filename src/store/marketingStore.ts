@@ -511,6 +511,7 @@ const createMarketingStore = () => {
       try {
         // Create a new business in the database
         const business = await createBusiness(userId, {
+          ownerUid: userId,
           targetArea: state.businessInfo.targetArea || '',
           businessName: state.businessInfo.businessName || '',
           ...(state.businessInfo.businessAnalysis && {

@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 
 interface TraditionalPostcardProps {
   imageUrl: string | null;
@@ -89,11 +90,13 @@ const TraditionalPostcard: React.FC<TraditionalPostcardProps> = ({
               <div className="relative border-4 border-amber-900 overflow-hidden h-72">
                 {imageUrl ? (
                   <div className="relative w-full h-full overflow-hidden">
-                    <img 
+                    <Image 
                       src={imageUrl} 
                       alt="Traditional craftsmanship" 
-                      className="absolute w-full h-full object-cover sepia"
+                      fill
+                      className="object-cover sepia"
                       style={imageStyle}
+                      sizes="(max-width: 1872px) 100vw, 1872px"
                     />
                   </div>
                 ) : (
