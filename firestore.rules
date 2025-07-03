@@ -36,6 +36,28 @@ service cloud.firestore {
       return request.auth != null && 
         request.auth.token.admin == true;
     }
+
+    // V2: Check if campaign owner (for single user, simplified)
+    function isCampaignOwner(campaignId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/campaigns/$(campaignId)) &&
+        canAccessResource(get(/databases/$(database)/documents/campaigns/$(campaignId)).data.ownerUid);
+    }
+
+    // V2: Validate brand data structure
+    function isValidBrand() {
+      return hasRequiredFields(['name', 'createdAt']) &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() > 0;
+    }
+
+    // V2: Validate design data structure  
+    function isValidDesign() {
+      return hasRequiredFields(['name', 'brandId', 'createdAt']) &&
+        request.resource.data.name is string &&
+        request.resource.data.brandId is string &&
+        request.resource.data.name.size() > 0;
+    }
     
     // ========================================
     // USERS COLLECTION
@@ -47,6 +69,29 @@ service cloud.firestore {
       allow update: if isOwner(userId) && 
         request.resource.data.createdAt == resource.data.createdAt; // Can't change createdAt
       allow delete: if false; // Users can't delete their accounts via client
+
+      // ========================================
+      // V2: BRANDS SUBCOLLECTION
+      // ========================================
+      match /brands/{brandId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidBrand();
+        allow update: if isOwner(userId) && 
+          request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isOwner(userId);
+      }
+
+      // ========================================
+      // V2: DESIGNS SUBCOLLECTION  
+      // ========================================
+      match /designs/{designId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidDesign();
+        allow update: if isOwner(userId) && 
+          request.resource.data.createdAt == resource.data.createdAt &&
+          request.resource.data.brandId == resource.data.brandId; // Can't change brand
+        allow delete: if isOwner(userId);
+      }
     }
     
     // ========================================
@@ -123,6 +168,13 @@ service cloud.firestore {
         allow read, write: if isAuthenticated() && 
           canAccessResource(get(/databases/$(database)/documents/campaigns/$(campaignId)).data.ownerUid);
       }
+
+      // ========================================
+      // V2: LEADS CHUNKS SUB-COLLECTION (for scale)
+      // ========================================
+      match /leadsChunks/{chunkId} {
+        allow read, write: if isCampaignOwner(campaignId);
+      }
       
       // ========================================
       // CAMPAIGN DESIGNS SUB-COLLECTION
@@ -189,7 +241,7 @@ service cloud.firestore {
     }
     
     // ========================================
-    // BRANDING DATA COLLECTION
+    // BRANDING DATA COLLECTION (Legacy - keeping for compatibility)
     // ========================================
     match /users/{userId}/brandingData/{brandId} {
       allow read, write: if isOwner(userId);
@@ -232,6 +284,35 @@ service cloud.firestore {
         request.resource.data.userId == resource.data.userId; // Can't change owner
       
       allow delete: if false; // Design requests should not be deleted
+    }
+
+    // ========================================
+    // V2: AI JOBS COLLECTION (Background processing)
+    // ========================================
+    match /aiJobs/{jobId} {
+      allow read: if isAuthenticated() && isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid &&
+        hasRequiredFields(['userId', 'status', 'createdAt']);
+      allow update: if isAuthenticated() && (
+        isOwner(resource.data.userId) || 
+        isAdmin() // Allow Cloud Functions to update job status
+      );
+      allow delete: if isAdmin(); // Only Cloud Functions can delete jobs
+    }
+
+    // ========================================
+    // V2: REFUND QUEUE COLLECTION (Admin operations)
+    // ========================================
+    match /refundQueue/{refundId} {
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.userId) || isAdmin()
+      );
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid &&
+        hasRequiredFields(['userId', 'campaignId', 'status', 'createdAt']);
+      allow update: if isAdmin(); // Only admins/Cloud Functions can process refunds
+      allow delete: if isAdmin();
     }
     
     // ========================================

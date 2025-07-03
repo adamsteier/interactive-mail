@@ -1,0 +1,402 @@
+# Enhanced Campaign Build System - Live Production Implementation
+
+**🚨 LIVE PRODUCTION BUILD - Direct implementation**
+- Single user environment (you're the only user)
+- Features go live as they're completed
+- No gradual rollout or feature flags needed
+- When you update PlacesLeadsCollection navigation = new system goes live immediately
+- Each completed feature becomes part of the live production flow
+
+## Pre-Implementation Setup (Complete First)
+
+### 1. Environment & Infrastructure
+- [x] ~~Create feature flag system~~ (Not needed: V2 is the main system)
+- [x] Set up v2 folder structure in `src/`
+  - [x] Create `src/v2/` directory
+  - [x] Create subdirectories: components, services, hooks, store, types
+  - [x] Create `src/app/v2/` directory for new routes
+- [x] Install required dependencies:
+  - [x] `color-thief-react` or `vibrant.js` for logo color extraction
+  - [x] `sharp` for image processing
+  - [x] `zustand` for state management
+  - [x] `react-dropzone` for file uploads
+  - [x] `date-fns` for date calculations
+  - [x] `@stripe/stripe-js` and `@stripe/react-stripe-js` (if not already installed)
+- [x] Configure Cloudinary/Firebase Storage for logo and design uploads
+- [ ] Set up monitoring and error tracking (Sentry/LogRocket)
+
+### 2. Database Setup
+- [x] Create Firestore indexes (add to firestore.indexes.json):
+  - [x] campaigns collection: (ownerUid, campaignMode, createdAt DESC)
+  - [x] campaigns collection: (ownerUid, status, createdAt DESC)
+  - [x] campaigns collection: (status, scheduling.scheduledSendDate ASC)
+  - [x] campaigns collection: (status, updatedAt DESC)
+  - [x] users/{userId}/designs: (brandId, lastUsed DESC)
+  - [x] users/{userId}/designs: (tags, performanceScore DESC)
+  - [x] users/{userId}/brands: (isDefault, lastUsed DESC)
+  - [x] V2 collections: aiJobs, refundQueue, leadsChunks
+- [x] Update security rules for new collections (brands, designs)
+- [x] Configure Firebase Storage rules for V2 system
+- [x] Deploy all rules and indexes to Firebase
+- [ ] Create migration scripts for existing data
+
+### 3. Type Definitions ✅ COMPLETE
+- [x] Create `src/v2/types/brand.ts`:
+  - [x] Brand interface with logo analysis fields
+  - [x] LogoAnalysis interface
+  - [x] BrandColors interface
+  - [x] Color extraction and performance tracking
+  - [x] Brand validation and health checks
+- [x] Create `src/v2/types/design.ts`:
+  - [x] Design interface with source tracking
+  - [x] DesignSource union type
+  - [x] DesignAssignment interface
+  - [x] PostcardSpecs interface
+  - [x] AI generation and template system
+- [x] Create `src/v2/types/campaign.ts`:
+  - [x] Updated Campaign interface with v2 fields
+  - [x] SchedulingInfo interface
+  - [x] PricingInfo interface
+  - [x] Enhanced workflow and payment types
+- [x] Create `src/v2/services/pricing.ts` - Extracted from SelectionSummary
+- [x] Create `src/v2/hooks/usePricing.ts` - React hook for pricing
+
+## Phase 1: Brand Management (Week 1)
+
+### 1. Brand Data Model & Services
+- [ ] Create `src/v2/services/brandService.ts`:
+  - [ ] `createBrand(userId, brandData)` - Include logo analysis
+  - [ ] `updateBrand(userId, brandId, updates)`
+  - [ ] `getUserBrands(userId)` - With usage stats
+  - [ ] `setDefaultBrand(userId, brandId)`
+  - [ ] `cloneBrand(userId, brandId)`
+  - [ ] `deleteBrand(userId, brandId)` - Soft delete
+  - [ ] `analyzeLogo(logoUrl)` - Extract dimensions & colors
+  - [ ] `extractLogoColors(logoUrl)` - Using color-thief
+  - [ ] `calculateLogoContrast(logoColors)` - WCAG compliance
+  - [ ] `generateLogoPrompt(logoAnalysis)` - For AI generation
+
+### 2. Brand UI Components
+- [ ] Create `src/v2/components/brand/BrandSelector.tsx`:
+  - [ ] Grid view of existing brands
+  - [ ] Usage stats display (last used, times used)
+  - [ ] "Recently Used" section at top
+  - [ ] Quick actions: Edit, Clone, Set as Default
+  - [ ] Auto-proceed logic for single brand
+  - [ ] Create new brand CTA
+- [ ] Create `src/v2/components/brand/BrandCreator.tsx`:
+  - [ ] Logo upload with SVG preference
+  - [ ] Real-time dimension analysis
+  - [ ] Color extraction and display
+  - [ ] Color pickers for brand colors
+  - [ ] Font selection dropdowns
+  - [ ] Preview panel
+  - [ ] Validation and error handling
+- [ ] Create `src/v2/components/brand/LogoUploader.tsx`:
+  - [ ] Drag & drop interface
+  - [ ] File type validation (SVG, PNG)
+  - [ ] Size validation (5MB max)
+  - [ ] Automatic color extraction on upload
+  - [ ] Contrast analysis display
+  - [ ] Loading states
+
+### 3. Brand Selection Page
+- [ ] Create `src/app/v2/build/[campaignId]/brand/page.tsx`:
+  - [ ] Load campaign data on mount
+  - [ ] Fetch user's brands
+  - [ ] Handle brand selection
+  - [ ] Save brandId to campaign
+  - [ ] Navigation to design step
+  - [ ] Loading and error states
+
+### 4. Campaign Service Updates & Navigation
+- [ ] Update `createCampaign` to extract businessTypes
+- [ ] Update navigation method to use v2 routes
+- [ ] **🚨 LIVE PRODUCTION**: Update PlacesLeadsCollection navigation:
+  - [ ] Replace `navigateToCampaignBuild(result.campaignId)` 
+  - [ ] With: `window.location.href = \`/v2/build/\${result.campaignId}/brand\``
+  - [ ] ⚠️  This activates the new campaign builder (live production)
+- [ ] Add denormalized totals (leadCount, totalCost)
+
+## Phase 2: Design System (Week 2)
+
+### 1. Design Services
+- [ ] Create `src/v2/services/designService.ts`:
+  - [ ] `createDesign(userId, designData)`
+  - [ ] `updateDesign(userId, designId, updates)`
+  - [ ] `getUserDesigns(userId, filters?)`
+  - [ ] `getDesignsByBrand(userId, brandId)`
+  - [ ] `cloneDesign(userId, designId)`
+  - [ ] `generateAIContent(businessInfo, template)`
+  - [ ] `saveAsTemplate(userId, campaignId)`
+  - [ ] Track usage and performance metrics
+
+### 2. AI Design Service
+- [ ] Create `src/v2/services/aiDesignService.ts`:
+  - [ ] `generateSimpleDesign(brand, voice, goal, industry, audience)`
+  - [ ] `generateAdvancedDesign(simpleData, advancedOptions)`
+  - [ ] `generatePostcardPrompt(mode, data, logoSpace)`
+  - [ ] `composeTwoSidedPostcard(frontUrl, brandKit)`
+  - [ ] `retryWithModifications(designId, modifications)`
+  - [ ] `detectIndustryFromTypes(businessTypes[])`
+  - [ ] `suggestAudienceFromTypes(businessTypes[])`
+  - [ ] `queueDesignGeneration(designId, params)` - Cloud Tasks integration
+  - [ ] `getGenerationStatus(jobId)`
+  - [ ] `pollForCompletion(jobId, callback)`
+
+### 3. Design Assignment Service
+- [ ] Create `src/v2/services/designAssignmentService.ts`:
+  - [ ] `createDesignAssignments(campaignId, strategy)`
+  - [ ] `updateDesignAssignment(campaignId, assignments)`
+  - [ ] `assignLeadsToDesigns(campaignId, assignments)`
+  - [ ] `getDesignAssignmentSummary(campaignId)`
+  - [ ] `reassignBusinessType(campaignId, businessType, fromDesign, toDesign)`
+
+### 4. Design UI Components
+- [ ] Create `src/v2/components/design/DesignAssignment.tsx`:
+  - [ ] Quick options with lead counts display
+  - [ ] Custom assignment interface
+  - [ ] Real-time lead count updates
+  - [ ] Visual assignment flow
+- [ ] Create `src/v2/components/design/SimpleDesignForm.tsx`:
+  - [ ] 5-field form (Brand, Voice, Goal, Industry, Audience)
+  - [ ] Auto-populate industry from businessTypes
+  - [ ] Audience suggestions based on types
+  - [ ] One-click generation
+  - [ ] Loading state with progress
+- [ ] Create `src/v2/components/design/AdvancedDesignForm.tsx`:
+  - [ ] Toggle from simple mode
+  - [ ] All simple fields pre-populated
+  - [ ] Additional control fields
+  - [ ] Prompt preview
+  - [ ] Data persistence between toggles
+- [ ] Create `src/v2/components/design/MultiDesignPreview.tsx`:
+  - [ ] Side-by-side design comparison
+  - [ ] Business type assignments display
+  - [ ] Lead counts per design
+  - [ ] Edit functionality
+  - [ ] Loading placeholders
+
+### 5. Design Page
+- [ ] Create `src/app/v2/build/[campaignId]/design/page.tsx`:
+  - [ ] Load campaign and brand data
+  - [ ] Design assignment flow (if multiple types)
+  - [ ] Simple/Advanced mode toggle
+  - [ ] Async generation with polling
+  - [ ] Navigation to review
+  - [ ] Alternative options (upload, human designer)
+
+### 6. Postcard Generation Pipeline
+- [ ] Implement logo space calculation based on dimensions
+- [ ] Set up OpenAI gpt-image-1 integration (not DALL-E)
+- [ ] Create 6x4 landscape generation logic
+- [ ] Implement contrast-aware prompt generation
+- [ ] Set up image upscaling with Sharp (1800x1200 to 1871x1271)
+- [ ] Create bleed addition logic (0.125" all sides)
+
+## Phase 3: Review & Payment (Week 3)
+
+### 1. Review Page Components
+- [ ] Create `src/v2/components/shared/PostcardPreview.tsx`:
+  - [ ] Front/back preview
+  - [ ] Actual size display option
+  - [ ] Safe zone overlay
+  - [ ] Zoom functionality
+- [ ] Create review page (`src/app/v2/build/[campaignId]/review/page.tsx`):
+  - [ ] Multiple design display
+  - [ ] Design-to-lead assignments
+  - [ ] Total cost calculation
+  - [ ] Save as template functionality
+  - [ ] Edit capabilities
+
+### 2. Scheduling Service
+- [ ] Create `src/v2/services/schedulingService.ts`:
+  - [ ] `calculateBusinessDays(startDate, numberOfDays)`
+  - [ ] `getNextAvailableSendDate()` - 36+ hour calculation
+  - [ ] `validateSendDate(proposedDate)`
+  - [ ] `scheduleDelayedFulfillment(campaignId, sendDate)`
+  - [ ] `updateScheduledDate(campaignId, newDate)`
+  - [ ] `getEstimatedDeliveryWindow(sendDate)`
+  - [ ] `getMinimumScheduleDay()`
+
+### 3. Payment & Checkout
+- [ ] Create `src/app/v2/build/[campaignId]/checkout/page.tsx`:
+  - [ ] Scheduling interface with ASAP button
+  - [ ] Calendar component (day picker only)
+  - [ ] Delivery estimate display
+  - [ ] Stripe Elements integration
+  - [ ] Order summary
+  - [ ] Success handling
+- [ ] Create `quoteAndCreatePaymentIntent` Cloud Function:
+  - [ ] Calculate pricing based on leads
+  - [ ] Create Stripe PaymentIntent
+  - [ ] Include scheduled date in metadata
+  - [ ] Handle discounts/coupons
+
+## Phase 4: Cloud Functions & Backend (Week 3-4)
+
+### 1. Design Generation Functions
+- [ ] Create `generatePostcardDesign` Cloud Function:
+  - [ ] Queue management with Cloud Tasks
+  - [ ] OpenAI API integration (gpt-image-1)
+  - [ ] 8 concurrent request limit
+  - [ ] Cost tracking per generation
+  - [ ] Error handling and retries
+  - [ ] Cache identical prompts (24hr TTL)
+
+### 2. Campaign Processing
+- [ ] Create `scheduleCampaign` Cloud Function:
+  - [ ] Check scheduled send date
+  - [ ] Handle late approvals
+  - [ ] Image upscaling pipeline
+  - [ ] Logo overlay composition
+  - [ ] PDF generation at 300 DPI
+  - [ ] Stannp API integration
+
+### 3. Geocoding & Validation
+- [ ] Create geocoding service:
+  - [ ] Batch process missing postal codes
+  - [ ] Use place_id for accuracy
+  - [ ] Extract mailing address components
+  - [ ] Mark failed geocodes
+  - [ ] Queue management for large batches
+
+### 4. Lead Chunk Management
+- [ ] Create `src/v2/services/leadChunkService.ts`:
+  - [ ] `chunkLeads(leads[], chunkSize = 500)`
+  - [ ] `saveLeadChunks(campaignId, chunks)`
+  - [ ] `getLeadChunks(campaignId, startChunk?, endChunk?)`
+  - [ ] `updateLeadInChunk(campaignId, leadId, updates)`
+  - [ ] `fanOutGeocodingJobs(campaignId)`
+  - [ ] `aggregateChunkStats(campaignId)`
+
+### 5. Webhook Handlers
+- [ ] Create Stannp webhook endpoints:
+  - [ ] Job processed handler
+  - [ ] Print status updates
+  - [ ] Dispatch notifications
+  - [ ] Delivery confirmations
+  - [ ] Return handling
+- [ ] Implement sequence number guards
+- [ ] Add webhook event logging
+
+## Phase 5: Admin Console (Week 4)
+
+### 1. Admin Review Interface
+- [ ] Create `src/app/v2/admin/campaigns/[campaignId]/review/page.tsx`:
+  - [ ] Design preview at actual size
+  - [ ] Address list with geocoding status
+  - [ ] Issue flagging system
+  - [ ] Lead removal interface
+  - [ ] Refund calculation display
+  - [ ] Bulk actions
+  - [ ] Approval/rejection flow
+
+### 2. Refund Service
+- [ ] Create `src/v2/services/refundService.ts`:
+  - [ ] `calculateRefundAmount(originalAmount, totalLeads, removedLeads)`
+  - [ ] `processPartialRefund(paymentIntentId, refundAmount, reason)`
+  - [ ] `updateCampaignPricing(campaignId, refundAmount)`
+  - [ ] `sendRefundNotification(userId, campaignId, refundDetails)`
+  - [ ] `generateRefundReason(removedLeads, totalLeads, issues[])`
+  - [ ] Queue management for sequential processing
+
+### 3. Admin Dashboard
+- [ ] Create admin overview page
+- [ ] Implement "Needs Response" view (>24hr pending)
+- [ ] Add campaign search and filtering
+- [ ] Create revenue analytics
+- [ ] Build system health monitoring
+- [ ] Add admin activity logging
+
+## Phase 6: State Management & Optimization
+
+### 1. Campaign Build Store
+- [ ] Create `src/v2/store/campaignBuildStore.ts` with Zustand:
+  - [ ] Campaign data
+  - [ ] Brand selection
+  - [ ] Design assignments
+  - [ ] Generation status
+  - [ ] Form data persistence
+  - [ ] Navigation state
+
+### 2. Custom Hooks
+- [ ] Create `src/v2/hooks/useBrandKit.ts`
+- [ ] Create `src/v2/hooks/useDesignAssignment.ts`
+- [ ] Create `src/v2/hooks/usePostcardGeneration.ts`
+- [ ] Create `src/v2/hooks/useScheduling.ts`
+
+### 3. Performance Optimization
+- [ ] Implement React.lazy() for code splitting
+- [ ] Add optimistic UI updates
+- [ ] Set up local caching for brands/designs
+- [ ] Implement offline draft support
+- [ ] Add error boundaries
+- [ ] Set up retry logic for failed requests
+
+## Phase 7: Testing & Migration
+
+### 1. Testing Implementation
+- [ ] Unit tests for all services
+- [ ] Integration tests for complete flow
+- [ ] Load testing for AI generation
+- [ ] Test campaigns with 10k+ leads
+- [ ] Accessibility testing (WCAG 2.1)
+- [ ] Mobile responsiveness testing
+- [ ] Cross-browser compatibility
+
+### 2. Production Launch
+- [ ] Update PlacesLeadsCollection navigation to v2
+- [ ] Migrate existing users' data to brands
+- [ ] Document new features and changes
+- [ ] Create backup plan for data preservation
+
+### 3. Monitoring Setup
+- [ ] Track conversion at each step
+- [ ] Monitor AI generation success rates
+- [ ] Log design performance metrics
+- [ ] Set up error alerting
+- [ ] Create cost tracking dashboard
+- [ ] Implement usage analytics
+
+## Phase 8: Polish & Launch
+
+### 1. UI/UX Polish
+- [ ] Add loading skeletons
+- [ ] Implement smooth transitions
+- [ ] Add helpful tooltips
+- [ ] Create onboarding flow
+- [ ] Add celebration animations
+- [ ] Implement keyboard shortcuts
+
+### 2. Documentation
+- [ ] API documentation
+- [ ] Component storybook
+- [ ] User guides
+- [ ] Admin manual
+- [ ] Troubleshooting guide
+
+### 3. Launch Preparation
+- [ ] Performance audit
+- [ ] Security review
+- [ ] Load testing at scale
+- [ ] Backup and recovery testing
+- [ ] Customer support training
+- [ ] Marketing materials update
+
+## Success Metrics to Track
+- [ ] Time to create second campaign (target: 50% faster)
+- [ ] Brand/design reuse rate (target: 70%)
+- [ ] User retention (return within 30 days)
+- [ ] Campaign performance improvement
+- [ ] AI generation success rate
+- [ ] Average cost per campaign
+- [ ] Customer satisfaction scores
+
+## Notes
+- Each phase builds on the previous one
+- Complete all items in a phase before moving to the next
+- Test thoroughly at each phase
+- Keep existing code intact during development
+- Test new features thoroughly in production
+- Monitor performance and costs closely

@@ -1,0 +1,191 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // ============================================================================
+    // V2 CAMPAIGN BUILD SYSTEM - STORAGE RULES
+    // ============================================================================
+    
+    // Global read access for public assets
+    match /{allPaths=**} {
+      allow read: if true;
+    }
+    
+    // ============================================================================
+    // BRAND MANAGEMENT (V2)
+    // ============================================================================
+    
+    // Brand logos - user-specific with size limits
+    match /v2/brands/{userId}/logos/{brandId}/{fileName} {
+      allow write: if request.auth != null 
+        && request.auth.uid == userId
+        && isValidLogoFile(request.resource)
+        && request.resource.size < 5 * 1024 * 1024; // 5MB limit
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Brand assets (color swatches, previews, etc.)
+    match /v2/brands/{userId}/assets/{brandId}/{fileName} {
+      allow write: if request.auth != null 
+        && request.auth.uid == userId
+        && request.resource.size < 2 * 1024 * 1024; // 2MB limit
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // ============================================================================
+    // DESIGN SYSTEM (V2)
+    // ============================================================================
+    
+    // AI Generated designs
+    match /v2/designs/{userId}/generated/{designId}/{fileName} {
+      allow write: if request.auth != null 
+        && request.auth.uid == userId
+        && isValidDesignFile(request.resource)
+        && request.resource.size < 10 * 1024 * 1024; // 10MB limit
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // User uploaded designs
+    match /v2/designs/{userId}/uploaded/{designId}/{fileName} {
+      allow write: if request.auth != null 
+        && request.auth.uid == userId
+        && isValidDesignFile(request.resource)
+        && request.resource.size < 15 * 1024 * 1024; // 15MB limit for uploads
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Design thumbnails and previews
+    match /v2/designs/{userId}/thumbnails/{designId}/{fileName} {
+      allow write: if request.auth != null 
+        && request.auth.uid == userId
+        && request.resource.size < 1 * 1024 * 1024; // 1MB limit
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // ============================================================================
+    // CAMPAIGN ASSETS (V2)
+    // ============================================================================
+    
+    // Final print-ready designs (campaign-specific)
+    match /v2/campaigns/{campaignId}/final/{fileName} {
+      allow write: if request.auth != null 
+        && (isOwnerOfCampaign(campaignId) || isAdmin())
+        && request.resource.size < 50 * 1024 * 1024; // 50MB for print files
+      allow delete: if request.auth != null && isAdmin();
+    }
+    
+    // Campaign working files (composition, overlays, etc.)
+    match /v2/campaigns/{campaignId}/working/{fileName} {
+      allow write: if request.auth != null 
+        && (isOwnerOfCampaign(campaignId) || isAdmin())
+        && request.resource.size < 25 * 1024 * 1024; // 25MB limit
+      allow delete: if request.auth != null 
+        && (isOwnerOfCampaign(campaignId) || isAdmin());
+    }
+    
+    // Campaign previews (for review interface)
+    match /v2/campaigns/{campaignId}/previews/{fileName} {
+      allow write: if request.auth != null 
+        && (isOwnerOfCampaign(campaignId) || isAdmin());
+      allow delete: if request.auth != null && isAdmin();
+    }
+    
+    // ============================================================================
+    // ADMIN SYSTEM (V2)
+    // ============================================================================
+    
+    // Admin-only assets
+    match /v2/admin/{allPaths=**} {
+      allow write: if request.auth != null && isAdmin();
+      allow delete: if request.auth != null && isAdmin();
+    }
+    
+    // System templates and defaults
+    match /v2/system/{allPaths=**} {
+      allow write: if request.auth != null && isAdmin();
+      allow delete: if request.auth != null && isAdmin();
+    }
+    
+    // ============================================================================
+    // TEMPORARY AND PROCESSING (V2)
+    // ============================================================================
+    
+    // Temporary uploads (with TTL cleanup)
+    match /v2/temp/{sessionId}/{fileName} {
+      allow write: if request.auth != null
+        && request.resource.size < 20 * 1024 * 1024; // 20MB temp limit
+      allow delete: if request.auth != null;
+    }
+    
+    // AI processing queue (Cloud Functions only)
+    match /v2/processing/{jobId}/{fileName} {
+      allow write: if request.auth != null
+        && request.resource.size < 30 * 1024 * 1024; // 30MB processing limit
+      allow delete: if request.auth != null;
+    }
+    
+    // ============================================================================
+    // LEGACY COMPATIBILITY (V1)
+    // ============================================================================
+    
+    // Keep existing V1 rules for backward compatibility
+    match /logos/{allPaths=**} {
+      allow write: if request.auth != null;
+    }
+    
+    match /campaignImages/{userId}/{allPaths=**} {
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    match /finalDesigns/{userId}/{allPaths=**} {
+      allow write: if request.auth != null;
+    }
+    
+    match /users/{userId}/{allPaths=**} {
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    match /temp/{sessionId}/{allPaths=**} {
+      allow write: if request.auth != null;
+    }
+    
+    match /businesses/{businessId}/{allPaths=**} {
+      allow write: if request.auth != null;
+    }
+    
+    // ============================================================================
+    // HELPER FUNCTIONS
+    // ============================================================================
+    
+    // Validate logo file types and properties
+    function isValidLogoFile(resource) {
+      return resource.contentType.matches('image/(svg\\+xml|png|jpeg)') ||
+             resource.contentType == 'image/svg+xml' ||
+             resource.contentType == 'image/png' ||
+             resource.contentType == 'image/jpeg';
+    }
+    
+    // Validate design file types
+    function isValidDesignFile(resource) {
+      return resource.contentType.matches('image/(png|jpeg|webp)') ||
+             resource.contentType == 'application/pdf' ||
+             resource.contentType == 'image/png' ||
+             resource.contentType == 'image/jpeg' ||
+             resource.contentType == 'image/webp';
+    }
+    
+    // Check if user owns the campaign (simplified for single user)
+    function isOwnerOfCampaign(campaignId) {
+      // For single user environment, always true if authenticated
+      // In multi-user, this would check Firestore for campaign ownership
+      return request.auth != null;
+    }
+    
+    // Check if user is admin (simplified for single user)
+    function isAdmin() {
+      // For single user environment, always true if authenticated
+      // In multi-user, this would check custom claims or Firestore roles
+      return request.auth != null;
+    }
+  }
+} 
