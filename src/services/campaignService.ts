@@ -163,8 +163,9 @@ export const createCampaign = async (
 };
 
 /**
- * Navigates to the campaign build page
+ * Navigates to the V2 campaign build page
+ * 🚨 V2 SYSTEM IS NOW LIVE - All new campaigns use the enhanced V2 flow
  */
 export const navigateToCampaignBuild = (campaignId: string): void => {
-  window.location.href = `/build/${campaignId}`;
+  window.location.href = `/v2/build/${campaignId}/brand`;
 }; 
