@@ -489,39 +489,64 @@ export default function DesignPage({ params }: { params: Params }) {
               exit={{ opacity: 0, y: -20 }}
               className="text-center py-16"
             >
-              <div className="max-w-2xl mx-auto">
+              <div className="max-w-4xl mx-auto">
                 <h2 className="text-3xl font-bold text-[#EAEAEA] mb-4">
                   Generating Your Designs
                 </h2>
-                <p className="text-[#EAEAEA]/60 mb-8">
-                  AI is creating {assignments.length} unique postcard design{assignments.length > 1 ? 's' : ''} for your campaign
+                <p className="text-[#EAEAEA]/60 mb-4">
+                  AI is creating {assignments.length} unique postcard design{assignments.length > 1 ? 's' : ''} using two different providers for comparison
                 </p>
+                <div className="bg-[#00F0FF]/10 border border-[#00F0FF]/30 rounded-lg p-4 mb-8 max-w-2xl mx-auto">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <svg className="w-5 h-5 text-[#00F0FF]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="text-[#00F0FF] font-medium">Estimated Generation Time</span>
+                  </div>
+                  <p className="text-[#EAEAEA]/80 text-sm">
+                    This process typically takes <strong>10-60 seconds</strong> depending on complexity.
+                    <br />We&apos;re generating two options simultaneously for quality comparison.
+                  </p>
+                </div>
 
                 {/* Generation progress */}
-                <div className="space-y-4">
+                <div className="space-y-6">
                   {assignments.map((assignment) => {
                     const status = generationStatus[assignment.designId];
                     const isComplete = status?.status === 'complete';
                     const isFailed = status?.status === 'failed';
+                    const isGenerating = status?.status === 'generating';
                     const progress = status?.progress || 0;
 
                     return (
-                      <div key={assignment.designId} className="bg-[#2F2F2F]/50 rounded-lg p-4 border border-[#00F0FF]/20">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-[#EAEAEA] font-medium">
+                      <div key={assignment.designId} className="bg-[#2F2F2F]/50 rounded-lg p-6 border border-[#00F0FF]/20">
+                        <div className="flex items-center justify-between mb-4">
+                          <span className="text-[#EAEAEA] font-medium text-lg">
                             {assignment.designName}
                           </span>
-                          <span className={`text-sm ${
-                            isComplete ? 'text-green-400' : 
-                            isFailed ? 'text-[#FF00B8]' : 
-                            'text-[#00F0FF]'
-                          }`}>
-                            {isComplete ? 'Complete' : 
-                             isFailed ? 'Failed' : 
-                             `${progress}%`}
-                          </span>
+                          <div className="flex items-center gap-3">
+                            {isGenerating && (
+                              <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                                className="w-5 h-5 border-2 border-[#00F0FF] border-t-transparent rounded-full"
+                              />
+                            )}
+                            <span className={`text-sm font-semibold ${
+                              isComplete ? 'text-green-400' : 
+                              isFailed ? 'text-[#FF00B8]' : 
+                              'text-[#00F0FF]'
+                            }`}>
+                              {isComplete ? 'Complete' : 
+                               isFailed ? 'Failed' : 
+                               isGenerating ? `Generating... ${progress}%` :
+                               'Queued'}
+                            </span>
+                          </div>
                         </div>
-                        <div className="w-full h-2 bg-[#1A1A1A] rounded-full">
+                        
+                        {/* Progress Bar */}
+                        <div className="w-full h-3 bg-[#1A1A1A] rounded-full mb-6 relative overflow-hidden">
                           <motion.div
                             className={`h-full rounded-full ${
                               isComplete ? 'bg-green-500' :
@@ -532,7 +557,170 @@ export default function DesignPage({ params }: { params: Params }) {
                             animate={{ width: `${progress}%` }}
                             transition={{ duration: 0.5 }}
                           />
+                          {isGenerating && (
+                            <motion.div
+                              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                              animate={{ x: [-100, 300] }}
+                              transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                            />
+                          )}
                         </div>
+
+                        {/* Status Messages */}
+                        {!isComplete && !isFailed && (
+                          <div className="text-center mb-4">
+                            <p className="text-[#EAEAEA]/60 text-sm">
+                              {progress < 20 && "Initializing AI generation..."}
+                              {progress >= 20 && progress < 40 && "Loading brand and design requirements..."}
+                              {progress >= 40 && progress < 80 && "Creating design options with both AI providers..."}
+                              {progress >= 80 && progress < 100 && "Finalizing and processing results..."}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Dual Provider Results - Blind A/B Testing */}
+                        {isComplete && status?.result && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ duration: 0.5 }}
+                            className="space-y-4"
+                          >
+                            <h4 className="text-[#00F0FF] font-semibold mb-4 text-center">
+                              Generated Design Options - Choose Your Preferred Version
+                            </h4>
+                            
+                            <div className="grid md:grid-cols-2 gap-6">
+                              {/* Option A */}
+                              <div className="bg-[#1A1A1A] rounded-lg p-4 border border-[#2F2F2F] hover:border-[#00F0FF]/50 transition-colors">
+                                <div className="flex items-center justify-between mb-3">
+                                  <h5 className="text-[#EAEAEA] font-medium flex items-center gap-2">
+                                    <div className="w-6 h-6 bg-[#00F0FF] text-[#1A1A1A] rounded-full flex items-center justify-center text-sm font-bold">
+                                      A
+                                    </div>
+                                    Option A
+                                  </h5>
+                                  <span className="text-xs text-[#EAEAEA]/60">
+                                    {status.result.openai?.executionTime}ms
+                                  </span>
+                                </div>
+                                
+                                {status.result.openai?.frontImageUrl ? (
+                                  <div className="relative group">
+                                    <img
+                                      src={status.result.openai.frontImageUrl}
+                                      alt="Design Option A"
+                                      className="w-full h-40 object-cover rounded-lg border border-[#2F2F2F] group-hover:border-[#00F0FF]/50 transition-colors"
+                                      onError={(e) => {
+                                        e.currentTarget.src = 'https://via.placeholder.com/400x267?text=Option+A+Generation+Failed';
+                                      }}
+                                    />
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors rounded-lg" />
+                                  </div>
+                                ) : (
+                                  <div className="w-full h-40 bg-[#2F2F2F] rounded-lg border border-[#FF00B8]/40 flex items-center justify-center">
+                                    <span className="text-[#FF00B8] text-sm">Generation Failed</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Option B */}
+                              <div className="bg-[#1A1A1A] rounded-lg p-4 border border-[#2F2F2F] hover:border-[#00F0FF]/50 transition-colors">
+                                <div className="flex items-center justify-between mb-3">
+                                  <h5 className="text-[#EAEAEA] font-medium flex items-center gap-2">
+                                    <div className="w-6 h-6 bg-[#FF00B8] text-white rounded-full flex items-center justify-center text-sm font-bold">
+                                      B
+                                    </div>
+                                    Option B
+                                  </h5>
+                                  <span className="text-xs text-[#EAEAEA]/60">
+                                    {status.result.ideogram?.executionTime}ms
+                                  </span>
+                                </div>
+                                
+                                {status.result.ideogram?.frontImageUrl ? (
+                                  <div className="relative group">
+                                    <img
+                                      src={status.result.ideogram.frontImageUrl}
+                                      alt="Design Option B"
+                                      className="w-full h-40 object-cover rounded-lg border border-[#2F2F2F] group-hover:border-[#00F0FF]/50 transition-colors"
+                                      onError={(e) => {
+                                        e.currentTarget.src = 'https://via.placeholder.com/400x267?text=Option+B+Generation+Failed';
+                                      }}
+                                    />
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors rounded-lg" />
+                                  </div>
+                                ) : (
+                                  <div className="w-full h-40 bg-[#2F2F2F] rounded-lg border border-[#FF00B8]/40 flex items-center justify-center">
+                                    <span className="text-[#FF00B8] text-sm">Generation Failed</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Comparison Stats */}
+                            <div className="bg-[#1A1A1A] rounded-lg p-4 border border-[#2F2F2F] mt-4">
+                              <h6 className="text-[#EAEAEA] font-medium mb-3">Generation Statistics</h6>
+                              <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                  <span className="text-[#EAEAEA]/60">Option A Speed:</span>
+                                  <span className="text-[#EAEAEA] ml-2">{status.result.openai?.executionTime || 0}ms</span>
+                                </div>
+                                <div>
+                                  <span className="text-[#EAEAEA]/60">Option B Speed:</span>
+                                  <span className="text-[#EAEAEA] ml-2">{status.result.ideogram?.executionTime || 0}ms</span>
+                                </div>
+                                <div>
+                                  <span className="text-[#EAEAEA]/60">Faster Option:</span>
+                                  <span className="text-[#00F0FF] ml-2">
+                                    {(status.result.openai?.executionTime || Infinity) < (status.result.ideogram?.executionTime || Infinity) ? 'Option A' : 'Option B'}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-[#EAEAEA]/60">Both Generated:</span>
+                                  <span className={`ml-2 ${
+                                    status.result.openai?.frontImageUrl && status.result.ideogram?.frontImageUrl 
+                                      ? 'text-green-400' : 'text-[#FF00B8]'
+                                  }`}>
+                                    {status.result.openai?.frontImageUrl && status.result.ideogram?.frontImageUrl ? 'Yes' : 'No'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Selection Buttons for Blind Testing */}
+                            <div className="flex gap-4 mt-6">
+                              <button 
+                                className="flex-1 bg-[#00F0FF]/20 border border-[#00F0FF]/40 text-[#00F0FF] py-3 px-4 rounded-lg hover:bg-[#00F0FF]/30 transition-colors font-medium flex items-center justify-center gap-2"
+                                onClick={() => {
+                                  // TODO: Mark Option A as preferred
+                                  console.log('Preferred Option A (OpenAI) for', assignment.designId);
+                                }}
+                              >
+                                <div className="w-5 h-5 bg-[#00F0FF] text-[#1A1A1A] rounded-full flex items-center justify-center text-xs font-bold">
+                                  A
+                                </div>
+                                Choose Option A
+                              </button>
+                              <button 
+                                className="flex-1 bg-[#FF00B8]/20 border border-[#FF00B8]/40 text-[#FF00B8] py-3 px-4 rounded-lg hover:bg-[#FF00B8]/30 transition-colors font-medium flex items-center justify-center gap-2"
+                                onClick={() => {
+                                  // TODO: Mark Option B as preferred
+                                  console.log('Preferred Option B (Ideogram) for', assignment.designId);
+                                }}
+                              >
+                                <div className="w-5 h-5 bg-[#FF00B8] text-white rounded-full flex items-center justify-center text-xs font-bold">
+                                  B
+                                </div>
+                                Choose Option B
+                              </button>
+                            </div>
+
+                            <p className="text-center text-[#EAEAEA]/60 text-xs mt-4">
+                              Select your preferred design option. This helps us improve our AI generation quality.
+                            </p>
+                          </motion.div>
+                        )}
                       </div>
                     );
                   })}

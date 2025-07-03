@@ -1,7 +1,6 @@
 import { onCall, CallableRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions";
 import { getFirestore, Timestamp, DocumentReference } from "firebase-admin/firestore";
-import { initializeApp } from "firebase-admin/app";
 import { 
   Campaign, 
   CampaignLead,
@@ -13,9 +12,8 @@ import {
 } from "../types/campaign";
 import { chunkArray } from "../lib/chunkArray";
 
-// Initialize Firebase Admin - this needs to happen before accessing Firestore
-const app = initializeApp();
-const db = getFirestore(app);
+// Get the initialized Firestore instance
+const db = getFirestore();
 
 /**
  * Creates a new campaign with leads
@@ -173,9 +171,7 @@ async function processLeadChunk(
       googlePostalCode,
       googlePhoneNumber,
       googleWebsite,
-      googleRating,
-      // Spread remaining properties into otherData if any, to be stored under a generic key or individually
-      ...otherData // Contains any extra fields from client, or old fields if still sent
+      googleRating
     } = leadPayload;
 
     // Ensure googlePlaceId is present (it's the primary identifier for leads now)

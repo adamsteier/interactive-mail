@@ -12,7 +12,7 @@ import { V2Brand } from '../types/brand';
 
 /**
  * AI Design Service
- * Handles OpenAI integration for postcard generation with brand compliance
+ * Handles OpenAI and Ideogram integration for postcard generation with brand compliance
  */
 
 // Types for AI design generation
@@ -44,14 +44,34 @@ export interface DesignGenerationJob {
   startedAt: Timestamp;
   completedAt?: Timestamp;
   result?: {
-    frontImageUrl: string;
-    backImageUrl?: string;
-    prompt: string;
+    openai?: {
+      frontImageUrl: string;
+      backImageUrl?: string;
+      prompt: string;
+      model: string;
+      executionTime: number;
+    };
+    ideogram?: {
+      frontImageUrl: string;
+      backImageUrl?: string;
+      prompt: string;
+      styleType: string;
+      renderingSpeed: string;
+      executionTime: number;
+    };
     logoPosition: {
       x: number;
       y: number;
       width: number;
       height: number;
+    };
+    comparison?: {
+      preferredProvider?: 'openai' | 'ideogram';
+      qualityScore?: {
+        openai: number;
+        ideogram: number;
+      };
+      notes?: string;
     };
   };
   error?: string;
@@ -64,6 +84,15 @@ export interface LogoSpaceCalculation {
   position: { x: number; y: number }; // top-left corner
   backgroundRequirement: 'light' | 'dark';
   promptInstructions: string;
+}
+
+export interface IdeogramGenerationParams {
+  prompt: string;
+  resolution: string;
+  styleType: 'GENERAL' | 'REALISTIC' | 'DESIGN' | 'AUTO';
+  renderingSpeed: 'TURBO' | 'DEFAULT' | 'QUALITY';
+  magicPrompt?: 'AUTO' | 'ON' | 'OFF';
+  negativePrompt?: string;
 }
 
 /**
@@ -266,7 +295,177 @@ export function generateAdvancedDesignPrompt(
 }
 
 /**
- * Queue design generation job
+ * Convert style preference to Ideogram style type
+ */
+export function getIdeogramStyleType(stylePreference?: string): IdeogramGenerationParams['styleType'] {
+  switch (stylePreference) {
+    case 'photorealistic':
+      return 'REALISTIC';
+    case 'illustrated':
+    case 'abstract':
+      return 'DESIGN';
+    case 'minimalist':
+      return 'GENERAL';
+    default:
+      return 'AUTO';
+  }
+}
+
+/**
+ * Generate Ideogram-specific parameters
+ */
+export function generateIdeogramParams(
+  request: SimpleDesignRequest | AdvancedDesignRequest,
+  prompt: string
+): IdeogramGenerationParams {
+  const isAdvanced = 'customHeadline' in request;
+  
+  return {
+    prompt,
+    resolution: '1536x1024', // 6:4 aspect ratio (closest to 6x4 inches)
+    styleType: isAdvanced ? getIdeogramStyleType(request.stylePreference) : 'AUTO',
+    renderingSpeed: 'DEFAULT', // Balance between speed and quality
+    magicPrompt: 'AUTO', // Let Ideogram enhance the prompt
+    negativePrompt: isAdvanced && request.elementsToExclude 
+      ? `Avoid: ${request.elementsToExclude.join(', ')}, low quality, blurry, text cutoff, poor typography`
+      : 'low quality, blurry, text cutoff, poor typography'
+  };
+}
+
+/**
+ * Call Ideogram API for image generation
+ */
+export async function generateIdeogramImage(params: IdeogramGenerationParams): Promise<{
+  success: boolean;
+  imageUrl?: string;
+  executionTime: number;
+  error?: string;
+}> {
+  const startTime = Date.now();
+  
+  try {
+    const ideogramApiKey = process.env.IDEOGRAM_API_KEY;
+    if (!ideogramApiKey) {
+      throw new Error('IDEOGRAM_API_KEY environment variable not set');
+    }
+
+    const formData = new FormData();
+    formData.append('prompt', params.prompt);
+    formData.append('resolution', params.resolution);
+    formData.append('style_type', params.styleType);
+    formData.append('rendering_speed', params.renderingSpeed);
+    formData.append('magic_prompt', params.magicPrompt || 'AUTO');
+    if (params.negativePrompt) {
+      formData.append('negative_prompt', params.negativePrompt);
+    }
+
+    const response = await fetch('https://api.ideogram.ai/v1/ideogram-v3/generate', {
+      method: 'POST',
+      headers: {
+        'Api-Key': ideogramApiKey,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Ideogram API error: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+    const executionTime = Date.now() - startTime;
+
+    if (result.data && result.data.length > 0) {
+      return {
+        success: true,
+        imageUrl: result.data[0].url,
+        executionTime
+      };
+    } else {
+      throw new Error('No images returned from Ideogram API');
+    }
+
+  } catch (error) {
+    console.error('Ideogram generation error:', error);
+    return {
+      success: false,
+      executionTime: Date.now() - startTime,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}
+
+/**
+ * Call OpenAI API for image generation (placeholder - implement with actual OpenAI logic)
+ */
+export async function generateOpenAIImage(prompt: string): Promise<{
+  success: boolean;
+  imageUrl?: string;
+  executionTime: number;
+  error?: string;
+}> {
+  const startTime = Date.now();
+  
+  try {
+    // TODO: Implement actual OpenAI DALL-E 3 integration
+    // For now, return a placeholder
+    await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
+    
+    return {
+      success: true,
+      imageUrl: `https://via.placeholder.com/1536x1024?text=OpenAI+Generated+Image+${encodeURIComponent(prompt.slice(0, 20))}...`,
+      executionTime: Date.now() - startTime
+    };
+
+  } catch (error) {
+    console.error('OpenAI generation error:', error);
+    return {
+      success: false,
+      executionTime: Date.now() - startTime,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}
+
+/**
+ * Generate images using both OpenAI and Ideogram APIs simultaneously
+ */
+export async function generateDualProviderImages(
+  request: SimpleDesignRequest | AdvancedDesignRequest,
+  brand: V2Brand
+): Promise<{
+  openai: Awaited<ReturnType<typeof generateOpenAIImage>>;
+  ideogram: Awaited<ReturnType<typeof generateIdeogramImage>>;
+  prompt: string;
+  logoSpace: LogoSpaceCalculation;
+}> {
+  // Calculate logo space
+  const logoSpace = calculateLogoSpace(brand);
+  
+  // Generate prompt
+  const prompt = 'customHeadline' in request 
+    ? generateAdvancedDesignPrompt(request, brand, logoSpace)
+    : generateSimpleDesignPrompt(request, brand, logoSpace);
+
+  // Generate Ideogram parameters
+  const ideogramParams = generateIdeogramParams(request, prompt);
+
+  // Call both APIs simultaneously
+  const [openaiResult, ideogramResult] = await Promise.all([
+    generateOpenAIImage(prompt),
+    generateIdeogramImage(ideogramParams)
+  ]);
+
+  return {
+    openai: openaiResult,
+    ideogram: ideogramResult,
+    prompt,
+    logoSpace
+  };
+}
+
+/**
+ * Queue design generation job with dual provider support
  */
 export async function queueDesignGeneration(
   campaignId: string,
@@ -289,7 +488,7 @@ export async function queueDesignGeneration(
       designId,
       status: 'queued',
       progress: 0,
-      estimatedTime: 45, // 45 seconds average
+      estimatedTime: 60, // 60 seconds for dual generation
       startedAt: serverTimestamp() as Timestamp,
       retryCount: 0
     };
@@ -298,7 +497,9 @@ export async function queueDesignGeneration(
       ...job,
       prompt,
       logoSpace,
-      brandId: brand.id
+      brandId: brand.id,
+      generationType: 'dual_provider', // Flag for dual generation
+      requestData: request // Store original request for retry
     });
 
     // Update design status
@@ -336,6 +537,98 @@ export async function getGenerationStatus(jobId: string): Promise<DesignGenerati
   } catch (error) {
     console.error('Error getting generation status:', error);
     return null;
+  }
+}
+
+/**
+ * Process dual provider generation (called by Cloud Function)
+ */
+export async function processDualProviderGeneration(jobId: string): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  try {
+    const jobRef = doc(db, 'aiJobs', jobId);
+    const jobSnap = await getDoc(jobRef);
+
+    if (!jobSnap.exists()) {
+      throw new Error('Job not found');
+    }
+
+    const jobData = jobSnap.data() as DesignGenerationJob & {
+      requestData: SimpleDesignRequest | AdvancedDesignRequest;
+      brandId: string;
+      logoSpace: LogoSpaceCalculation;
+    };
+
+    // Update status to generating
+    await updateDoc(jobRef, {
+      status: 'generating',
+      progress: 10
+    });
+
+    // Get brand data
+    const brandRef = doc(db, 'users', jobData.campaignId, 'brands', jobData.brandId);
+    const brandSnap = await getDoc(brandRef);
+    
+    if (!brandSnap.exists()) {
+      throw new Error('Brand not found');
+    }
+
+    const brand = { id: brandSnap.id, ...brandSnap.data() } as V2Brand;
+
+    // Update progress
+    await updateDoc(jobRef, { progress: 30 });
+
+    // Generate with both providers
+    const results = await generateDualProviderImages(jobData.requestData, brand);
+
+    // Update progress
+    await updateDoc(jobRef, { progress: 80 });
+
+    // Save results
+    await updateDoc(jobRef, {
+      status: 'complete',
+      progress: 100,
+      completedAt: serverTimestamp(),
+      result: {
+        openai: {
+          frontImageUrl: results.openai.imageUrl || '',
+          prompt: results.prompt,
+          model: 'dall-e-3',
+          executionTime: results.openai.executionTime
+        },
+        ideogram: {
+          frontImageUrl: results.ideogram.imageUrl || '',
+          prompt: results.prompt,
+          styleType: generateIdeogramParams(jobData.requestData, results.prompt).styleType,
+          renderingSpeed: 'DEFAULT',
+          executionTime: results.ideogram.executionTime
+        },
+        logoPosition: {
+          x: results.logoSpace.position.x,
+          y: results.logoSpace.position.y,
+          width: results.logoSpace.width,
+          height: results.logoSpace.height
+        }
+      }
+    });
+
+    return { success: true };
+
+  } catch (error) {
+    console.error('Error processing dual provider generation:', error);
+    
+    // Update job with error
+    await updateDoc(doc(db, 'aiJobs', jobId), {
+      status: 'failed',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
   }
 }
 
@@ -436,7 +729,7 @@ export function estimateGenerationTime(
   request: SimpleDesignRequest | AdvancedDesignRequest,
   queuePosition: number = 0
 ): number {
-  let baseTime = 30; // Base 30 seconds
+  let baseTime = 45; // Base 45 seconds for dual generation
 
   // Add time for advanced features
   if ('customHeadline' in request) {
@@ -445,8 +738,8 @@ export function estimateGenerationTime(
     if (request.customPromptAdditions) baseTime += 10;
   }
 
-  // Add queue wait time (assuming 8 concurrent slots)
-  const queueWaitTime = Math.max(0, Math.ceil(queuePosition / 8) * 45);
+  // Add queue wait time (assuming 4 concurrent slots for dual generation)
+  const queueWaitTime = Math.max(0, Math.ceil(queuePosition / 4) * 60);
 
   return baseTime + queueWaitTime;
 }
