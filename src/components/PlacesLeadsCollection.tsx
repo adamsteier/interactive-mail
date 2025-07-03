@@ -8,7 +8,7 @@ import LoadingBar from './LoadingBar';
 import { CampaignLead } from '@/lib/campaignService';
 import { collection, query, onSnapshot, Timestamp, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { createCampaign, navigateToCampaignBuild, CampaignMode, LeadData } from '@/services/campaignService';
+import { createCampaign, CampaignMode, LeadData } from '@/services/campaignService';
 import AnonymousUserPrompt from './AnonymousUserPrompt';
 import EmailCaptureModal from './EmailCaptureModal';
 import { useAuth } from '@/contexts/AuthContext';
@@ -284,8 +284,8 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
 
           console.log("Campaign created:", result);
 
-          // Navigate to the campaign build page
-          navigateToCampaignBuild(result.campaignId);
+          // Navigate to the V2 campaign build page
+          window.location.href = `/v2/build/${result.campaignId}/brand`;
       } catch (err) {
           console.error("Error creating campaign:", err);
           const message = err instanceof Error ? err.message : "Unknown error";
