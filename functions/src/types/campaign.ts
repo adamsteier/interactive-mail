@@ -1,3 +1,5 @@
+import { Timestamp } from "firebase-admin/firestore";
+
 export enum CampaignMode {
   ONE_OFF = "one_off",
   AUTOPILOT = "autopilot"
@@ -35,10 +37,10 @@ export interface Campaign {
   quantity: number;
   price: CampaignPrice;
   recurrence: string | null;
-  nextRunAt: FirebaseFirestore.Timestamp | null;
+  nextRunAt: Timestamp | null;
   designIdLocked: string | null;
-  createdAt: FirebaseFirestore.Timestamp;
-  updatedAt: FirebaseFirestore.Timestamp;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
   teamId: string | null;
   typeStats: TypeStats;
   isAnonymous?: boolean; // Support for anonymous users
@@ -60,8 +62,8 @@ export interface CampaignLead {
   googleWebsite?: string;
   googleRating?: number;
   
-  createdAt: FirebaseFirestore.Timestamp;
-  selectedAt: FirebaseFirestore.Timestamp | null;
+  createdAt: Timestamp;
+  selectedAt: Timestamp | null;
   
   [key: string]: any;
 }
@@ -95,7 +97,7 @@ export interface CreateCampaignData {
   selectedPlaceIds: string[];
   strategyId: string | null;
   recurrence?: string;
-  nextRunAt?: FirebaseFirestore.Timestamp;
+  nextRunAt?: Timestamp;
   designIdLocked?: string;
 }
 

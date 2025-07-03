@@ -1,6 +1,6 @@
 import { onCall, CallableRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions";
-import { getFirestore, Timestamp, DocumentReference } from "firebase-admin/firestore";
+import { getFirestore, Timestamp, DocumentReference, WriteBatch } from "firebase-admin/firestore";
 import { 
   Campaign, 
   CampaignLead,
@@ -32,11 +32,16 @@ export const createCampaignWithLeads = onCall({
     hasAuth: !!request.auth
   });
 
-  // Support both authenticated and anonymous users
-  const userId = request.auth?.uid || `anonymous_${data.cid}`;
-  const isAnonymous = !request.auth;
+  // Require Firebase Auth (including anonymous users)
+  if (!request.auth) {
+    logger.error("Authentication required", { cid: data.cid });
+    throw new Error("Authentication required. Please ensure you are signed in (anonymous users are supported).");
+  }
+
+  const userId = request.auth.uid;
+  const isAnonymous = request.auth.token.firebase?.sign_in_provider === 'anonymous';
   
-  logger.info("User info", { userId, isAnonymous });
+  logger.info("User info", { userId, isAnonymous, provider: request.auth.token.firebase?.sign_in_provider });
   
   // Input validation
   if (!data.cid || !data.allFoundLeadsData || !data.selectedPlaceIds) {
@@ -157,7 +162,7 @@ export const createCampaignWithLeads = onCall({
 async function processLeadChunk(
   leads: LeadData[], // Expecting updated LeadData structure
   campaignRef: DocumentReference,
-  batch: FirebaseFirestore.WriteBatch,
+  batch: WriteBatch,
   selectedGooglePlaceIds: string[], // Renamed for clarity
   mode: CampaignMode,
   typeStats: Campaign["typeStats"]

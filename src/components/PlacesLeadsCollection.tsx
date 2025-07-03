@@ -138,7 +138,7 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
   }, [leads, activeFilter]);
 
   const handleSelectLead = (leadId: string, shiftKey: boolean) => {
-    if (isUpdatingSelection || !searchFinalized) return;
+    if (isUpdatingSelection) return; // Only block if updating, not during search
 
     if (!shiftKey || !lastSelectedId) {
       setSelectedLeadIds(prev => {
@@ -179,7 +179,7 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
   };
 
   const handleBulkSelectFiltered = (select = true) => {
-    if (isUpdatingSelection || !searchFinalized) return;
+    if (isUpdatingSelection) return; // Only block if updating, not during search
     setSelectedLeadIds(prev => {
       const newSet = new Set(prev);
       filteredLeads.forEach(lead => {
@@ -212,6 +212,18 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
   }, [isLoadingLeads, leads.length, isAnonymous, hasSeenSoftPrompt, showAccountPrompt]);
 
   const handleConfirmSelection = async () => {
+      // Block campaign creation if search is still ongoing
+      if (isLoadingSearch && !searchFinalized) {
+          alert("Please wait for the search to complete before starting your campaign.");
+          return;
+      }
+
+      // Ensure user is authenticated (including anonymous users)
+      if (!user) {
+          alert("Authentication in progress. Please wait a moment and try again.");
+          return;
+      }
+
       if (selectedLeadIds.size === 0) {
           if (!confirm("You haven't selected any leads. Do you still want to proceed?")) {
               return;
@@ -254,6 +266,11 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
       setUpdateError(null);
 
       try {
+          // Ensure user is authenticated (including anonymous users)
+          if (!user) {
+              throw new Error("Authentication required. Please wait for authentication to complete.");
+          }
+
           // Convert the leads array to the format expected by the Cloud Function
           const allFoundLeadsData: LeadData[] = leads.map(lead => ({
               searchBusinessType: lead.businessType || 'Unknown',
@@ -289,7 +306,15 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
       } catch (err) {
           console.error("Error creating campaign:", err);
           const message = err instanceof Error ? err.message : "Unknown error";
-          setUpdateError(`Failed to create campaign: ${message}. Please try again.`);
+          
+          // Provide more specific error messages
+          if (message.includes("Authentication required")) {
+              setUpdateError("Authentication in progress. Please wait a moment and try again.");
+          } else if (message.includes("INTERNAL")) {
+              setUpdateError("Server error occurred. Please try again in a moment.");
+          } else {
+              setUpdateError(`Failed to create campaign: ${message}. Please try again.`);
+          }
       } finally {
           setIsUpdatingSelection(false);
       }
@@ -331,7 +356,11 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
             <h2 className="text-xl sm:text-2xl font-semibold text-electric-teal">
                 Leads Found ({leads.length}) 
                 {(isLoadingLeads && leads.length === 0) && <span> - Initializing...</span>}
-                {isLoadingSearch && !searchFinalized && <span> - Searching...</span>}
+                {isLoadingSearch && !searchFinalized && (
+                  <span className="text-electric-teal/80 text-sm ml-2">
+                    - Searching... (you can select leads as they appear)
+                  </span>
+                )}
             </h2>
             <button onClick={onClose} className="text-electric-teal hover:text-electric-teal/80">
                 Close
@@ -346,14 +375,14 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
                 <span className="text-electric-teal/80 text-sm">Quick Select:</span>
                 <button
                   onClick={() => handleBulkSelectFiltered(true)}
-                  disabled={!searchFinalized || isUpdatingSelection}
+                  disabled={isUpdatingSelection || filteredLeads.length === 0}
                   className="px-3 py-1 rounded text-xs border border-electric-teal/50 bg-electric-teal/10 text-electric-teal hover:bg-electric-teal/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Select All ({filteredLeads.length})
                 </button>
                 <button
                   onClick={() => handleBulkSelectFiltered(false)}
-                   disabled={!searchFinalized || isUpdatingSelection}
+                  disabled={isUpdatingSelection || filteredLeads.length === 0}
                   className="px-3 py-1 rounded text-xs border border-electric-teal/50 bg-electric-teal/10 text-electric-teal hover:bg-electric-teal/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Deselect All
@@ -436,7 +465,7 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
                       <th className="p-2 w-10">
                            <input 
                               type="checkbox" 
-                              disabled={!searchFinalized || isUpdatingSelection || filteredLeads.length === 0}
+                              disabled={isUpdatingSelection || filteredLeads.length === 0}
                               className="w-5 h-5 rounded border-2 border-electric-teal text-electric-teal 
                                 focus:ring-2 focus:ring-electric-teal focus:ring-offset-0 focus:ring-offset-transparent
                                 bg-transparent checked:bg-electric-teal hover:border-electric-teal/80 
@@ -471,7 +500,7 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
                             focus:ring-2 focus:ring-electric-teal focus:ring-offset-0 focus:ring-offset-transparent
                             bg-transparent checked:bg-electric-teal hover:border-electric-teal/80 
                             cursor-pointer transition-all"
-                          disabled={!searchFinalized || isUpdatingSelection}
+                          disabled={isUpdatingSelection}
                         />
                       </td>
                       <td className="p-2 break-words font-medium text-white">{lead.businessName}</td>

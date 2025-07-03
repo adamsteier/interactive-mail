@@ -79,6 +79,49 @@ src/
 - **Smart Defaults**: Track usage to suggest most-used items
 - **Cloneable Everything**: Any campaign, design, or brand can be cloned
 
+## Authentication Strategy
+
+### Anonymous-First Approach
+```typescript
+// Core Principle: Anonymous users are authenticated Firebase Auth users
+- All users start as anonymous (Firebase Auth anonymous authentication)
+- Anonymous users have full access to lead selection, branding, and design
+- Campaign creation requires Firebase Auth (anonymous users supported)
+- Account linking preserves all data when upgrading to full account
+
+// Authentication Flow:
+1. User visits app → Automatic anonymous Firebase Auth sign-in
+2. User can use all features as anonymous (creates campaigns, brands, designs)
+3. At payment time → REQUIRED account upgrade via linkWithCredential
+4. Optional upgrade points: email capture, any sign-up prompts
+5. Account linking preserves all anonymous user data and campaigns
+
+// Key Implementation Details:
+- Cloud Function requires Firebase Auth (including anonymous)
+- Frontend checks user auth state before campaign creation
+- All account creation flows must check isAnonymous and use linkWithCredential
+- Campaign ownership transfers seamlessly from anonymous to authenticated
+```
+
+### Account Linking Points
+```typescript
+// Mandatory Linking (Payment):
+- Users MUST create account to complete payment
+- Payment Intent API requires authenticated account
+- Use linkWithCredential to preserve anonymous campaigns
+
+// Optional Linking (Throughout Flow):
+- Email capture modals
+- Sign-up prompts and banners
+- Social login options
+- All must preserve anonymous data via linkWithCredential
+
+// Technical Implementation:
+- AuthContext.linkWithCredential() already implemented
+- Check isAnonymous state before any account creation
+- All Firebase data (campaigns, brands, designs) preserved during linking
+```
+
 ## Complete User Journey: From "Create & Send with AI" to Delivery
 
 ### Starting Point: PlacesLeadsCollection
@@ -86,17 +129,19 @@ src/
 // User has selected leads and clicks "Create & Send with AI"
 // PlacesLeadsCollection.handleConfirmSelectionInternal() executes:
 
-1. Creates campaign via Cloud Function with:
+1. Ensures Firebase Auth is complete (including anonymous users)
+2. Creates campaign via Cloud Function with:
    - allFoundLeadsData: Array<LeadData>
    - selectedPlaceIds: string[]
    - campaignMode: 'one-off'
    
-2. Campaign created with:
+3. Campaign created with:
    - status: 'draft'
+   - ownerUid: Firebase Auth UID (anonymous or authenticated)
    - leads saved to subcollection
    - businessTypes extracted from leads
    
-3. Redirects to: `/v2/build/${campaignId}/brand`
+4. Redirects to: `/v2/build/${campaignId}/brand`
 ```
 
 ### Step 1: Brand Selection (/v2/build/[campaignId]/brand)
@@ -111,6 +156,11 @@ src/
 - Create new brand (logo upload → color extraction → contrast analysis)
 - System saves brandId to campaign
 - Proceeds to: `/v2/build/${campaignId}/design`
+
+// Authentication Flow:
+- Anonymous users can access and use brand system
+- All brand data is saved to user's Firebase Auth account
+- Account linking preserves all brand data when upgrading to full account
 ```
 
 ### Step 2: Design Assignment (/v2/build/[campaignId]/design)
@@ -195,6 +245,12 @@ campaign.scheduling = {
   actualSendDate?: Timestamp,        // When actually sent (after approval)
   trackingUrl?: string               // Added after dispatch
 }
+
+// Authentication & Account Linking Flow:
+- Anonymous users can proceed through all steps until payment
+- Payment requires authenticated account (anonymous users must upgrade)
+- Account linking preserves all campaign data and brand information
+- Use linkWithCredential to connect anonymous session to new account
 ```
 
 ### Step 5: Post-Payment Processing

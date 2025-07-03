@@ -32,6 +32,7 @@
 
 **Phase 4 Testing & Launch: 🔄 Current Active Phase**
 - ✅ **V2 System Live**: Complete end-to-end flow operational
+- ✅ **Anonymous Authentication Fixed**: Cloud Function now properly handles anonymous users
 - 🔄 Live user testing and feedback collection needed
 - 🔄 Performance monitoring and analytics setup
 - 🔄 Admin dashboard for campaign management
@@ -39,6 +40,46 @@
 **🚀 V2 SYSTEM IS LIVE AND OPERATIONAL**
 **Complete campaign creation flow now live**: Lead Selection → Brand → Design (AI A/B Testing) → Review → Payment → Scheduling
 **All new campaigns automatically use the enhanced V2 experience**
+
+## 🔐 **Anonymous Authentication & Account Linking Strategy**
+
+### **Core Principle**: Anonymous Users Are Authenticated Users
+- **Anonymous users are legitimate Firebase Auth users** (not fake IDs)
+- All Firebase Auth functionality (including anonymous) works throughout the system
+- Campaign creation requires Firebase Auth (anonymous users supported)
+- Account linking preserves all anonymous user data and campaigns
+
+### **Account Linking Requirements**
+**CRITICAL**: Every point where a user might create an account needs to properly link to the anonymous Firebase Auth account using `linkWithCredential` functionality.
+
+#### **Mandatory Account Linking Points**:
+1. **Payment Time** (Required):
+   - Users MUST create account to complete payment
+   - Use `linkWithCredential` to preserve anonymous campaigns
+   - All payment processing requires authenticated account
+
+2. **Email Capture** (Optional):
+   - Collect email for guest users before checkout
+   - Use `linkWithCredential` if user decides to create account
+   - Preserve campaign data during account linking
+
+3. **Any Account Creation Flow**:
+   - Sign up forms throughout the app
+   - Social login (Google, etc.)
+   - Email/password registration
+   - All must use `linkWithCredential` for anonymous users
+
+#### **Implementation Notes**:
+- `AuthContext` already has `linkWithCredential` functionality implemented
+- Anonymous users maintain their campaigns when linking accounts
+- Campaign ownership transfers properly from anonymous to authenticated
+- All account creation flows must check `isAnonymous` state before proceeding
+
+#### **Authentication Flow Fixed**:
+- ✅ Cloud Function updated to require Firebase Auth (including anonymous)
+- ✅ Frontend updated to ensure anonymous auth completes before campaign creation
+- ✅ Better error handling for authentication failures
+- ✅ Campaign creation now works for anonymous users
 
 ## 🎉 **Latest Session Accomplishments - V2 Launch**
 
