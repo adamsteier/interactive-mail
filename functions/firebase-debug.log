@@ -14,3 +14,118 @@
 [debug] [2025-07-03T15:37:44.009Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/post-timely-94681:testIamPermissions [none]
 [debug] [2025-07-03T15:37:44.009Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/post-timely-94681:testIamPermissions x-goog-quota-user=projects/post-timely-94681
 [debug] [2025-07-03T15:37:44.010Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/post-timely-94681:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2025-07-03T15:37:44.339Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/post-timely-94681:testIamPermissions 200
+[debug] [2025-07-03T15:37:44.339Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/post-timely-94681:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2025-07-03T15:37:44.340Z] Checked if tokens are valid: true, expires at: 1751560549286
+[debug] [2025-07-03T15:37:44.340Z] Checked if tokens are valid: true, expires at: 1751560549286
+[debug] [2025-07-03T15:37:44.340Z] >>> [apiv2][query] POST https://iam.googleapis.com/v1/projects/post-timely-94681/serviceAccounts/post-timely-94681@appspot.gserviceaccount.com:testIamPermissions [none]
+[debug] [2025-07-03T15:37:44.340Z] >>> [apiv2][body] POST https://iam.googleapis.com/v1/projects/post-timely-94681/serviceAccounts/post-timely-94681@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[debug] [2025-07-03T15:37:44.599Z] <<< [apiv2][status] POST https://iam.googleapis.com/v1/projects/post-timely-94681/serviceAccounts/post-timely-94681@appspot.gserviceaccount.com:testIamPermissions 200
+[debug] [2025-07-03T15:37:44.599Z] <<< [apiv2][body] POST https://iam.googleapis.com/v1/projects/post-timely-94681/serviceAccounts/post-timely-94681@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[info] 
+[info] === Deploying to 'post-timely-94681'...
+[info] 
+[info] i  deploying functions 
+[info] Running command: npm --prefix "$RESOURCE_DIR" run lint
+[info] Running command: npm --prefix "$RESOURCE_DIR" run build
+[info] +  functions: Finished running predeploy script. 
+[debug] [2025-07-03T15:37:55.687Z] Checked if tokens are valid: true, expires at: 1751560549286
+[debug] [2025-07-03T15:37:55.687Z] Checked if tokens are valid: true, expires at: 1751560549286
+[debug] [2025-07-03T15:37:55.688Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/post-timely-94681/services/cloudresourcemanager.googleapis.com [none]
+[debug] [2025-07-03T15:37:55.688Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/post-timely-94681/services/cloudresourcemanager.googleapis.com x-goog-quota-user=projects/post-timely-94681
+[debug] [2025-07-03T15:37:56.317Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/post-timely-94681/services/cloudresourcemanager.googleapis.com 200
+[debug] [2025-07-03T15:37:56.317Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/post-timely-94681/services/cloudresourcemanager.googleapis.com [omitted]
+[debug] [2025-07-03T15:37:56.317Z] Checked if tokens are valid: true, expires at: 1751560549286
+[debug] [2025-07-03T15:37:56.317Z] Checked if tokens are valid: true, expires at: 1751560549286
+[debug] [2025-07-03T15:37:56.317Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/post-timely-94681 [none]
+[debug] [2025-07-03T15:37:56.515Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/post-timely-94681 200
+[debug] [2025-07-03T15:37:56.515Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/post-timely-94681 {"projectNumber":"861164737233","projectId":"post-timely-94681","lifecycleState":"ACTIVE","name":"post-timely","labels":{"firebase":"enabled","firebase-core":"disabled","generative-language":"enabled"},"createTime":"2025-02-20T05:26:36.627539Z"}
+[info] i  functions: preparing codebase default for deployment 
+[info] i  functions: ensuring required API cloudfunctions.googleapis.com is enabled... 
+[debug] [2025-07-03T15:37:56.516Z] Checked if tokens are valid: true, expires at: 1751560549286
+[debug] [2025-07-03T15:37:56.516Z] Checked if tokens are valid: true, expires at: 1751560549286
+[debug] [2025-07-03T15:37:56.517Z] Checked if tokens are valid: true, expires at: 1751560549286
+[debug] [2025-07-03T15:37:56.517Z] Checked if tokens are valid: true, expires at: 1751560549286
+[info] i  functions: ensuring required API cloudbuild.googleapis.com is enabled... 
+[debug] [2025-07-03T15:37:56.517Z] Checked if tokens are valid: true, expires at: 1751560549286
+[debug] [2025-07-03T15:37:56.517Z] Checked if tokens are valid: true, expires at: 1751560549286
+[info] i  artifactregistry: ensuring required API artifactregistry.googleapis.com is enabled... 
+[debug] [2025-07-03T15:37:56.518Z] Checked if tokens are valid: true, expires at: 1751560549286
+[debug] [2025-07-03T15:37:56.518Z] Checked if tokens are valid: true, expires at: 1751560549286
+[debug] [2025-07-03T15:37:56.518Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/post-timely-94681/services/cloudfunctions.googleapis.com [none]
+[debug] [2025-07-03T15:37:56.518Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/post-timely-94681/services/cloudfunctions.googleapis.com x-goog-quota-user=projects/post-timely-94681
+[debug] [2025-07-03T15:37:56.518Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/post-timely-94681/services/runtimeconfig.googleapis.com [none]
+[debug] [2025-07-03T15:37:56.518Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/post-timely-94681/services/runtimeconfig.googleapis.com x-goog-quota-user=projects/post-timely-94681
+[debug] [2025-07-03T15:37:56.521Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/post-timely-94681/services/cloudbuild.googleapis.com [none]
+[debug] [2025-07-03T15:37:56.521Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/post-timely-94681/services/cloudbuild.googleapis.com x-goog-quota-user=projects/post-timely-94681
+[debug] [2025-07-03T15:37:56.523Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/post-timely-94681/services/artifactregistry.googleapis.com [none]
+[debug] [2025-07-03T15:37:56.523Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/post-timely-94681/services/artifactregistry.googleapis.com x-goog-quota-user=projects/post-timely-94681
+[debug] [2025-07-03T15:37:57.007Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/post-timely-94681/services/artifactregistry.googleapis.com 200
+[debug] [2025-07-03T15:37:57.007Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/post-timely-94681/services/artifactregistry.googleapis.com [omitted]
+[info] +  artifactregistry: required API artifactregistry.googleapis.com is enabled 
+[debug] [2025-07-03T15:37:57.022Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/post-timely-94681/services/cloudfunctions.googleapis.com 200
+[debug] [2025-07-03T15:37:57.022Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/post-timely-94681/services/cloudfunctions.googleapis.com [omitted]
+[info] +  functions: required API cloudfunctions.googleapis.com is enabled 
+[debug] [2025-07-03T15:37:57.041Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/post-timely-94681/services/cloudbuild.googleapis.com 200
+[debug] [2025-07-03T15:37:57.041Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/post-timely-94681/services/cloudbuild.googleapis.com [omitted]
+[info] +  functions: required API cloudbuild.googleapis.com is enabled 
+[debug] [2025-07-03T15:37:57.095Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/post-timely-94681/services/runtimeconfig.googleapis.com 200
+[debug] [2025-07-03T15:37:57.096Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/post-timely-94681/services/runtimeconfig.googleapis.com [omitted]
+[debug] [2025-07-03T15:37:57.096Z] Checked if tokens are valid: true, expires at: 1751560549286
+[debug] [2025-07-03T15:37:57.096Z] Checked if tokens are valid: true, expires at: 1751560549286
+[debug] [2025-07-03T15:37:57.096Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/post-timely-94681/adminSdkConfig [none]
+[debug] [2025-07-03T15:37:57.617Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/post-timely-94681/adminSdkConfig 200
+[debug] [2025-07-03T15:37:57.617Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/post-timely-94681/adminSdkConfig {"projectId":"post-timely-94681","storageBucket":"post-timely-94681.firebasestorage.app"}
+[debug] [2025-07-03T15:37:57.617Z] Checked if tokens are valid: true, expires at: 1751560549286
+[debug] [2025-07-03T15:37:57.617Z] Checked if tokens are valid: true, expires at: 1751560549286
+[debug] [2025-07-03T15:37:57.618Z] >>> [apiv2][query] GET https://runtimeconfig.googleapis.com/v1beta1/projects/post-timely-94681/configs [none]
+[debug] [2025-07-03T15:37:57.874Z] <<< [apiv2][status] GET https://runtimeconfig.googleapis.com/v1beta1/projects/post-timely-94681/configs 200
+[debug] [2025-07-03T15:37:57.874Z] <<< [apiv2][body] GET https://runtimeconfig.googleapis.com/v1beta1/projects/post-timely-94681/configs {}
+[debug] [2025-07-03T15:37:57.875Z] Validating nodejs source
+[debug] [2025-07-03T15:37:59.061Z] > [functions] package.json contents: {
+  "name": "functions",
+  "scripts": {
+    "lint": "eslint .",
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "22"
+  },
+  "main": "lib/index.js",
+  "dependencies": {
+    "@tanstack/react-table": "^8.21.3",
+    "axios": "^1.7.2",
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^6.0.1",
+    "form-data": "^4.0.0",
+    "globals": "^15.0.0",
+    "node-fetch": "^2.7.0",
+    "openai": "^4.57.0",
+    "react-firebase-hooks": "^5.1.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.2.0",
+    "@types/node-fetch": "^2.6.11",
+    "@typescript-eslint/eslint-plugin": "^7.8.0",
+    "@typescript-eslint/parser": "^7.8.0",
+    "eslint": "^8.57.0",
+    "eslint-config-google": "^0.14.0",
+    "eslint-plugin-import": "^2.29.1",
+    "firebase-functions-test": "^3.1.0",
+    "typescript": "^5.4.5",
+    "typescript-eslint": "^7.8.0"
+  },
+  "private": true
+}
+[debug] [2025-07-03T15:37:59.061Z] Building nodejs source
+[info] i  functions: Loading and analyzing source code for codebase default to determine what to deploy 
+[debug] [2025-07-03T15:37:59.062Z] Could not find functions.yaml. Must use http discovery
+[debug] [2025-07-03T15:37:59.070Z] Found firebase-functions binary at 'C:\Users\astei\Projects\post-timely-interactive\interactive-mail\functions\node_modules\.bin\firebase-functions'
+[info] Serving at port 8475
+
