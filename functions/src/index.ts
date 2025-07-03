@@ -292,29 +292,147 @@ async function generateWithIdeogram(prompt: string): Promise<{
   }
 }
 
-// Create Postcard Prompt
+// Enhanced Postcard Prompt Generation
 function createPostcardPrompt(formData: any, brandData: any): string {
-  const { voice, goal, industry, audience, customPrompt } = formData;
+  const { 
+    voice, 
+    goal, 
+    industry, 
+    audience, 
+    customHeadline,
+    customCTA,
+    imageDescription,
+    stylePreference,
+    colorMood,
+    elementsToExclude,
+    customPromptAdditions
+  } = formData;
 
-  let prompt = `Create a professional 6x4 inch landscape postcard design for a ${industry} business. `;
-  prompt += `The tone should be ${voice} and the goal is to ${goal}. `;
-  prompt += `Target audience: ${audience}. `;
+  // Calculate logo space based on brand data
+  const logoSpace = calculateLogoSpace(brandData);
   
-  // Add brand colors if available
+  // Build comprehensive postcard prompt
+  let prompt = "Create a professional direct mail promotional postcard design " +
+    "(6x4 inch landscape) that will be mailed to potential customers.\n\n" +
+    "POSTCARD CONTEXT: This is a promotional postcard that recipients will receive " +
+    `in their mailbox to promote a ${industry} business. It must grab attention and drive action.\n\n` +
+    `LOGO SPACE: ${logoSpace.promptInstructions}\n\n` +
+    "BRAND GUIDELINES:";
+
+  // Add brand colors
   if (brandData.colors?.primary) {
-    prompt += `Use the brand color ${brandData.colors.primary} prominently. `;
+    prompt += `\nPrimary brand color: ${brandData.colors.primary}`;
+  }
+  if (brandData.colors?.secondary) {
+    prompt += `\nSecondary brand color: ${brandData.colors.secondary}`;
+  }
+  if (brandData.colors?.accent) {
+    prompt += `\nAccent color: ${brandData.colors.accent}`;
   }
 
-  // Logo space reservation
-  prompt += "Reserve a 1.5x1 inch space in the top-left corner for a logo overlay. ";
-  prompt += "Make this space have a clean, contrasting background. ";
+  prompt += `\nTone: ${voice}
+Target audience: ${audience}
+Campaign goal: ${goal}
+
+CONTENT REQUIREMENTS:`;
+
+  // Handle headline
+  if (customHeadline) {
+    prompt += `\nHeadline: "${customHeadline}"`;
+  } else {
+    prompt += `\nGenerate an attention-grabbing headline that appeals to ${audience} and promotes the ${goal}`;
+  }
+
+  // Handle CTA - ALWAYS ensure there's a CTA
+  if (customCTA) {
+    prompt += `\nCall-to-action: "${customCTA}"`;
+  } else {
+    prompt += `\nGenerate a compelling call-to-action button/text that encourages immediate response (examples: "Call Now", "Visit Today", "Book Online", "Get Started", "Save Now")`;
+  }
+
+  // Contact information requirement
+  prompt += `\nContact info: Include placeholder areas for phone number, website, and address in an attractive, readable layout`;
+
+  // Image requirements
+  if (imageDescription) {
+    prompt += `\nImagery: ${imageDescription}`;
+  } else {
+    prompt += `\nImagery: High-quality, professional images relevant to ${industry} that appeal to ${audience}`;
+  }
+
+  // Style preferences
+  if (stylePreference) {
+    prompt += `\nStyle: ${stylePreference}`;
+  }
+
+  if (colorMood) {
+    prompt += `\nColor mood: ${colorMood}`;
+  }
+
+  prompt += `
+
+TECHNICAL REQUIREMENTS:
+- 6x4 inch landscape orientation optimized for print
+- 300 DPI quality
+- Modern typography that's readable when printed
+- Professional layout with proper hierarchy
+- Ensure all text is large enough to read in mail format
+- Use the latest image generation capabilities for sharp, clear text
+
+DESIGN PRINCIPLES:
+- This postcard will be physically mailed, so it must stand out in a mailbox
+- Include enough white space for readability
+- Make the most important information (headline, CTA) most prominent
+- Ensure contact information is clearly visible but not overwhelming
+- Create visual appeal that makes recipients want to keep the postcard`;
+
+  // Elements to exclude
+  if (elementsToExclude && elementsToExclude.length > 0) {
+    prompt += `\n\nAVOID: ${elementsToExclude.join(', ')}`;
+  }
 
   // Custom additions
-  if (customPrompt) {
-    prompt += customPrompt;
+  if (customPromptAdditions) {
+    prompt += `\n\nADDITIONAL REQUIREMENTS: ${customPromptAdditions}`;
   }
 
   return prompt;
+}
+
+// Calculate logo space requirements
+function calculateLogoSpace(brandData: any): { promptInstructions: string } {
+  // Default logo space calculation
+  const logoWidth = 1.5; // inches
+  const logoHeight = 1.0; // inches
+  
+  // Determine background requirement from brand colors
+  let backgroundRequirement = 'light colored or white';
+  
+  // If we have brand colors, check if logo needs dark background
+  if (brandData.colors?.primary) {
+    const primaryColor = brandData.colors.primary.toLowerCase();
+    // Simple check for dark colors
+    if (primaryColor.includes('black') || primaryColor.includes('#000') || 
+        primaryColor.includes('#1a1a1a') || primaryColor.includes('#2f2f2f')) {
+      backgroundRequirement = 'dark colored';
+    }
+  }
+  
+  let instructions = `Reserve a ${logoWidth} x ${logoHeight} inch ${backgroundRequirement} space in the top-left corner for logo placement. Ensure this area has minimal visual elements and excellent contrast for logo visibility.`;
+  
+  // Add color avoidance if we have brand colors
+  if (brandData.colors?.primary || brandData.colors?.secondary) {
+    const colorsToAvoid = [];
+    if (brandData.colors.primary) colorsToAvoid.push(brandData.colors.primary);
+    if (brandData.colors.secondary) colorsToAvoid.push(brandData.colors.secondary);
+    if (brandData.colors.accent) colorsToAvoid.push(brandData.colors.accent);
+    
+    if (colorsToAvoid.length > 0) {
+      instructions += ` Avoid using these exact brand colors in the logo area: ${colorsToAvoid.join(', ')}.`;
+    }
+  }
+  
+  return { promptInstructions: instructions };
 }
 
 // Get Generation Status Function
