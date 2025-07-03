@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
-import { doc, getDoc, collection, getDocs, updateDoc } from 'firebase/firestore';
+import { motion } from 'framer-motion';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
@@ -401,7 +401,7 @@ export default function ReviewPage({ params }: { params: Params }) {
 
           {/* Design Reviews */}
           <div className="space-y-8">
-            {campaignData.designAssignments?.map((assignment, index) => (
+            {campaignData.designAssignments?.map((assignment) => (
               <div key={assignment.designId} className="bg-[#2F2F2F]/50 rounded-lg border border-[#00F0FF]/20 overflow-hidden">
                 <div className="p-6 border-b border-[#2F2F2F]">
                   <div className="flex items-center justify-between mb-4">

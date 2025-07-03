@@ -314,8 +314,9 @@ function createPostcardPrompt(formData: any, brandData: any): string {
   // Build comprehensive postcard prompt
   let prompt = "Create a professional direct mail promotional postcard design " +
     "(6x4 inch landscape) that will be mailed to potential customers.\n\n" +
-    "POSTCARD CONTEXT: This is a promotional postcard that recipients will receive " +
-    `in their mailbox to promote a ${industry} business. It must grab attention and drive action.\n\n` +
+    "POSTCARD CONTEXT: This is a promotional postcard that recipients " +
+    `will receive in their mailbox to promote a ${industry} business. ` +
+    "It must grab attention and drive action.\n\n" +
     `LOGO SPACE: ${logoSpace.promptInstructions}\n\n` +
     "BRAND GUIDELINES:";
 
@@ -347,11 +348,13 @@ CONTENT REQUIREMENTS:`;
   if (customCTA) {
     prompt += `\nCall-to-action: "${customCTA}"`;
   } else {
-    prompt += `\nGenerate a compelling call-to-action button/text that encourages immediate response (examples: "Call Now", "Visit Today", "Book Online", "Get Started", "Save Now")`;
+    prompt += "\nGenerate a compelling call-to-action button/text that encourages " +
+      "immediate response (examples: \"Call Now\", \"Visit Today\", \"Book Online\", \"Get Started\", \"Save Now\")";
   }
 
   // Contact information requirement
-  prompt += `\nContact info: Include placeholder areas for phone number, website, and address in an attractive, readable layout`;
+  prompt += "\nContact info: Include placeholder areas for phone number, website, " +
+    "and address in an attractive, readable layout";
 
   // Image requirements
   if (imageDescription) {
@@ -388,7 +391,7 @@ DESIGN PRINCIPLES:
 
   // Elements to exclude
   if (elementsToExclude && elementsToExclude.length > 0) {
-    prompt += `\n\nAVOID: ${elementsToExclude.join(', ')}`;
+    prompt += `\n\nAVOID: ${elementsToExclude.join(", ")}`;
   }
 
   // Custom additions
@@ -406,19 +409,21 @@ function calculateLogoSpace(brandData: any): { promptInstructions: string } {
   const logoHeight = 1.0; // inches
   
   // Determine background requirement from brand colors
-  let backgroundRequirement = 'light colored or white';
+  let backgroundRequirement = "light colored or white";
   
   // If we have brand colors, check if logo needs dark background
   if (brandData.colors?.primary) {
     const primaryColor = brandData.colors.primary.toLowerCase();
     // Simple check for dark colors
-    if (primaryColor.includes('black') || primaryColor.includes('#000') || 
-        primaryColor.includes('#1a1a1a') || primaryColor.includes('#2f2f2f')) {
-      backgroundRequirement = 'dark colored';
+    if (primaryColor.includes("black") || primaryColor.includes("#000") || 
+        primaryColor.includes("#1a1a1a") || primaryColor.includes("#2f2f2f")) {
+      backgroundRequirement = "dark colored";
     }
   }
   
-  let instructions = `Reserve a ${logoWidth} x ${logoHeight} inch ${backgroundRequirement} space in the top-left corner for logo placement. Ensure this area has minimal visual elements and excellent contrast for logo visibility.`;
+  let instructions = `Reserve a ${logoWidth} x ${logoHeight} inch ${backgroundRequirement} space ` +
+    "in the top-left corner for logo placement. Ensure this area has minimal visual elements " +
+    "and excellent contrast for logo visibility.";
   
   // Add color avoidance if we have brand colors
   if (brandData.colors?.primary || brandData.colors?.secondary) {
@@ -428,7 +433,7 @@ function calculateLogoSpace(brandData: any): { promptInstructions: string } {
     if (brandData.colors.accent) colorsToAvoid.push(brandData.colors.accent);
     
     if (colorsToAvoid.length > 0) {
-      instructions += ` Avoid using these exact brand colors in the logo area: ${colorsToAvoid.join(', ')}.`;
+      instructions += ` Avoid using these exact brand colors in the logo area: ${colorsToAvoid.join(", ")}.`;
     }
   }
   

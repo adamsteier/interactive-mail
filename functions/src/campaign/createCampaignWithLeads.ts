@@ -20,7 +20,7 @@ const db = getFirestore();
  * Called when user clicks "Start Campaign" button
  */
 export const createCampaignWithLeads = onCall({ 
-  enforceAppCheck: true  // Requires App Check for production security
+  enforceAppCheck: false  // Allow both authenticated and anonymous users
 }, async (request: CallableRequest<CreateCampaignData>): Promise<CreateCampaignResponse> => {
   const data = request.data;
   
@@ -28,15 +28,15 @@ export const createCampaignWithLeads = onCall({
     cid: data.cid,
     mode: data.mode,
     leadsCount: data.allFoundLeadsData.length,
-    selectedCount: data.selectedPlaceIds.length
+    selectedCount: data.selectedPlaceIds.length,
+    hasAuth: !!request.auth
   });
 
-  // Authentication check
-  if (!request.auth) {
-    throw new Error("Unauthorized: User must be authenticated");
-  }
-
-  const userId = request.auth.uid;
+  // Support both authenticated and anonymous users
+  const userId = request.auth?.uid || `anonymous_${data.cid}`;
+  const isAnonymous = !request.auth;
+  
+  logger.info("User info", { userId, isAnonymous });
   
   // Input validation
   if (!data.cid || !data.allFoundLeadsData || !data.selectedPlaceIds) {
@@ -84,7 +84,10 @@ export const createCampaignWithLeads = onCall({
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
       teamId: null,
-      typeStats: typeStats
+      typeStats: typeStats,
+      isAnonymous: isAnonymous,
+      // Add V2 flow indicator
+      v2Flow: true
     };
 
     // We'll process leads in chunks to stay under Firestore batch limit (500 operations)

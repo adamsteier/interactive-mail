@@ -41,6 +41,8 @@ export interface Campaign {
   updatedAt: FirebaseFirestore.Timestamp;
   teamId: string | null;
   typeStats: TypeStats;
+  isAnonymous?: boolean; // Support for anonymous users
+  v2Flow?: boolean; // Indicates V2 campaign flow
 }
 
 // Updated CampaignLead interface for Cloud Function internal use

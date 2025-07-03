@@ -376,7 +376,7 @@ export default function PostcardPreviewPage() {
   useEffect(() => {
     // Initial fetch
     fetchPostcards('first');
-  }, []);
+  }, [fetchPostcards]);
 
   // Debug panel component for development mode
   const DebugPanel = () => {

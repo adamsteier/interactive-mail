@@ -5,24 +5,16 @@ import AnimatedBackground from '@/components/AnimatedBackground';
 import TypewriterPrompt from '@/components/TypewriterPrompt';
 import InputField from '@/components/InputField';
 import InfoBox from '@/components/InfoBox';
-import LoadingBar from '@/components/LoadingBar';
 import EditModal from '@/components/EditModal';
 import MarketingResults from '@/components/MarketingResults';
+import ProgressiveAnalysisLoader from '@/components/ProgressiveAnalysisLoader';
+import ProgressiveStrategyLoader from '@/components/ProgressiveStrategyLoader';
 import { useMarketingStore } from '@/store/marketingStore';
 import PlacesLeadsCollection from '@/components/PlacesLeadsCollection';
 import LocationSelector from '@/components/LocationSelector';
 import TechnoConfetti from '@/components/TechnoConfetti';
 import { initializeSession } from '@/lib/sessionService';
 import { useAuth } from '@/contexts/AuthContext';
-
-const LoadingSkeleton = () => (
-  <div className="w-full rounded-lg border-2 border-electric-teal bg-charcoal/80 px-4 md:px-6 py-3 shadow-glow backdrop-blur-sm">
-    <div className="text-sm text-electric-teal/80 mb-2">Industry</div>
-    <LoadingBar height="28px" />
-    <div className="text-sm text-electric-teal/80 mb-2 mt-4">Business Description</div>
-    <LoadingBar height="48px" />
-  </div>
-);
 
 export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -261,7 +253,7 @@ export default function Home() {
             
             {/* Show loading skeleton or analysis */}
             {(isProcessing && currentStep === 1) ? (
-              <LoadingSkeleton />
+              <ProgressiveAnalysisLoader />
             ) : (
               displayInfos
                 .filter(info => info.type === 'analysis')
@@ -280,6 +272,11 @@ export default function Home() {
                     }}
                   />
                 ))
+            )}
+            
+            {/* Show marketing strategy loading */}
+            {isLoadingStrategy && (
+              <ProgressiveStrategyLoader />
             )}
           </div>
         </div>
