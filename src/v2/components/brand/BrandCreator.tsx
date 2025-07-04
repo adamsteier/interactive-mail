@@ -3,12 +3,15 @@
 import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import LogoUploader from './LogoUploader';
 import { useBrands } from '../../hooks/useBrands';
 import { LogoVariant, ColorAnalysis } from '../../types/brand';
 
 interface BrandFormData {
   name: string;
+  logoFile?: File;
+  logoPreview?: string;
   logo: {
     variants: LogoVariant[];
     analysis: ColorAnalysis;
@@ -45,6 +48,7 @@ const BrandCreator = ({
   mode = 'modal'
 }: BrandCreatorProps) => {
   const router = useRouter();
+  const { user } = useAuth();
   const { actions: { create: createBrand }, loading: isCreating } = useBrands();
   
   // Form state
@@ -170,6 +174,10 @@ const BrandCreator = ({
       // Convert form data to CreateBrandRequest format
       const createRequest = {
         name: formData.name,
+        logoData: formData.logo.variants.length > 0 ? {
+          variants: formData.logo.variants,
+          analysis: formData.logo.analysis
+        } : undefined,
         businessInfo: {
           type: '',
           address: '',
@@ -340,6 +348,7 @@ const BrandCreator = ({
                     onLogoUploaded={handleLogoUploaded}
                     onError={(error) => setErrors(prev => ({ ...prev, logo: error }))}
                     currentLogoUrl={formData.logo.variants[0]?.url}
+                    userId={user?.uid}
                   />
                   {errors.logo && (
                     <p className="text-[#FF00B8] text-sm mt-1">{errors.logo}</p>

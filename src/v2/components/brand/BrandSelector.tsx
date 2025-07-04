@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBrandSelection } from '../../hooks/useBrands';
 import { BrandSummary } from '../../types/brand';
@@ -225,6 +225,7 @@ interface BrandCardProps {
 
 const BrandCard = ({ brand, isSelected, onSelect }: BrandCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   return (
     <motion.div
@@ -246,11 +247,12 @@ const BrandCard = ({ brand, isSelected, onSelect }: BrandCardProps) => {
         {/* Logo and Name */}
         <div className="flex items-center gap-3 mb-4">
           <div className="w-12 h-12 rounded-lg bg-electric-teal/20 flex items-center justify-center flex-shrink-0">
-            {brand.logoUrl ? (
+            {brand.logoUrl && !imageError ? (
               <img 
                 src={brand.logoUrl} 
                 alt={brand.name}
                 className="w-8 h-8 object-contain"
+                onError={() => setImageError(true)}
               />
             ) : (
               <div 

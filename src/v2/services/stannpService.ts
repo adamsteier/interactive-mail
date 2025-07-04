@@ -72,9 +72,9 @@ export interface MailpieceTracking {
 }
 
 // Constants
-const STANNP_API_BASE = process.env.NEXT_PUBLIC_STANNP_REGION === 'US' 
-  ? 'https://api-us1.stannp.com/v1'
-  : 'https://api-eu1.stannp.com/v1';
+const STANNP_API_BASE = process.env.NEXT_PUBLIC_STANNP_REGION === 'EU' 
+  ? 'https://api-eu1.stannp.com/v1'
+  : 'https://api-us1.stannp.com/v1'; // Default to US
 
 const BATCH_SIZE = 50; // Process 50 postcards at a time
 const RETRY_ATTEMPTS = 3;
@@ -150,7 +150,7 @@ export async function createPostcard(
     }
     
     // Make API request
-    const response = await fetch(`${STANNP_API_BASE}/postcards/post`, {
+    const response = await fetch(`${STANNP_API_BASE}/postcards/create`, {
       method: 'POST',
       headers: getStannpHeaders(),
       body: formData.toString()

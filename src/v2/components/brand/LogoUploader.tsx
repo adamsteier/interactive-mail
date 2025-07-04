@@ -11,13 +11,15 @@ interface LogoUploaderProps {
   onError: (error: string) => void;
   currentLogoUrl?: string;
   className?: string;
+  userId?: string; // Optional userId for Firebase Storage upload
 }
 
 const LogoUploader = ({ 
   onLogoUploaded, 
   onError, 
   currentLogoUrl,
-  className = '' 
+  className = '',
+  userId
 }: LogoUploaderProps) => {
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -78,7 +80,7 @@ const LogoUploader = ({
       }, 100);
 
       // Process the logo upload
-      const result = await processLogoUpload(file);
+      const result = await processLogoUpload(file, userId);
       
       clearInterval(progressInterval);
       setProgress(100);
@@ -86,11 +88,15 @@ const LogoUploader = ({
       // Set analysis for display
       setAnalysis(result.analysis);
       
+      // Update preview URL to the Firebase Storage URL
+      setPreviewUrl(result.variants[0].url);
+      
+      // Clean up the temporary blob URL
+      URL.revokeObjectURL(tempPreviewUrl);
+      createdUrlsRef.current.delete(tempPreviewUrl);
+      
       // Call parent callback
       onLogoUploaded(result.variants, result.analysis);
-      
-      // Don't clean up the preview URL yet - it's still being used
-      // Keep the tempPreviewUrl for display
 
     } catch (error) {
       console.error('Logo upload error:', error);

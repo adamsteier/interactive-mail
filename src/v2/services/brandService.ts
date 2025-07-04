@@ -13,7 +13,8 @@ import {
   writeBatch,
   Timestamp 
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, storage } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { 
   V2Brand, 
   CreateBrandRequest, 
@@ -54,8 +55,13 @@ export async function createBrand(
     let logoVariants: LogoVariant[] = [];
     let colorAnalysis: ColorAnalysis | undefined;
     
-    if (brandData.logoFile) {
-      const logoResult = await processLogoUpload(brandData.logoFile);
+    if (brandData.logoData) {
+      // Logo already uploaded, use provided data
+      logoVariants = brandData.logoData.variants;
+      colorAnalysis = brandData.logoData.analysis;
+    } else if (brandData.logoFile) {
+      // Upload logo file
+      const logoResult = await processLogoUpload(brandData.logoFile, userId);
       logoVariants = logoResult.variants;
       colorAnalysis = logoResult.analysis;
     }
@@ -175,6 +181,7 @@ export async function getUserBrands(userId: string): Promise<BrandSummary[]> {
     
     const brands = snapshot.docs.map(doc => {
       const data = doc.data() as V2Brand;
+      
       return {
         id: doc.id,
         name: data.name,
@@ -374,7 +381,7 @@ export async function deleteBrand(userId: string, brandId: string): Promise<{ su
 /**
  * Process logo upload and extract colors/dimensions
  */
-export async function processLogoUpload(file: File): Promise<{
+export async function processLogoUpload(file: File, userId?: string): Promise<{
   variants: LogoVariant[];
   analysis: ColorAnalysis;
 }> {
@@ -382,8 +389,36 @@ export async function processLogoUpload(file: File): Promise<{
     // Create a temporary URL for processing
     const tempUrl = URL.createObjectURL(file);
     
-    // Extract colors using ColorThief
+    // Extract colors and dimensions first
     const extractedColors = await extractLogoColors(tempUrl);
+    const dimensions = await getImageDimensions(tempUrl);
+    
+    // Generate a unique filename
+    const timestamp = Date.now();
+    const fileExtension = file.name.split('.').pop() || 'png';
+    const fileName = `logo_${timestamp}_original.${fileExtension}`;
+    
+    // Create storage path
+    // If userId is provided, store under user's folder, otherwise use temp folder
+    const storagePath = userId 
+      ? `users/${userId}/brands/logos/${fileName}`
+      : `temp/logos/${fileName}`;
+    
+    // Upload to Firebase Storage
+    const storageRef = ref(storage, storagePath);
+    const uploadResult = await uploadBytes(storageRef, file, {
+      contentType: file.type,
+      customMetadata: {
+        originalName: file.name,
+        uploadedAt: new Date().toISOString()
+      }
+    });
+    
+    // Get the download URL
+    const downloadUrl = await getDownloadURL(uploadResult.ref);
+    
+    // Clean up temporary URL
+    URL.revokeObjectURL(tempUrl);
     
     // Analyze contrast and harmony
     const analysis: ColorAnalysis = {
@@ -392,22 +427,18 @@ export async function processLogoUpload(file: File): Promise<{
       harmony: analyzeColorHarmony(extractedColors)
     };
     
-    // For now, create a single variant
-    // In production, you'd upload to Firebase Storage and create multiple variants
+    // Create the variant with the Firebase Storage URL
     const variant: LogoVariant = {
       type: file.type.includes('svg') ? 'svg' : file.type.includes('png') ? 'png' : 'jpg',
-      url: tempUrl, // Would be the uploaded URL in production
+      url: downloadUrl,
       size: {
-        width: 0, // Would be extracted from actual image
-        height: 0,
+        width: dimensions.width,
+        height: dimensions.height,
         fileSize: file.size
       },
       purpose: 'original',
       createdAt: new Date() as unknown as Timestamp
     };
-    
-    // Don't revoke the URL here - it's still being used
-    // The component that displays the image should handle cleanup
     
     return {
       variants: [variant],
@@ -418,6 +449,28 @@ export async function processLogoUpload(file: File): Promise<{
     console.error('Error processing logo upload:', error);
     throw new Error('Failed to process logo upload');
   }
+}
+
+/**
+ * Get image dimensions from a URL
+ */
+async function getImageDimensions(url: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    
+    img.onload = () => {
+      resolve({
+        width: img.naturalWidth,
+        height: img.naturalHeight
+      });
+    };
+    
+    img.onerror = () => {
+      reject(new Error('Failed to load image for dimension extraction'));
+    };
+    
+    img.src = url;
+  });
 }
 
 /**

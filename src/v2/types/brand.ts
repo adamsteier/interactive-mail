@@ -137,7 +137,11 @@ export interface CreateBrandRequest {
   businessInfo?: Partial<V2Brand['businessInfo']>;
   identity?: Partial<V2Brand['identity']>;
   socialMedia?: Partial<V2Brand['socialMedia']>;
-  logoFile?: File;
+  logoFile?: File; // For direct file upload
+  logoData?: { // For pre-uploaded logo data
+    variants: LogoVariant[];
+    analysis: ColorAnalysis;
+  };
 }
 
 // For brand selection and display

@@ -329,6 +329,35 @@ export default function CheckoutPage({ params }: { params: Params }) {
         updatedAt: new Date(),
       });
 
+      // Trigger campaign processing
+      try {
+        console.log('Triggering campaign processing for:', campaignId);
+        
+        // Call the campaign processing API
+        const response = await fetch('/api/v2/trigger-campaign-processing', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            campaignId,
+            scheduledSendDate: selectedSendDate.toISOString()
+          }),
+        });
+        
+        if (!response.ok) {
+          const error = await response.json();
+          console.error('Campaign processing trigger failed:', error);
+          // Don't throw - payment succeeded, processing can be retried
+        } else {
+          const data = await response.json();
+          console.log('Campaign processing triggered successfully:', data);
+        }
+      } catch (processingError) {
+        console.error('Failed to trigger campaign processing:', processingError);
+        // Don't throw - payment succeeded, processing can be retried
+      }
+
       setPaymentSuccess(true);
       
       // Redirect to success page after 3 seconds
