@@ -52,29 +52,31 @@ export async function POST(req: NextRequest) {
       tags: 'test-campaign-' + Date.now()
     });
     
-    if (!result.success) {
+    const { success, data, error } = result;
+
+    if (!success || !data) {
       return NextResponse.json(
-        { 
+        {
           error: 'Stannp API call failed',
-          details: result.error
+          details: error || 'Unknown error'
         },
         { status: 500 }
       );
     }
-    
+
     // Get status to verify it was created
-    const statusResult = await getPostcardStatus(result.data.id);
+    const statusResult = await getPostcardStatus(data.id);
     
     return NextResponse.json({
       success: true,
       message: testMode ? 'Test postcard created successfully!' : 'Live postcard sent!',
       postcard: {
-        id: result.data.id,
-        status: result.data.status,
-        cost: result.data.cost,
-        format: result.data.format,
-        created: result.data.created,
-        pdf: result.data.pdf
+        id: data.id,
+        status: data.status,
+        cost: data.cost,
+        format: data.format,
+        created: data.created,
+        pdf: data.pdf
       },
       statusCheck: statusResult.success ? statusResult.data : null,
       recipient,
@@ -112,11 +114,13 @@ export async function GET() {
       tags: 'test-' + Date.now()
     });
     
-    if (!result.success) {
+    const { success, data, error } = result;
+
+    if (!success || !data) {
       return NextResponse.json(
-        { 
+        {
           error: 'Stannp test failed',
-          details: result.error,
+          details: error || 'Unknown error',
           apiKeyConfigured: !!process.env.STANNP_API_KEY
         },
         { status: 500 }
@@ -133,11 +137,11 @@ export async function GET() {
         mode: 'TEST MODE'
       },
       result: {
-        postcardId: result.data.id,
-        status: result.data.status,
-        cost: result.data.cost + ' (test mode - no charge)',
-        pdfPreview: result.data.pdf,
-        created: result.data.created
+        postcardId: data.id,
+        status: data.status,
+        cost: data.cost + ' (test mode - no charge)',
+        pdfPreview: data.pdf,
+        created: data.created
       },
       next_steps: [
         '1. Check the PDF preview URL to see the rendered postcard',
