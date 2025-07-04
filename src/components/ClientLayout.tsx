@@ -8,7 +8,7 @@ import AuthFailureNotice from '@/components/AuthFailureNotice';
 
 // Create a separate client component for the navigation with auth
 function Navigation() {
-  const { user, logout } = useAuth();
+  const { user, logout, isAnonymous } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   
@@ -35,10 +35,13 @@ function Navigation() {
   }
 
   // Render different UI based on auth state
+  // Show login button if no user OR user is anonymous
+  const shouldShowLogin = !user || isAnonymous;
+  
   return (
     <nav className="flex space-x-4 items-center">
-      {!user ? (
-          // Render Login/Sign Up button if user is not logged in
+      {shouldShowLogin ? (
+          // Render Login/Sign Up button if user is not logged in OR is anonymous
           <button
             onClick={() => window.dispatchEvent(new CustomEvent('show-auth-overlay'))}
             className="px-4 py-2 bg-electric-teal/90 backdrop-blur-sm text-charcoal border border-electric-teal/30 rounded-lg hover:bg-electric-teal transition-colors font-medium"
@@ -46,7 +49,7 @@ function Navigation() {
               Login / Sign Up
           </button>
       ) : (
-          // Render Account dropdown if user is logged in
+          // Render Account dropdown if user is logged in and not anonymous
           <div className="relative account-menu">
               <button 
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
