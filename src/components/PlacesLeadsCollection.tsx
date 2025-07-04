@@ -38,6 +38,7 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+  const [hasInitializedSelections, setHasInitializedSelections] = useState<boolean>(false);
 
   const [searchFinalized, setSearchFinalized] = useState<boolean>(false);
   const [isUpdatingSelection, setIsUpdatingSelection] = useState<boolean>(false);
@@ -55,11 +56,15 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
         setLeads([]);
         setSelectedLeadIds(new Set());
         setSearchFinalized(false);
+        setHasInitializedSelections(false);
         return;
     }
 
     console.log(`Setting up Firestore listener for campaign leads, campaignId: ${campaignId}`);
     setIsLoadingLeads(true);
+    
+    // Reset the initialization flag when campaignId changes
+    setHasInitializedSelections(false);
 
     // Query the leads subcollection of the campaign
     const campaignRef = doc(db, 'campaigns', campaignId);
@@ -105,7 +110,29 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
       
       fetchedLeads.sort((a, b) => a.businessName.localeCompare(b.businessName));
       setLeads(fetchedLeads);
-      setSelectedLeadIds(initialSelected); 
+      
+      // Only initialize selections from database on first load
+      // After that, preserve user's local selections
+      if (!hasInitializedSelections) {
+        setSelectedLeadIds(initialSelected);
+        setHasInitializedSelections(true);
+      } else {
+        // Preserve existing selections, but remove any that no longer exist in leads
+        setSelectedLeadIds(prevSelected => {
+          const newSelected = new Set(prevSelected);
+          const existingLeadIds = new Set(fetchedLeads.map(lead => lead.id));
+          
+          // Remove any selected IDs that no longer exist in the leads
+          for (const selectedId of newSelected) {
+            if (!existingLeadIds.has(selectedId)) {
+              newSelected.delete(selectedId);
+            }
+          }
+          
+          return newSelected;
+        });
+      }
+      
       setSearchFinalized(!isLoadingSearch);
       setIsLoadingLeads(false);
     }, (err) => {

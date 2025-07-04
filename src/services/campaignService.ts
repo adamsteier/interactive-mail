@@ -1,7 +1,8 @@
-import { Functions, getFunctions, httpsCallable } from 'firebase/functions';
+import { httpsCallable } from 'firebase/functions';
 import { ulid } from 'ulid';
 import { doc, setDoc, serverTimestamp, FieldValue } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { functions } from '@/services/firebase';
 
 // Define types for client-side use
 export enum CampaignMode {
@@ -68,18 +69,6 @@ export interface DraftCampaign {
   };
 }
 
-let functionsInstance: Functions | null = null;
-
-/**
- * Initialize the Firebase Functions instance
- */
-const getFunctionsInstance = (): Functions => {
-  if (!functionsInstance) {
-    functionsInstance = getFunctions();
-  }
-  return functionsInstance;
-};
-
 /**
  * Creates a draft campaign for collecting leads
  * Works for both anonymous and authenticated users
@@ -134,7 +123,22 @@ export const createCampaign = async (
 ): Promise<CreateCampaignResponse> => {
   try {
     const cid = ulid();
-    const functions = getFunctionsInstance();
+    
+    // Debug: Check current auth state
+    const { auth } = await import('@/lib/firebase');
+    const currentUser = auth.currentUser;
+    console.log('Creating campaign with auth state:', {
+      hasUser: !!currentUser,
+      isAnonymous: currentUser?.isAnonymous,
+      uid: currentUser?.uid,
+      providerId: currentUser?.providerId
+    });
+    
+    // Ensure user is authenticated before making the function call
+    if (!currentUser) {
+      throw new Error('Authentication required. Please ensure you are signed in before creating a campaign.');
+    }
+    
     const createCampaignFn = httpsCallable<CreateCampaignRequest, CreateCampaignResponse>(
       functions,
       'createCampaignWithLeads'
@@ -156,9 +160,23 @@ export const createCampaign = async (
 
     const result = await createCampaignFn(requestData);
     return result.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating campaign:', error);
-    throw error;
+    
+    // Provide more detailed error messages based on error type
+    if (error?.code === 'functions/unauthenticated') {
+      throw new Error('Authentication required. Please wait for authentication to complete and try again.');
+    } else if (error?.code === 'functions/permission-denied') {
+      throw new Error('Permission denied. Please ensure you are properly authenticated.');
+    } else if (error?.code === 'functions/unavailable') {
+      throw new Error('Service temporarily unavailable. Please try again in a moment.');
+    } else if (error?.code === 'functions/internal') {
+      console.error('Internal error details:', error.details || error.message);
+      throw new Error('Server error occurred. Please try again in a moment.');
+    }
+    
+    // For other errors, throw the original error with more context
+    throw new Error(error?.message || 'Failed to create campaign. Please try again.');
   }
 };
 
