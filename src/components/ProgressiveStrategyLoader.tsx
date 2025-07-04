@@ -68,7 +68,7 @@ const ProgressiveStrategyLoader = () => {
             {Math.round(currentStep.progress)}%
           </div>
         </div>
-        <div className="relative h-3 w-full rounded-full bg-charcoal border border-electric-teal/30">
+        <div className="relative h-3 w-full rounded-full bg-charcoal border border-electric-teal/30 overflow-hidden">
           <motion.div
             className="absolute left-0 top-0 h-full rounded-full bg-gradient-to-r from-neon-magenta to-electric-teal"
             initial={{ width: 0 }}

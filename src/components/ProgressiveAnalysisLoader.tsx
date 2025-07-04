@@ -61,7 +61,7 @@ const ProgressiveAnalysisLoader = () => {
             {Math.round(currentStep.progress)}%
           </div>
         </div>
-        <div className="relative h-3 w-full rounded-full bg-charcoal border border-electric-teal/30">
+        <div className="relative h-3 w-full rounded-full bg-charcoal border border-electric-teal/30 overflow-hidden">
           <motion.div
             className="absolute left-0 top-0 h-full rounded-full bg-gradient-to-r from-electric-teal to-electric-teal/70"
             initial={{ width: 0 }}
