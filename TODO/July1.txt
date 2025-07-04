@@ -541,6 +541,45 @@ campaigns/{campaignId}/leadsChunks/{chunkId}
 // For campaigns >10k leads, prevents query/batch limits
 ```
 
+## Storage Architecture (User-First Structure)
+
+### V2 Storage Organization
+All user content is organized under `/v2/{userId}/` for consistent security and management:
+
+```
+/v2/{userId}/
+├── brands/{brandId}/
+│   ├── logos/{fileName}         # Brand logos
+│   └── assets/{fileName}        # Color swatches, previews
+├── designs/{designId}/
+│   ├── generated/{fileName}     # AI-generated designs
+│   ├── uploaded/{fileName}      # User uploads
+│   └── thumbnails/{fileName}    # Design previews
+├── campaigns/{campaignId}/
+│   ├── final/{fileName}         # Print-ready files
+│   ├── working/{fileName}       # Work in progress
+│   └── previews/{fileName}      # Review interface
+└── temp/{sessionId}/{fileName}  # User's temporary uploads
+
+/v2/temp/{sessionId}/{fileName}  # Session-based temporary files
+/v2/processing/{jobId}/{fileName} # Processing queue
+/v2/admin/{path}                 # Admin resources
+/v2/system/{path}                # System templates
+```
+
+### Security Benefits
+- **Simple Rules**: `allow if request.auth.uid == userId`
+- **No Orphaned Data**: Everything tied to user (including anonymous)
+- **Easy User Management**: Delete user = delete `/v2/{userId}/`
+- **GDPR Compliant**: All user data in one location
+- **Anonymous Support**: Anonymous users have auth.uid too
+
+### Implementation Notes
+- All services pass userId through the processing chain
+- Campaign ownerUid used as userId for storage paths
+- Logo uploads can use temp path until brand created
+- Session-based temp files remain outside user path
+
 ## User Flow
 
 ### Step 1: Brand Selection (/v2/build/[campaignId]/brand)

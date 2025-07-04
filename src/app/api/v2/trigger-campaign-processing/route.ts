@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { processPaidCampaign, isCampaignReadyForProcessing } from '@/v2/services/campaignProcessingService';
-import { auth } from '@/lib/firebase';
-import { getDoc, doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 export async function POST(request: NextRequest) {
@@ -97,7 +96,7 @@ export async function POST(request: NextRequest) {
 }
 
 // GET endpoint to check scheduled campaigns (can be called by a cron job)
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const { processReadyCampaigns } = await import('@/v2/services/campaignProcessingService');
     

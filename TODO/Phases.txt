@@ -54,6 +54,33 @@
 **Complete campaign creation flow now live**: Lead Selection → Brand → Design (AI A/B Testing) → Review → Payment → Scheduling
 **All new campaigns automatically use the enhanced V2 experience**
 
+## 🔄 **Storage Architecture Update (User-First Structure)**
+
+### **Completed Migration to User-First Storage**
+All V2 storage paths have been updated to follow a consistent user-first structure:
+
+```
+OLD: /v2/campaigns/{campaignId}/...
+NEW: /v2/{userId}/campaigns/{campaignId}/...
+
+OLD: /v2/brands/{userId}/logos/{brandId}/...
+NEW: /v2/{userId}/brands/{brandId}/logos/...
+```
+
+### **Benefits Achieved**
+- ✅ **Simplified Security Rules**: One rule covers all user content
+- ✅ **Consistent Structure**: Everything under `/v2/{userId}/`
+- ✅ **Anonymous User Support**: Works seamlessly with Firebase anonymous auth
+- ✅ **Easy User Management**: All user data in one location
+- ✅ **GDPR Compliant**: Simple data export/deletion per user
+
+### **Implementation Complete**
+- ✅ Updated `brandService.ts` to use new paths
+- ✅ Updated `imageProcessingService.ts` with userId parameters
+- ✅ Updated `campaignProcessingService.ts` to pass userId through
+- ✅ Updated Firebase Storage rules to user-first structure
+- ✅ Deployed simplified security rules
+
 ## 🔐 **Anonymous Authentication & Account Linking Strategy**
 
 ### **Core Principle**: Anonymous Users Are Authenticated Users

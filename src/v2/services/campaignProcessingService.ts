@@ -1,4 +1,4 @@
-import { db, storage } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { 
   doc, 
   getDoc, 
@@ -7,15 +7,13 @@ import {
   collection,
   query,
   where,
-  Timestamp,
-  writeBatch
+  Timestamp
 } from 'firebase/firestore';
 import { V2Campaign as Campaign } from '@/v2/types/campaign';
 import { V2Design as Design } from '@/v2/types/design';
 import { V2Brand as Brand } from '@/v2/types/brand';
 import { processPostcardForPrint } from './imageProcessingService';
 import { batchCreatePostcards, getCampaignMailpieceStats, LeadData } from './stannpService';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 export interface ProcessingResult {
   success: boolean;
@@ -110,6 +108,7 @@ export async function processPaidCampaign(
         const processingResult = await processPostcardForPrint(
           frontImageUrl,
           brand,
+          campaign.ownerUid,
           campaignId,
           designId
         );

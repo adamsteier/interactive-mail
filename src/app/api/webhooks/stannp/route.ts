@@ -10,7 +10,7 @@ interface StannpWebhookEvent {
     status: string;
     timestamp: string;
     tracking_url?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 

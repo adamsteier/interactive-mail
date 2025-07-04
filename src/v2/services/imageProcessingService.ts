@@ -51,6 +51,7 @@ const JPEG_QUALITY = 95;
 export async function processPostcardForPrint(
   aiImageUrl: string,
   brand: V2Brand,
+  userId: string,
   campaignId: string,
   designId: string
 ): Promise<ProcessingResult> {
@@ -72,10 +73,10 @@ export async function processPostcardForPrint(
       finalBuffer = await compositeLogoOnImage(upscaledBuffer, logoBuffer, logoPosition);
     }
     
-    // 4. Upload to Firebase Storage using V2 path structure
+    // 4. Upload to Firebase Storage using V2 user-first path structure
     const frontImage = await uploadToStorage(
       finalBuffer,
-      `v2/campaigns/${campaignId}/final/${designId}-front-processed.jpg`
+      `v2/${userId}/campaigns/${campaignId}/final/${designId}-front-processed.jpg`
     );
     
     // TODO: Handle back design if needed
@@ -246,6 +247,7 @@ async function uploadToStorage(
  * Process multiple designs for a campaign
  */
 export async function processCampaignDesigns(
+  userId: string,
   campaignId: string,
   designs: Array<{ design: V2Design; brand: V2Brand }>
 ): Promise<Map<string, ProcessingResult>> {
@@ -261,6 +263,7 @@ export async function processCampaignDesigns(
       const result = await processPostcardForPrint(
         design.generation.finalImageUrl,
         brand,
+        userId,
         campaignId,
         design.id || 'unknown'
       );
@@ -301,6 +304,7 @@ export async function validateImage(imageUrl: string): Promise<boolean> {
  */
 export async function generateThumbnail(
   imageUrl: string,
+  userId: string,
   campaignId: string,
   designId: string,
   maxWidth: number = 400
@@ -317,7 +321,7 @@ export async function generateThumbnail(
       .toBuffer();
     
     // Upload thumbnail to storage
-    const thumbnailPath = `v2/campaigns/${campaignId}/previews/${designId}-thumbnail.jpg`;
+    const thumbnailPath = `v2/${userId}/campaigns/${campaignId}/previews/${designId}-thumbnail.jpg`;
     const thumbnailResult = await uploadToStorage(thumbnail, thumbnailPath);
     
     return thumbnailResult.url;
@@ -332,10 +336,11 @@ export async function generateThumbnail(
  */
 export async function saveIntermediateFile(
   buffer: Buffer,
+  userId: string,
   campaignId: string,
   fileName: string
 ): Promise<string> {
-  const path = `v2/campaigns/${campaignId}/working/${fileName}`;
+  const path = `v2/${userId}/campaigns/${campaignId}/working/${fileName}`;
   const result = await uploadToStorage(buffer, path);
   return result.url;
 }

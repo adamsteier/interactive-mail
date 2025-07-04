@@ -202,8 +202,10 @@ export async function getUserBrands(userId: string): Promise<BrandSummary[]> {
       
       // Then sort by last used (most recent first)
       if (a.lastUsed && b.lastUsed) {
-        // lastUsed is already a Timestamp in the BrandSummary type
-        return (b.lastUsed as any).toMillis() - (a.lastUsed as any).toMillis();
+        // Convert Timestamp to milliseconds for comparison
+        const bTime = b.lastUsed.toMillis();
+        const aTime = a.lastUsed.toMillis();
+        return bTime - aTime;
       }
       if (a.lastUsed && !b.lastUsed) return -1;
       if (!a.lastUsed && b.lastUsed) return 1;
@@ -381,7 +383,7 @@ export async function deleteBrand(userId: string, brandId: string): Promise<{ su
 /**
  * Process logo upload and extract colors/dimensions
  */
-export async function processLogoUpload(file: File, userId?: string): Promise<{
+export async function processLogoUpload(file: File, userId?: string, brandId?: string): Promise<{
   variants: LogoVariant[];
   analysis: ColorAnalysis;
 }> {
@@ -398,11 +400,13 @@ export async function processLogoUpload(file: File, userId?: string): Promise<{
     const fileExtension = file.name.split('.').pop() || 'png';
     const fileName = `logo_${timestamp}_original.${fileExtension}`;
     
-    // Create storage path
-    // If userId is provided, store under user's folder, otherwise use temp folder
-    const storagePath = userId 
-      ? `users/${userId}/brands/logos/${fileName}`
-      : `temp/logos/${fileName}`;
+    // Create storage path following v2 user-first structure
+    // If we have brandId, use it. Otherwise use timestamp for temp storage
+    const storagePath = userId && brandId
+      ? `v2/${userId}/brands/${brandId}/logos/${fileName}`
+      : userId 
+      ? `v2/${userId}/brands/temp_${timestamp}/logos/${fileName}`
+      : `v2/temp/${timestamp}/${fileName}`;
     
     // Upload to Firebase Storage
     const storageRef = ref(storage, storagePath);

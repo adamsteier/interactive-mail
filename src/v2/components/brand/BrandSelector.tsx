@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBrandSelection } from '../../hooks/useBrands';
 import { BrandSummary } from '../../types/brand';
