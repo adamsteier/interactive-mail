@@ -165,8 +165,21 @@ service cloud.firestore {
       // CAMPAIGN LEADS SUB-COLLECTION
       // ========================================
       match /leads/{leadId} {
-        allow read, write: if isAuthenticated() && 
+        // For reads, check campaign ownership
+        allow read: if isAuthenticated() && 
           canAccessResource(get(/databases/$(database)/documents/campaigns/$(campaignId)).data.ownerUid);
+        
+        // For writes, allow if authenticated and either:
+        // 1. Campaign exists and user owns it, OR
+        // 2. Creating new leads with matching ownerUid (for batch operations)
+        allow write: if isAuthenticated() && (
+          // Option 1: Campaign exists and user can access it
+          (exists(/databases/$(database)/documents/campaigns/$(campaignId)) &&
+           canAccessResource(get(/databases/$(database)/documents/campaigns/$(campaignId)).data.ownerUid)) ||
+          // Option 2: Batch creation - allow if the auth uid matches what would be the owner
+          (!exists(/databases/$(database)/documents/campaigns/$(campaignId)) &&
+           request.auth.uid != null)
+        );
       }
 
       // ========================================

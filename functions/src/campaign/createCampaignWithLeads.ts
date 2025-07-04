@@ -1,5 +1,5 @@
 import { onCall, CallableRequest } from "firebase-functions/v2/https";
-import { logger } from "firebase-functions";
+import * as logger from "firebase-functions/logger";
 import { getFirestore, Timestamp, DocumentReference, WriteBatch } from "firebase-admin/firestore";
 import { 
   Campaign, 
@@ -24,12 +24,14 @@ export const createCampaignWithLeads = onCall({
 }, async (request: CallableRequest<CreateCampaignData>): Promise<CreateCampaignResponse> => {
   const data = request.data;
   
-  logger.info("Creating campaign with leads", { 
+  logger.info("Creating campaign with leads - START", { 
     cid: data.cid,
     mode: data.mode,
     leadsCount: data.allFoundLeadsData.length,
     selectedCount: data.selectedPlaceIds.length,
-    hasAuth: !!request.auth
+    hasAuth: !!request.auth,
+    authUid: request.auth?.uid,
+    authProvider: request.auth?.token?.firebase?.sign_in_provider
   });
 
   // Require Firebase Auth (including anonymous users)
@@ -41,7 +43,12 @@ export const createCampaignWithLeads = onCall({
   const userId = request.auth.uid;
   const isAnonymous = request.auth.token.firebase?.sign_in_provider === "anonymous";
   
-  logger.info("User info", { userId, isAnonymous, provider: request.auth.token.firebase?.sign_in_provider });
+  logger.info("User info", { 
+    userId, 
+    isAnonymous, 
+    provider: request.auth.token.firebase?.sign_in_provider,
+    token: request.auth.token ? "present" : "missing"
+  });
   
   // Input validation
   if (!data.cid || !data.allFoundLeadsData || !data.selectedPlaceIds) {
@@ -66,6 +73,8 @@ export const createCampaignWithLeads = onCall({
 
   // Create initial typeStats object to track counts by business type
   const typeStats: Campaign["typeStats"] = {};
+  
+  logger.info("Starting campaign creation process", { cid: data.cid, userId });
   
   // Process leads and prepare campaign document
   try {
@@ -94,15 +103,30 @@ export const createCampaignWithLeads = onCall({
       // Add V2 flow indicator
       v2Flow: true
     };
+    
+    logger.info("Campaign data prepared", { 
+      cid: data.cid,
+      isAnonymous,
+      ownerUid: userId,
+      status: campaignData.status
+    });
 
     // We'll process leads in chunks to stay under Firestore batch limit (500 operations)
     // Leaving 50 operations buffer for other possible operations
     const MAX_BATCH_SIZE = 450; 
     const leadChunks = chunkArray(data.allFoundLeadsData, MAX_BATCH_SIZE);
     
+    logger.info("Processing leads in chunks", { 
+      totalLeads: data.allFoundLeadsData.length,
+      chunkCount: leadChunks.length,
+      maxBatchSize: MAX_BATCH_SIZE 
+    });
+    
     // Process first batch (includes the campaign document)
     const firstBatch = db.batch();
     firstBatch.set(campaignRef, campaignData);
+
+    logger.info("Processing first batch with campaign document", { cid: data.cid });
 
     // Process first chunk of leads
     await processLeadChunk(
@@ -114,8 +138,15 @@ export const createCampaignWithLeads = onCall({
       typeStats
     );
     
+    logger.info("Committing first batch", { 
+      cid: data.cid,
+      firstChunkSize: leadChunks[0]?.length ?? 0 
+    });
+    
     // Commit the first batch (with campaign doc + first chunk of leads)
     await firstBatch.commit();
+    
+    logger.info("First batch committed successfully", { cid: data.cid });
     
     // Process remaining lead chunks in separate batches
     if (leadChunks.length > 1) {
@@ -151,7 +182,25 @@ export const createCampaignWithLeads = onCall({
     };
     
   } catch (error) {
-    logger.error("Error creating campaign", { error, campaignId: data.cid, userId });
+    logger.error("Error creating campaign", { 
+      error: error instanceof Error ? error.message : error,
+      errorStack: error instanceof Error ? error.stack : undefined,
+      campaignId: data.cid, 
+      userId,
+      isAnonymous 
+    });
+    
+    // Provide more specific error messages based on the error
+    if (error instanceof Error) {
+      if (error.message.includes("PERMISSION_DENIED")) {
+        throw new Error("Permission denied. Please check Firestore security rules.");
+      } else if (error.message.includes("NOT_FOUND")) {
+        throw new Error("Required resource not found. Please try again.");
+      } else if (error.message.includes("DEADLINE_EXCEEDED")) {
+        throw new Error("Operation timed out. Too many leads to process at once.");
+      }
+    }
+    
     throw new Error(`Failed to create campaign: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 });
@@ -167,6 +216,12 @@ async function processLeadChunk(
   mode: CampaignMode,
   typeStats: Campaign["typeStats"]
 ): Promise<void> {
+  logger.info("Processing lead chunk", { 
+    chunkSize: leads.length,
+    campaignId: campaignRef.id,
+    selectedCount: selectedGooglePlaceIds.length 
+  });
+  
   for (const leadPayload of leads) {
     // Destructure all new fields from leadPayload
     const {

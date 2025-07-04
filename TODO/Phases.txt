@@ -202,7 +202,7 @@ UI interface following brandguidelines.txt with exact hex colors
   - [x] Size validation (5MB max)
   - [x] Automatic color extraction on upload
   - [x] Contrast analysis display
-  - [x] Loading state
+  - [x] Loading states
 
 ### 3. Brand Selection Page ✅ COMPLETE
 - [x] Create `src/app/v2/build/[campaignId]/brand/page.tsx`:
@@ -345,13 +345,17 @@ The complete V2 campaign system is operational. All new campaigns automatically 
 ## Phase 4: Cloud Functions & Backend (Week 3-4)
 
 ### 1. Image Processing Pipeline ✅ **Still Required**
-- [ ] Create `src/v2/services/imageProcessingService.ts`:
-  - [ ] `upscaleImage(buffer, dimensions)` - Sharp-based upscaling
-  - [ ] `downloadLogo(logoUrl)` - Fetch and prepare logo
-  - [ ] `compositeLogoOnImage(image, logo, position)` - Overlay logo
-  - [ ] `processPostcardForPrint(aiImage, brand)` - Complete pipeline
-  - [ ] `uploadToStorage(buffer, path)` - Firebase Storage upload
-  - [ ] `generatePublicUrl(path)` - Get Stannp-accessible URLs
+- [x] Create `src/v2/services/imageProcessingService.ts`:
+  - [x] `upscaleImage(buffer, dimensions)` - Sharp-based upscaling
+  - [x] `downloadLogo(logoUrl)` - Fetch and prepare logo
+  - [x] `compositeLogoOnImage(image, logo, position)` - Overlay logo
+  - [x] `processPostcardForPrint(aiImage, brand)` - Complete pipeline
+  - [x] `uploadToStorage(buffer, path)` - Firebase Storage upload
+  - [x] `generatePublicUrl(path)` - Get Stannp-accessible URLs
+- [x] Create test utilities and API endpoint for testing
+- [x] Add retry logic with exponential backoff
+- [x] Add image validation functionality
+- [x] Add thumbnail generation capability
 
 ### 2. Stannp API Integration 🎯 **NEW SIMPLIFIED APPROACH**
 - [ ] Create `src/v2/services/stannpService.ts`:

@@ -145,6 +145,18 @@ export const createCampaign = async (
       throw new Error('Authentication required. Please ensure you are signed in before creating a campaign.');
     }
     
+    // Wait for auth token to be refreshed if needed
+    try {
+      const token = await currentUser.getIdToken(true); // Force refresh
+      console.log('Auth token refreshed successfully', { 
+        tokenPresent: !!token,
+        tokenLength: token?.length 
+      });
+    } catch (tokenError) {
+      console.error('Failed to refresh auth token:', tokenError);
+      throw new Error('Failed to authenticate. Please try signing in again.');
+    }
+    
     const createCampaignFn = httpsCallable<CreateCampaignRequest, CreateCampaignResponse>(
       functions,
       'createCampaignWithLeads'

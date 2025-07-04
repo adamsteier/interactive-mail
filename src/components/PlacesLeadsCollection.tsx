@@ -6,9 +6,9 @@ import SelectionSummary from './SelectionSummary';
 import { useMarketingStore } from '@/store/marketingStore';
 import LoadingBar from './LoadingBar';
 import { CampaignLead } from '@/lib/campaignService';
-import { collection, query, onSnapshot, Timestamp, doc } from 'firebase/firestore';
+import { collection, query, onSnapshot, Timestamp, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { createCampaign, CampaignMode, LeadData } from '@/services/campaignService';
+
 import AnonymousUserPrompt from './AnonymousUserPrompt';
 import EmailCaptureModal from './EmailCaptureModal';
 import { useAuth } from '@/contexts/AuthContext';
@@ -298,49 +298,61 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
               throw new Error("Authentication required. Please wait for authentication to complete.");
           }
 
-          // Convert the leads array to the format expected by the Cloud Function
-          const allFoundLeadsData: LeadData[] = leads.map(lead => ({
-              searchBusinessType: lead.businessType || 'Unknown',
-              aiReasoning: 'N/A',
-              
-              googlePlaceId: lead.placeId,
-              googleBusinessName: lead.businessName,
-              googleFormattedAddress: lead.address,
-              googleTypes: lead.businessType ? [lead.businessType] : [],
-              googlePhoneNumber: lead.phoneNumber,
-              googleWebsite: lead.website,
-              googleRating: lead.rating === null ? undefined : lead.rating,
-          }));
+          // Ensure we have a campaign ID
+          if (!campaignId) {
+              throw new Error("No campaign available. Please try again.");
+          }
 
-          // Get selected place IDs as an array
-          const selectedPlaceIds = Array.from(selectedLeadIds);
+          // Update the selected status of leads in the existing campaign
+          const updatePromises: Promise<void>[] = [];
+          
+          // Update selected leads
+          for (const leadId of selectedLeadIds) {
+              const leadRef = doc(db, 'campaigns', campaignId, 'leads', leadId);
+              updatePromises.push(updateDoc(leadRef, { 
+                  selected: true,
+                  selectedAt: serverTimestamp()
+              }));
+          }
+          
+          // Update unselected leads (to ensure consistency)
+          const unselectedLeads = leads.filter(lead => lead.id && !selectedLeadIds.has(lead.id));
+          for (const lead of unselectedLeads) {
+              if (lead.id) {
+                  const leadRef = doc(db, 'campaigns', campaignId, 'leads', lead.id);
+                  updatePromises.push(updateDoc(leadRef, { 
+                      selected: false,
+                      selectedAt: null
+                  }));
+              }
+          }
 
-          // Get strategy ID from the marketing store if available - a simple identifier is fine
-          const strategyId = null; // We'll implement proper strategy ID handling later
+          // Execute all updates
+          await Promise.all(updatePromises);
+          
+          // Update the campaign status to indicate it's ready for the next step
+          const campaignRef = doc(db, 'campaigns', campaignId);
+          await updateDoc(campaignRef, {
+              status: 'leads_selected',
+              selectedLeadCount: selectedLeadIds.size,
+              updatedAt: serverTimestamp()
+          });
 
-          // Call the Cloud Function (one-off mode for now)
-          const result = await createCampaign(
-              allFoundLeadsData,
-              selectedPlaceIds,
-              strategyId,
-              CampaignMode.ONE_OFF
-          );
-
-          console.log("Campaign created:", result);
+          console.log("Campaign updated with selections:", campaignId);
 
           // Navigate to the V2 campaign build page
-          window.location.href = `/v2/build/${result.campaignId}/brand`;
+          window.location.href = `/v2/build/${campaignId}/brand`;
       } catch (err) {
-          console.error("Error creating campaign:", err);
+          console.error("Error updating campaign:", err);
           const message = err instanceof Error ? err.message : "Unknown error";
           
           // Provide more specific error messages
           if (message.includes("Authentication required")) {
               setUpdateError("Authentication in progress. Please wait a moment and try again.");
-          } else if (message.includes("INTERNAL")) {
-              setUpdateError("Server error occurred. Please try again in a moment.");
+          } else if (message.includes("permission")) {
+              setUpdateError("Permission denied. Please ensure you're logged in.");
           } else {
-              setUpdateError(`Failed to create campaign: ${message}. Please try again.`);
+              setUpdateError(`Failed to update campaign: ${message}. Please try again.`);
           }
       } finally {
           setIsUpdatingSelection(false);
