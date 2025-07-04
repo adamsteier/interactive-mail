@@ -305,35 +305,48 @@ campaign.scheduling = {
 
 ### Step 7: Fulfillment (Background)
 ```typescript
-// Cloud Function scheduleCampaign (triggered by approval):
+// Cloud Function scheduleCampaign (triggered by approval or scheduled date):
 1. Check scheduled send date:
    - If scheduledSendDate > now: Set up scheduled job
    - If ready to send now: Continue immediately
    
-2. For each design:
-   - Upsize AI image from 1800x1200 to 1871x1271
-   - Add 0.125" bleed on all sides
-   - Compose with logo overlay in safe zone
-   - Generate print-ready PDF @ 300 DPI
+2. Image Processing Pipeline (still required):
+   - Upscale AI image from 1800x1200 to 1871x1271 using Sharp
+   - Add 0.125" bleed (included in dimensions)
+   - Composite logo overlay in reserved safe zone
+   - Upload processed images to Firebase Storage
+   - Generate public URLs for Stannp API
    
-3. For each remaining lead (after removals):
-   - Verify complete mailing address
-   - Match to correct design based on businessType
-   - Add to recipient list with full postal address
+3. Stannp API Integration:
+   - For each lead, call POST /v1/postcards/post with:
+     * size: "A6" (for 6x4 postcards)
+     * front: URL of processed front design
+     * back: URL of back design (or use Stannp template)
+     * recipient details from lead data
+     * tags: campaignId for tracking
+   - Store response:
+     * mailpieceId from Stannp
+     * status: 'submitted'
+     * submittedAt: timestamp
    
-4. Call Stannp API:
-   - Upload designs
-   - Submit recipient list
-   - Schedule for scheduledSendDate (or immediate)
-   - Get print job ID and tracking
+4. Internal Tracking System:
+   - Store in campaigns/{campaignId}/mailpieces/{leadId}:
+     * stannpMailpieceId: string
+     * status: 'submitted' | 'printed' | 'dispatched' | 'delivered'
+     * statusHistory: Array<{status, timestamp}>
+     * submittedAt: Timestamp
+     * printedAt?: Timestamp
+     * dispatchedAt?: Timestamp
+     * deliveredAt?: Timestamp
+     * trackingUrl?: string
    
 5. Update campaign:
-   - status: 'scheduled'
-   - printJobId: string
-   - leadsSent: number (may be less than original)
+   - status: 'sent'
+   - stannpJobIds: Array<string>
+   - leadsSent: number
    - scheduling.actualSendDate: Timestamp
    
-6. If leads were removed:
+6. If leads were removed during review:
    - Calculate refund amount
    - Process partial refund via Stripe
    - Send refund notification email
@@ -341,15 +354,25 @@ campaign.scheduling = {
 
 ### Step 8: Tracking & Delivery
 ```typescript
-// Webhook handlers update campaign:
-- 'printed' → Send "postcards printed" email
-- 'dispatched' → Update status, send tracking
-- 'delivered' → Mark complete, trigger follow-up
+// Stannp Webhook Handler:
+- Endpoint: /api/webhooks/stannp
+- Events to handle:
+  * 'printed' → Update mailpiece status, send notification
+  * 'dispatched' → Update status, add tracking URL
+  * 'delivered' → Mark complete, trigger analytics
+  * 'returned' → Flag for follow-up
 
-// Dashboard shows:
-- Delivery progress
-- Response tracking
-- Performance metrics
+// Internal Tracking Dashboard:
+- Real-time campaign status overview
+- Individual mailpiece tracking
+- Delivery rate analytics
+- Response tracking (via QR codes or unique URLs)
+- Export tracking data for analysis
+
+// Stannp API Polling (backup for webhooks):
+- Daily job to GET /v1/letters/get/:id for pending items
+- Update any missed status changes
+- Reconcile internal records with Stannp data
 ```
 
 ## Data Architecture
@@ -672,17 +695,39 @@ campaigns/{campaignId}/leadsChunks/{chunkId}
 - migrateLeadsToChunks(campaignId) // One-time migration
 ```
 
+### v2/services/stannpService.ts
+```typescript
+- createPostcard(postcardData)
+- getPostcardStatus(postcardId)
+- getPostcardsByCampaign(campaignId)
+```
+
+### v2/services/imageProcessingService.ts
+```typescript
+- processPostcardForPrint(aiImageBuffer, logoUrl, logoPosition)
+- sendCampaignToStannp(campaignId)
+```
+
+### v2/services/trackingService.ts
+```typescript
+- trackPostcardStatus(postcardId, status)
+- getPostcardStatusHistory(postcardId)
+- getPostcardTrackingUrl(postcardId)
+```
+
 ### Summary of New Services to Build:
-1. **brandService.ts** - Brand management with logo analysis
-2. **designService.ts** - Design library and templates
+1. **brandService.ts** - Brand management with logo analysis ✅
+2. **designService.ts** - Design library and templates ✅
 3. **campaignEnhancementService.ts** - Enhanced campaign features
-4. **aiDesignService.ts** - AI generation with async queuing
-5. **designAssignmentService.ts** - Multi-design assignment logic
+4. **aiDesignService.ts** - AI generation with async queuing ✅
+5. **designAssignmentService.ts** - Multi-design assignment logic ✅
 6. **humanDesignService.ts** - Human designer workflow
 7. **refundService.ts** - Stripe refund queue and calculations
-8. **schedulingService.ts** - Business day calculations and scheduling
+8. **schedulingService.ts** - Business day calculations and scheduling ✅
 9. **leadChunkService.ts** - Scaled lead storage and processing
-10. **printService.ts** - Stannp API integration (from May19)
+10. **stannpService.ts** - Stannp API integration with tracking (NEW)
+11. **imageProcessingService.ts** - Upscaling and logo composition (NEW)
+12. **trackingService.ts** - Internal tracking and analytics (NEW)
 
 ## Postcard Specifications & Composition
 
@@ -1015,23 +1060,82 @@ if (event.sequence_number <= campaign.webhooks.lastProcessedSequence) {
 // Fast resize without neural networks:
 import sharp from 'sharp';
 
-const upscaleForPrint = async (inputBuffer: Buffer) => {
-  return sharp(inputBuffer)
+const processPostcardForPrint = async (
+  aiImageBuffer: Buffer,
+  logoUrl: string,
+  logoPosition: LogoPosition
+): Promise<Buffer> => {
+  // 1. Upscale AI image to print dimensions
+  const upscaled = await sharp(aiImageBuffer)
     .resize(1871, 1271, {
       kernel: sharp.kernel.lanczos3,
       withoutEnlargement: false
     })
+    .toBuffer();
+  
+  // 2. Download and prepare logo
+  const logo = await sharp(logoUrl)
+    .resize(
+      Math.round(logoPosition.width * 300), // Convert inches to pixels at 300 DPI
+      Math.round(logoPosition.height * 300),
+      { fit: 'inside' }
+    )
+    .toBuffer();
+  
+  // 3. Composite logo onto upscaled image
+  const final = await sharp(upscaled)
+    .composite([{
+      input: logo,
+      left: Math.round(logoPosition.x * 300),
+      top: Math.round(logoPosition.y * 300)
+    }])
     .jpeg({ quality: 95, progressive: true })
     .toBuffer();
-  // <100ms vs 5-10s for neural upscalers
+  
+  return final;
 };
 
-// Logo handling:
-logoUploadRules = {
-  acceptedFormats: ['image/svg+xml', 'image/png'],
-  preferredFormat: 'svg',  // Vector scales perfectly
-  maxSize: 5 * 1024 * 1024,  // 5MB
-  storageRules: 'enforce MIME type validation'
+// Stannp Service for batch processing:
+const sendCampaignToStannp = async (campaignId: string) => {
+  const campaign = await getCampaign(campaignId);
+  const results = [];
+  
+  // Process in batches to avoid overloading
+  const BATCH_SIZE = 50;
+  const leadBatches = chunk(campaign.leads, BATCH_SIZE);
+  
+  for (const batch of leadBatches) {
+    const promises = batch.map(async (lead) => {
+      try {
+        const design = getDesignForLead(lead);
+        const response = await stannpApi.createPostcard({
+          front: design.processedFrontUrl,
+          back: design.processedBackUrl,
+          recipient: formatRecipient(lead),
+          tags: campaignId
+        });
+        
+        // Store tracking info
+        await saveMailpiece(campaignId, lead.id, {
+          stannpMailpieceId: response.id,
+          status: 'submitted',
+          submittedAt: new Date()
+        });
+        
+        return { success: true, leadId: lead.id, mailpieceId: response.id };
+      } catch (error) {
+        return { success: false, leadId: lead.id, error };
+      }
+    });
+    
+    const batchResults = await Promise.all(promises);
+    results.push(...batchResults);
+    
+    // Rate limiting pause between batches
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  
+  return results;
 };
 ```
 
@@ -1068,8 +1172,6 @@ const processRefundQueue = async (campaignId: string) => {
   await updateDoc(queueRef, { isProcessing: false });
 };
 ```
-
-
 
 ### Security & Compliance
 

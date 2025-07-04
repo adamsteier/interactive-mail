@@ -202,7 +202,7 @@ UI interface following brandguidelines.txt with exact hex colors
   - [x] Size validation (5MB max)
   - [x] Automatic color extraction on upload
   - [x] Contrast analysis display
-  - [x] Loading states
+  - [x] Loading state
 
 ### 3. Brand Selection Page ✅ COMPLETE
 - [x] Create `src/app/v2/build/[campaignId]/brand/page.tsx`:
@@ -344,79 +344,84 @@ The complete V2 campaign system is operational. All new campaigns automatically 
 
 ## Phase 4: Cloud Functions & Backend (Week 3-4)
 
-### 1. Design Generation Functions
-- [ ] Create `generatePostcardDesign` Cloud Function:
-  - [ ] Queue management with Cloud Tasks
-  - [ ] OpenAI API integration (gpt-image-1)
-  - [ ] 8 concurrent request limit
-  - [ ] Cost tracking per generation
-  - [ ] Error handling and retries
-  - [ ] Cache identical prompts (24hr TTL)
+### 1. Image Processing Pipeline ✅ **Still Required**
+- [ ] Create `src/v2/services/imageProcessingService.ts`:
+  - [ ] `upscaleImage(buffer, dimensions)` - Sharp-based upscaling
+  - [ ] `downloadLogo(logoUrl)` - Fetch and prepare logo
+  - [ ] `compositeLogoOnImage(image, logo, position)` - Overlay logo
+  - [ ] `processPostcardForPrint(aiImage, brand)` - Complete pipeline
+  - [ ] `uploadToStorage(buffer, path)` - Firebase Storage upload
+  - [ ] `generatePublicUrl(path)` - Get Stannp-accessible URLs
 
-### 2. Campaign Processing
+### 2. Stannp API Integration 🎯 **NEW SIMPLIFIED APPROACH**
+- [ ] Create `src/v2/services/stannpService.ts`:
+  - [ ] `createPostcard(data)` - Send single postcard via API
+  - [ ] `batchCreatePostcards(campaign, leads)` - Batch processing
+  - [ ] `getPostcardStatus(mailpieceId)` - Check individual status
+  - [ ] `getPostcardsByCampaign(campaignTag)` - List by campaign
+  - [ ] `handleWebhook(payload)` - Process status updates
+  - [ ] Rate limiting and retry logic
+
+### 3. Internal Tracking System 📊 **NEW**
+- [ ] Create `src/v2/services/trackingService.ts`:
+  - [ ] Track each mailpiece in Firestore subcollection
+  - [ ] Status history with timestamps
+  - [ ] Sync with Stannp webhooks
+  - [ ] Delivery analytics and reporting
+  - [ ] Response tracking integration
+
+### 4. Campaign Processing Functions
 - [ ] Create `scheduleCampaign` Cloud Function:
   - [ ] Check scheduled send date
-  - [ ] Handle late approvals
-  - [ ] Image upscaling pipeline
-  - [ ] Logo overlay composition
-  - [ ] PDF generation at 300 DPI
-  - [ ] Stannp API integration
+  - [ ] Process images (upscale + logo overlay)
+  - [ ] Upload to Firebase Storage
+  - [ ] Call Stannp API for each lead
+  - [ ] Store tracking information
+  - [ ] Handle failures and retries
 
-### 3. Geocoding & Validation
-- [ ] Create geocoding service:
-  - [ ] Batch process missing postal codes
-  - [ ] Use place_id for accuracy
-  - [ ] Extract mailing address components
-  - [ ] Mark failed geocodes
-  - [ ] Queue management for large batches
+### 5. ~~Complex Print Pipeline~~ ❌ **NOT NEEDED**
+- ~~PDF generation at 300 DPI~~ - Stannp handles this
+- ~~Print job management~~ - Stannp tracks this
+- ~~Address formatting~~ - Stannp validates addresses
+- ~~Postal compliance~~ - Stannp ensures compliance
 
-### 4. Lead Chunk Management
-- [ ] Create `src/v2/services/leadChunkService.ts`:
-  - [ ] `chunkLeads(leads[], chunkSize = 500)`
-  - [ ] `saveLeadChunks(campaignId, chunks)`
-  - [ ] `getLeadChunks(campaignId, startChunk?, endChunk?)`
-  - [ ] `updateLeadInChunk(campaignId, leadId, updates)`
-  - [ ] `fanOutGeocodingJobs(campaignId)`
-  - [ ] `aggregateChunkStats(campaignId)`
+### 6. Webhook Handlers
+- [ ] Create `/api/webhooks/stannp` endpoint:
+  - [ ] Verify webhook authenticity
+  - [ ] Update mailpiece status
+  - [ ] Trigger notifications
+  - [ ] Update campaign analytics
+  - [ ] Handle returns/failures
 
-### 5. Webhook Handlers
-- [ ] Create Stannp webhook endpoints:
-  - [ ] Job processed handler
-  - [ ] Print status updates
-  - [ ] Dispatch notifications
-  - [ ] Delivery confirmations
-  - [ ] Return handling
-- [ ] Implement sequence number guards
-- [ ] Add webhook event logging
+### 7. Geocoding Service (Simplified)
+- [ ] May not need complex geocoding if Stannp validates addresses
+- [ ] Basic validation before sending to Stannp
+- [ ] Flag obviously bad addresses for review
 
-## Phase 5: Admin Console (Week 4)
+## Phase 5: Admin Console (Week 4) - Simplified
 
-### 1. Admin Review Interface
+### 1. Admin Review Interface (Simplified)
 - [ ] Create `src/app/v2/admin/campaigns/[campaignId]/review/page.tsx`:
-  - [ ] Design preview at actual size
-  - [ ] Address list with geocoding status
-  - [ ] Issue flagging system
-  - [ ] Lead removal interface
-  - [ ] Refund calculation display
-  - [ ] Bulk actions
-  - [ ] Approval/rejection flow
+  - [ ] View processed designs with logos
+  - [ ] List of leads with basic validation status
+  - [ ] Remove problematic leads
+  - [ ] Calculate refunds for removed leads
+  - [ ] One-click approval to send
+  - [ ] View Stannp submission status
 
-### 2. Refund Service
+### 2. Campaign Monitoring Dashboard
+- [ ] Real-time status from internal tracking
+- [ ] Stannp mailpiece statuses
+- [ ] Delivery progress visualization
+- [ ] Failed sends and retry options
+- [ ] Export tracking data
+
+### 3. Refund Service (Still Needed)
 - [ ] Create `src/v2/services/refundService.ts`:
-  - [ ] `calculateRefundAmount(originalAmount, totalLeads, removedLeads)`
-  - [ ] `processPartialRefund(paymentIntentId, refundAmount, reason)`
-  - [ ] `updateCampaignPricing(campaignId, refundAmount)`
-  - [ ] `sendRefundNotification(userId, campaignId, refundDetails)`
-  - [ ] `generateRefundReason(removedLeads, totalLeads, issues[])`
-  - [ ] Queue management for sequential processing
-
-### 3. Admin Dashboard
-- [ ] Create admin overview page
-- [ ] Implement "Needs Response" view (>24hr pending)
-- [ ] Add campaign search and filtering
-- [ ] Create revenue analytics
-- [ ] Build system health monitoring
-- [ ] Add admin activity logging
+  - [ ] Calculate refunds for removed leads
+  - [ ] Process Stripe refunds
+  - [ ] Update campaign pricing
+  - [ ] Send notifications
 
 ## Phase 6: State Management & Optimization
 
@@ -509,3 +514,60 @@ The complete V2 campaign system is operational. All new campaigns automatically 
 - Keep existing code intact during development
 - Test new features thoroughly in production
 - Monitor performance and costs closely
+
+## Next Immediate Steps (Phase 4 Focus)
+
+### Week 1 Priority - Core Backend Services:
+1. [ ] **Image Processing Service**
+   - [ ] Set up Sharp for image manipulation
+   - [ ] Build upscaling pipeline (1800x1200 → 1871x1271)
+   - [ ] Implement logo overlay system
+   - [ ] Test with actual AI-generated images
+
+2. [ ] **Stannp Integration**
+   - [ ] Get Stannp API credentials
+   - [ ] Build service wrapper for their API
+   - [ ] Implement test mode for development
+   - [ ] Create webhook endpoint
+
+3. [ ] **Internal Tracking**
+   - [ ] Design Firestore schema for mailpieces
+   - [ ] Build tracking service
+   - [ ] Create status update system
+   - [ ] Connect to webhooks
+
+### Week 2 Priority - Campaign Flow:
+1. [ ] **Post-Payment Automation**
+   - [ ] Auto-trigger processing after payment
+   - [ ] Respect scheduled send dates
+   - [ ] Queue management for large campaigns
+
+2. [ ] **Admin Tools**
+   - [ ] Basic review interface
+   - [ ] Approval workflow
+   - [ ] Monitoring dashboard
+
+## Updated Architecture Benefits
+
+### What We Gained:
+- ✅ **Simpler Integration**: Direct API calls instead of complex print pipeline
+- ✅ **Built-in Tracking**: Stannp provides delivery tracking
+- ✅ **Address Validation**: Stannp handles postal compliance
+- ✅ **Reduced Complexity**: No PDF generation needed
+- ✅ **Faster Development**: Weeks less work on print management
+
+### What We Keep:
+- ✅ **Image Processing**: Still need upscaling and logo composition
+- ✅ **Brand Consistency**: Perfect logo placement on all designs
+- ✅ **Internal Analytics**: Our own tracking alongside Stannp's
+- ✅ **Quality Control**: Admin review before sending
+- ✅ **Scheduling System**: Respect customer's send dates
+
+## Success Metrics to Track
+- [ ] Image processing time (<5 seconds per postcard)
+- [ ] Stannp API success rate (>99%)
+- [ ] Delivery confirmation rate
+- [ ] Time from payment to dispatch
+- [ ] Admin review turnaround time
+- [ ] Cost per postcard sent
+- [ ] Customer satisfaction with delivery times

@@ -4,6 +4,12 @@ import { doc, setDoc, serverTimestamp, FieldValue } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { functions } from '@/services/firebase';
 
+// Type for Firebase Functions errors
+interface FirebaseFunctionsError extends Error {
+  code?: string;
+  details?: unknown;
+}
+
 // Define types for client-side use
 export enum CampaignMode {
   ONE_OFF = "one_off",
@@ -160,23 +166,34 @@ export const createCampaign = async (
 
     const result = await createCampaignFn(requestData);
     return result.data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error creating campaign:', error);
     
-    // Provide more detailed error messages based on error type
-    if (error?.code === 'functions/unauthenticated') {
-      throw new Error('Authentication required. Please wait for authentication to complete and try again.');
-    } else if (error?.code === 'functions/permission-denied') {
-      throw new Error('Permission denied. Please ensure you are properly authenticated.');
-    } else if (error?.code === 'functions/unavailable') {
-      throw new Error('Service temporarily unavailable. Please try again in a moment.');
-    } else if (error?.code === 'functions/internal') {
-      console.error('Internal error details:', error.details || error.message);
-      throw new Error('Server error occurred. Please try again in a moment.');
+    // Type guard to check if it's a Firebase Functions error
+    const isFirebaseError = (err: unknown): err is FirebaseFunctionsError => {
+      return err instanceof Error && 'code' in err;
+    };
+    
+    if (isFirebaseError(error)) {
+      // Handle specific Firebase Functions error codes
+      switch (error.code) {
+        case 'functions/unauthenticated':
+          throw new Error('Authentication required. Please wait for authentication to complete and try again.');
+        case 'functions/permission-denied':
+          throw new Error('Permission denied. Please ensure you are properly authenticated.');
+        case 'functions/unavailable':
+          throw new Error('Service temporarily unavailable. Please try again in a moment.');
+        case 'functions/internal':
+          console.error('Internal error details:', error.details || error.message);
+          throw new Error('Server error occurred. Please try again in a moment.');
+        default:
+          throw new Error(error.message || 'Failed to create campaign. Please try again.');
+      }
     }
     
-    // For other errors, throw the original error with more context
-    throw new Error(error?.message || 'Failed to create campaign. Please try again.');
+    // For non-Firebase errors
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(errorMessage || 'Failed to create campaign. Please try again.');
   }
 };
 
