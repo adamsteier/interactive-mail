@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 interface SelectionSummaryProps {
   selectedPlaces: Set<string>;
   onStartCampaign: () => void;
+  onSaveProgress?: () => void;
 }
 
 const calculateCost = (count: number) => {
@@ -14,7 +15,7 @@ const calculateCost = (count: number) => {
   return count * 1.50;
 };
 
-const SelectionSummary = ({ selectedPlaces, onStartCampaign }: SelectionSummaryProps) => {
+const SelectionSummary = ({ selectedPlaces, onStartCampaign, onSaveProgress }: SelectionSummaryProps) => {
   const stats = useMemo(() => {
     const count = selectedPlaces.size;
     const cost = calculateCost(count);
@@ -68,13 +69,14 @@ const SelectionSummary = ({ selectedPlaces, onStartCampaign }: SelectionSummaryP
             </div>
           </div>
 
-          <button
-            onClick={onStartCampaign}
-            disabled={stats.count === 0}
-            className="relative w-full rounded-lg px-4 py-3 text-charcoal font-semibold
-              disabled:opacity-50 disabled:cursor-not-allowed 
-              transition-all duration-200 overflow-hidden group cta-button-glow"
-          >
+          <div className="space-y-3">
+            <button
+              onClick={onStartCampaign}
+              disabled={stats.count === 0}
+              className="relative w-full rounded-lg px-4 py-3 text-charcoal font-semibold
+                disabled:opacity-50 disabled:cursor-not-allowed 
+                transition-all duration-200 overflow-hidden group cta-button-glow"
+            >
             {/* Animated wave background */}
             <div className="absolute inset-0 bg-electric-teal">
               <div className="absolute inset-0 opacity-20">
@@ -107,6 +109,17 @@ const SelectionSummary = ({ selectedPlaces, onStartCampaign }: SelectionSummaryP
               </svg>
             </span>
           </button>
+          
+          {onSaveProgress && (
+            <button
+              onClick={onSaveProgress}
+              className="w-full rounded-lg px-4 py-3 border-2 border-electric-teal/50 text-electric-teal font-medium
+                hover:bg-electric-teal/10 transition-all duration-200"
+            >
+              Save Progress & Continue Later
+            </button>
+          )}
+          </div>
           
           <p className="text-xs text-electric-teal/60 text-center">
             AI creates unique postcards in seconds

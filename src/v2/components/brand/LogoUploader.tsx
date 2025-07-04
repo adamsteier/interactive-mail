@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDropzone } from 'react-dropzone';
 import { processLogoUpload } from '../../services/brandService';
@@ -25,6 +25,16 @@ const LogoUploader = ({
   const [dragActive, setDragActive] = useState(false);
   const [analysis, setAnalysis] = useState<ColorAnalysis | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const createdUrlsRef = useRef<Set<string>>(new Set());
+
+  // Cleanup blob URLs on unmount
+  useEffect(() => {
+    return () => {
+      createdUrlsRef.current.forEach(url => {
+        URL.revokeObjectURL(url);
+      });
+    };
+  }, []);
 
   const validateFile = useCallback((file: File): string | null => {
     // File type validation
@@ -53,6 +63,7 @@ const LogoUploader = ({
 
       // Create preview URL immediately
       const tempPreviewUrl = URL.createObjectURL(file);
+      createdUrlsRef.current.add(tempPreviewUrl);
       setPreviewUrl(tempPreviewUrl);
 
       // Simulate upload progress
@@ -78,10 +89,8 @@ const LogoUploader = ({
       // Call parent callback
       onLogoUploaded(result.variants, result.analysis);
       
-      // Clean up old preview URL
-      if (tempPreviewUrl !== previewUrl) {
-        URL.revokeObjectURL(tempPreviewUrl);
-      }
+      // Don't clean up the preview URL yet - it's still being used
+      // Keep the tempPreviewUrl for display
 
     } catch (error) {
       console.error('Logo upload error:', error);
@@ -118,8 +127,9 @@ const LogoUploader = ({
   };
 
   const handleRemoveLogo = () => {
-    if (previewUrl) {
+    if (previewUrl && createdUrlsRef.current.has(previewUrl)) {
       URL.revokeObjectURL(previewUrl);
+      createdUrlsRef.current.delete(previewUrl);
     }
     setPreviewUrl(null);
     setAnalysis(null);

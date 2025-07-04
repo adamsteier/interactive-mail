@@ -225,6 +225,56 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
       console.log("User requested stop search.");
       setSearchFinalized(true);
   };
+  
+  const handleSaveProgress = async () => {
+      if (!campaignId) return;
+      
+      try {
+          // Update the selected status of leads in the campaign
+          const updatePromises: Promise<void>[] = [];
+          
+          // Update selected leads
+          for (const leadId of selectedLeadIds) {
+              const leadRef = doc(db, 'campaigns', campaignId, 'leads', leadId);
+              updatePromises.push(updateDoc(leadRef, { 
+                  selected: true,
+                  selectedAt: serverTimestamp()
+              }));
+          }
+          
+          // Update unselected leads
+          const unselectedLeads = leads.filter(lead => lead.id && !selectedLeadIds.has(lead.id));
+          for (const lead of unselectedLeads) {
+              if (lead.id) {
+                  const leadRef = doc(db, 'campaigns', campaignId, 'leads', lead.id);
+                  updatePromises.push(updateDoc(leadRef, { 
+                      selected: false,
+                      selectedAt: null
+                  }));
+              }
+          }
+
+          // Execute all updates
+          await Promise.all(updatePromises);
+          
+          // Update campaign with current state
+          const businessTypes = [...new Set(leads.map(lead => lead.businessType).filter(Boolean))];
+          const campaignRef = doc(db, 'campaigns', campaignId);
+          await updateDoc(campaignRef, {
+              status: 'draft_with_leads',
+              selectedLeadCount: selectedLeadIds.size,
+              totalLeadCount: selectedLeadIds.size,
+              leadCount: leads.length,
+              businessTypes: businessTypes,
+              updatedAt: serverTimestamp()
+          });
+          
+          alert('Your selections have been saved! You can come back to continue later.');
+      } catch (error) {
+          console.error('Error saving progress:', error);
+          alert('Failed to save progress. Please try again.');
+      }
+  };
 
   // Show soft prompt after leads are loaded (once per session)
   useEffect(() => {
@@ -330,11 +380,18 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
           // Execute all updates
           await Promise.all(updatePromises);
           
+          // Get unique business types from the leads
+          const businessTypes = [...new Set(leads.map(lead => lead.businessType).filter(Boolean))];
+          
           // Update the campaign status to indicate it's ready for the next step
           const campaignRef = doc(db, 'campaigns', campaignId);
           await updateDoc(campaignRef, {
               status: 'leads_selected',
               selectedLeadCount: selectedLeadIds.size,
+              totalLeadCount: selectedLeadIds.size, // Add this for the brand page
+              leadCount: leads.length, // Total leads found
+              quantity: selectedLeadIds.size, // For pricing calculations
+              businessTypes: businessTypes, // Add business types for the brand page
               updatedAt: serverTimestamp()
           });
 
@@ -392,15 +449,20 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
 
       <div className="rounded-lg border-2 border-electric-teal bg-charcoal shadow-glow flex flex-col h-[calc(100vh-12rem)] sm:h-[calc(100vh-10rem)] lg:h-[calc(100vh-3rem)] lg:mr-4">
         <div className="border-b border-electric-teal/20 p-3 sm:p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 flex-shrink-0">
-            <h2 className="text-xl sm:text-2xl font-semibold text-electric-teal">
-                Leads Found ({leads.length}) 
-                {(isLoadingLeads && leads.length === 0) && <span> - Initializing...</span>}
-                {isLoadingSearch && !searchFinalized && (
-                  <span className="text-electric-teal/80 text-sm ml-2">
-                    - Searching... (you can select leads as they appear)
-                  </span>
-                )}
-            </h2>
+            <div>
+              <h2 className="text-xl sm:text-2xl font-semibold text-electric-teal">
+                  Leads Found ({leads.length}) 
+                  {(isLoadingLeads && leads.length === 0) && <span> - Initializing...</span>}
+                  {isLoadingSearch && !searchFinalized && (
+                    <span className="text-electric-teal/80 text-sm ml-2">
+                      - Searching... (you can select leads as they appear)
+                    </span>
+                  )}
+              </h2>
+              <p className="text-sm text-electric-teal/60 mt-1">
+                Your selections are saved automatically. You can go back and change them anytime.
+              </p>
+            </div>
             <button onClick={onClose} className="text-electric-teal hover:text-electric-teal/80">
                 Close
             </button>
@@ -573,6 +635,7 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
       <SelectionSummary
         selectedPlaces={selectedLeadIds}
         onStartCampaign={handleConfirmSelection}
+        onSaveProgress={handleSaveProgress}
       />
 
       {/* Medium prompt modal when confirming selection */}

@@ -358,21 +358,25 @@ The complete V2 campaign system is operational. All new campaigns automatically 
 - [x] Add thumbnail generation capability
 
 ### 2. Stannp API Integration 🎯 **NEW SIMPLIFIED APPROACH**
-- [ ] Create `src/v2/services/stannpService.ts`:
-  - [ ] `createPostcard(data)` - Send single postcard via API
-  - [ ] `batchCreatePostcards(campaign, leads)` - Batch processing
-  - [ ] `getPostcardStatus(mailpieceId)` - Check individual status
-  - [ ] `getPostcardsByCampaign(campaignTag)` - List by campaign
-  - [ ] `handleWebhook(payload)` - Process status updates
-  - [ ] Rate limiting and retry logic
+- [x] Create `src/v2/services/stannpService.ts`:
+  - [x] `createPostcard(data)` - Send single postcard via API
+  - [x] `batchCreatePostcards(campaign, leads)` - Batch processing
+  - [x] `getPostcardStatus(mailpieceId)` - Check individual status
+  - [x] `getPostcardsByCampaign(campaignTag)` - List by campaign
+  - [x] `handleWebhook(payload)` - Process status updates (via webhook handler)
+  - [x] Rate limiting and retry logic
+- [x] Create webhook endpoint at `/api/webhooks/stannp`
+- [x] Create test endpoints for integration testing
+- [x] Add internal tracking system (mailpiece subcollection)
+- [x] Add campaign statistics functionality
 
 ### 3. Internal Tracking System 📊 **NEW**
-- [ ] Create `src/v2/services/trackingService.ts`:
-  - [ ] Track each mailpiece in Firestore subcollection
-  - [ ] Status history with timestamps
-  - [ ] Sync with Stannp webhooks
-  - [ ] Delivery analytics and reporting
-  - [ ] Response tracking integration
+- [x] Create `src/v2/services/trackingService.ts`: (Included in stannpService.ts)
+  - [x] Track each mailpiece in Firestore subcollection
+  - [x] Status history with timestamps
+  - [x] Sync with Stannp webhooks
+  - [x] Delivery analytics and reporting
+  - [ ] Response tracking integration (future enhancement)
 
 ### 4. Campaign Processing Functions
 - [ ] Create `scheduleCampaign` Cloud Function:

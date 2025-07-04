@@ -165,15 +165,15 @@ export async function getUserBrands(userId: string): Promise<BrandSummary[]> {
     }
 
     const brandsRef = collection(db, 'users', userId, 'brands');
+    // Simplified query to avoid composite index requirement
     const q = query(
       brandsRef, 
-      orderBy('settings.isDefault', 'desc'),
-      orderBy('usage.lastUsed', 'desc')
+      orderBy('createdAt', 'desc')
     );
     
     const snapshot = await getDocs(q);
     
-    return snapshot.docs.map(doc => {
+    const brands = snapshot.docs.map(doc => {
       const data = doc.data() as V2Brand;
       return {
         id: doc.id,
@@ -185,6 +185,23 @@ export async function getUserBrands(userId: string): Promise<BrandSummary[]> {
         isDefault: data.settings.isDefault,
         completeness: data.validation.score
       };
+    });
+    
+    // Sort on client side: default brands first, then by last used
+    return brands.sort((a, b) => {
+      // Default brands come first
+      if (a.isDefault && !b.isDefault) return -1;
+      if (!a.isDefault && b.isDefault) return 1;
+      
+      // Then sort by last used (most recent first)
+      if (a.lastUsed && b.lastUsed) {
+        // lastUsed is already a Timestamp in the BrandSummary type
+        return (b.lastUsed as any).toMillis() - (a.lastUsed as any).toMillis();
+      }
+      if (a.lastUsed && !b.lastUsed) return -1;
+      if (!a.lastUsed && b.lastUsed) return 1;
+      
+      return 0;
     });
     
   } catch (error) {
@@ -389,8 +406,8 @@ export async function processLogoUpload(file: File): Promise<{
       createdAt: new Date() as unknown as Timestamp
     };
     
-    // Clean up temporary URL
-    URL.revokeObjectURL(tempUrl);
+    // Don't revoke the URL here - it's still being used
+    // The component that displays the image should handle cleanup
     
     return {
       variants: [variant],
