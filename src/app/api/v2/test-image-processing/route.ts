@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
     const result = await processPostcardForPrint(
       imageUrl,
       mockBrand,
+      'test-user', // userId for testing
       campaignId,
       designId
     );
@@ -114,6 +115,7 @@ export async function GET() {
     const result = await processPostcardForPrint(
       testImageUrl,
       mockBrand,
+      'test-user', // userId for testing
       'test-campaign-' + Date.now(),
       'test-design-' + Date.now()
     );
