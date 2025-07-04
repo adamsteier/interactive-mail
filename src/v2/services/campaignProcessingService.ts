@@ -14,7 +14,7 @@ import { V2Campaign as Campaign } from '@/v2/types/campaign';
 import { V2Design as Design } from '@/v2/types/design';
 import { V2Brand as Brand } from '@/v2/types/brand';
 import { processPostcardForPrint } from './imageProcessingService';
-import { batchCreatePostcards, getCampaignMailpieceStats } from './stannpService';
+import { batchCreatePostcards, getCampaignMailpieceStats, LeadData } from './stannpService';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 export interface ProcessingResult {
@@ -22,7 +22,12 @@ export interface ProcessingResult {
   processed: number;
   failed: number;
   errors: string[];
-  stats?: any;
+  stats?: {
+    total: number;
+    byStatus: Record<string, number>;
+    totalCost: number;
+    avgDeliveryTime?: number;
+  };
 }
 
 /**
@@ -123,7 +128,7 @@ export async function processPaidCampaign(
     
     // 5. Get all leads and prepare for Stannp
     const leadsToProcess: Array<{
-      lead: any;
+      lead: LeadData;
       frontUrl: string;
       backUrl?: string;
       designId: string;
@@ -131,20 +136,20 @@ export async function processPaidCampaign(
     
     // Get leads from chunks (for large campaigns)
     const leadChunks = await getDocs(collection(db, 'campaigns', campaignId, 'leadsChunks'));
-    const allLeads: any[] = [];
+    const allLeads: LeadData[] = [];
     
     if (leadChunks.empty) {
       // Fallback to old structure
       const leadsCollection = await getDocs(collection(db, 'campaigns', campaignId, 'leads'));
       leadsCollection.forEach(doc => {
-        allLeads.push({ id: doc.id, ...doc.data() });
+        allLeads.push({ id: doc.id, ...doc.data() } as LeadData);
       });
     } else {
       // Get leads from chunks
       leadChunks.forEach(chunkDoc => {
         const chunk = chunkDoc.data();
         if (chunk.leads && Array.isArray(chunk.leads)) {
-          allLeads.push(...chunk.leads);
+          allLeads.push(...(chunk.leads as LeadData[]));
         }
       });
     }
@@ -155,7 +160,7 @@ export async function processPaidCampaign(
     for (const lead of allLeads) {
       // Find the design assignment for this lead's business type
       const assignment = campaign.designAssignments?.find(da => 
-        da.businessTypes.includes(lead.businessType)
+        lead.businessType && da.businessTypes.includes(lead.businessType)
       );
       
       if (assignment && processedDesigns.has(assignment.designId)) {

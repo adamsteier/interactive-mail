@@ -4,16 +4,30 @@ import {
   doc, 
   setDoc, 
   updateDoc, 
-  getDoc, 
   getDocs,
   query,
   where,
-  Timestamp,
-  serverTimestamp,
-  writeBatch
+  Timestamp
 } from 'firebase/firestore';
 
 // Types
+export interface LeadData {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  name?: string;
+  businessName?: string;
+  businessType?: string;
+  address?: string;
+  address1?: string;
+  address2?: string;
+  address3?: string;
+  city: string;
+  postalCode?: string;
+  postcode?: string;
+  country?: string;
+}
+
 export interface StannpRecipient {
   firstname: string;
   lastname: string;
@@ -101,16 +115,16 @@ function getStannpHeaders(): HeadersInit {
 /**
  * Format lead data for Stannp recipient
  */
-export function formatRecipient(lead: any): StannpRecipient {
+export function formatRecipient(lead: LeadData): StannpRecipient {
   return {
     firstname: lead.firstName || lead.name?.split(' ')[0] || 'Valued',
     lastname: lead.lastName || lead.name?.split(' ').slice(1).join(' ') || 'Customer',
     company: lead.businessName,
-    address1: lead.address1 || lead.address,
+    address1: lead.address1 || lead.address || '',
     address2: lead.address2,
     address3: lead.address3,
     city: lead.city,
-    postcode: lead.postalCode || lead.postcode,
+    postcode: lead.postalCode || lead.postcode || '',
     country: lead.country || 'CA' // Default to Canada
   };
 }
@@ -118,9 +132,20 @@ export function formatRecipient(lead: any): StannpRecipient {
 /**
  * Send a single postcard via Stannp API
  */
+export interface StannpApiResponse {
+  id: string;
+  created: string;
+  format: string;
+  cost: string;
+  status: string;
+  pdf?: string;
+  tracking_url?: string;
+  [key: string]: unknown;
+}
+
 export async function createPostcard(
   request: StannpPostcardRequest
-): Promise<{ success: boolean; data?: any; error?: string }> {
+): Promise<{ success: boolean; data?: StannpApiResponse; error?: string }> {
   try {
     // Build form data
     const formData = new URLSearchParams();
@@ -178,7 +203,7 @@ export async function createPostcard(
  */
 export async function getPostcardStatus(
   mailpieceId: string
-): Promise<{ success: boolean; data?: any; error?: string }> {
+): Promise<{ success: boolean; data?: StannpApiResponse; error?: string }> {
   try {
     const response = await fetch(`${STANNP_API_BASE}/postcards/get/${mailpieceId}`, {
       method: 'GET',
@@ -202,13 +227,21 @@ export async function getPostcardStatus(
   }
 }
 
+export interface StannpListResponse {
+  data: StannpApiResponse[];
+  total: number;
+  page: number;
+  per_page: number;
+  [key: string]: unknown;
+}
+
 /**
  * Get postcards by campaign tag
  */
 export async function getPostcardsByCampaign(
   campaignId: string,
   page: number = 1
-): Promise<{ success: boolean; data?: any; error?: string }> {
+): Promise<{ success: boolean; data?: StannpListResponse; error?: string }> {
   try {
     const params = new URLSearchParams({
       tags: campaignId,
@@ -277,7 +310,7 @@ export async function cancelPostcard(
 export async function batchCreatePostcards(
   campaignId: string,
   postcards: Array<{
-    lead: any;
+    lead: LeadData;
     frontUrl: string;
     backUrl?: string;
     designId: string;
@@ -285,10 +318,10 @@ export async function batchCreatePostcards(
   test: boolean = false
 ): Promise<{
   successful: MailpieceTracking[];
-  failed: Array<{ lead: any; error: string }>;
+  failed: Array<{ lead: LeadData; error: string }>;
 }> {
   const successful: MailpieceTracking[] = [];
-  const failed: Array<{ lead: any; error: string }> = [];
+  const failed: Array<{ lead: LeadData; error: string }> = [];
   
   // Process in batches to avoid overwhelming the API
   for (let i = 0; i < postcards.length; i += BATCH_SIZE) {
@@ -379,10 +412,15 @@ async function saveMailpieceTracking(tracking: MailpieceTracking): Promise<void>
 /**
  * Update mailpiece status from webhook
  */
+export interface WebhookDetails {
+  tracking_url?: string;
+  [key: string]: unknown;
+}
+
 export async function updateMailpieceStatus(
   stannpMailpieceId: string,
   newStatus: string,
-  details?: any
+  details?: WebhookDetails
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Find the mailpiece by Stannp ID
@@ -402,8 +440,8 @@ export async function updateMailpieceStatus(
         const tracking = mailpieceDoc.data() as MailpieceTracking;
         
         // Update status
-        const updates: any = {
-          status: newStatus,
+        const updates: Partial<MailpieceTracking> = {
+          status: newStatus as MailpieceTracking['status'],
           statusHistory: [...tracking.statusHistory, {
             status: newStatus,
             timestamp: Timestamp.now(),
@@ -512,11 +550,11 @@ export async function retryFailedPostcards(
     where('status', '==', 'failed')
   );
   
-  const failed = await getDocs(failedQuery);
-  let retried = 0;
-  let stillFailed = 0;
+  const failedDocs = await getDocs(failedQuery);
+  const retried = 0;
+  const stillFailed = failedDocs.size; // Use the actual count of failed docs
   
-  // Process failed postcards
+  // TODO: Process failed postcards
   // Implementation depends on storing original request data
   
   return { retried, stillFailed };
