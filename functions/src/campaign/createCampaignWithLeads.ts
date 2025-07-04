@@ -39,7 +39,7 @@ export const createCampaignWithLeads = onCall({
   }
 
   const userId = request.auth.uid;
-  const isAnonymous = request.auth.token.firebase?.sign_in_provider === 'anonymous';
+  const isAnonymous = request.auth.token.firebase?.sign_in_provider === "anonymous";
   
   logger.info("User info", { userId, isAnonymous, provider: request.auth.token.firebase?.sign_in_provider });
   
