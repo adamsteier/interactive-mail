@@ -28,7 +28,7 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
   const campaignId = currentCampaign?.id ?? null;
   const isLoadingSearch = useMarketingStore(state => state.searchResults.isLoading);
   const progress = useMarketingStore(state => state.searchResults.progress);
-  const { isAnonymous } = useAuth();
+  const { isAnonymous, user } = useAuth();
   
   console.log('PlacesLeadsCollection - currentCampaign:', currentCampaign);
   console.log('PlacesLeadsCollection - campaignId:', campaignId);
