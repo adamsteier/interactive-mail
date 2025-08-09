@@ -7,8 +7,7 @@ import { db } from '@/lib/firebase';
 import { FiArrowLeft, FiClock, FiCheckCircle, FiAlertCircle, FiRefreshCw } from 'react-icons/fi';
 import Link from 'next/link';
 import { format } from 'date-fns';
-import { processPaidCampaign } from '@/v2/services/campaignProcessingService';
-import { notifyRefundRequest } from '@/v2/services/emailNotificationService';
+// Removed server-side imports - now using API routes
 
 interface CampaignDetails {
   id: string;
@@ -136,15 +135,18 @@ export default function CampaignDetailPage() {
     try {
       setProcessing(true);
       
-      // Update status to processing
-      await updateDoc(doc(db, 'campaigns', campaignId), {
-        status: 'processing',
-        retryAttempt: (campaign.metadata?.retryAttempt || 0) + 1,
-        lastRetryAt: Timestamp.now()
+      // Call API route for campaign processing
+      const response = await fetch('/api/v2/admin/retry-campaign', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ campaignId }),
       });
-      
-      // Call processing service
-      await processPaidCampaign(campaignId);
+
+      if (!response.ok) {
+        throw new Error('Failed to retry campaign');
+      }
       
       // Reload campaign data
       await loadCampaignData();
@@ -164,11 +166,18 @@ export default function CampaignDetailPage() {
     if (!confirmed) return;
     
     try {
-      await updateDoc(doc(db, 'campaigns', campaignId), {
-        status: newStatus,
-        forceStatusAt: Timestamp.now(),
-        forceStatusBy: 'admin'
+      // Call API route for status update
+      const response = await fetch('/api/v2/admin/update-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ campaignId, status: newStatus }),
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to update status');
+      }
       
       await loadCampaignData();
     } catch (error) {
@@ -189,16 +198,26 @@ export default function CampaignDetailPage() {
         (campaign.totalCost / campaign.totalLeadCount) * selectedLeads.length
       );
       
-      // Queue refund notification
-      await notifyRefundRequest(
-        campaignId,
-        campaign.ownerEmail || campaign.ownerUid,
-        campaign.totalCost,
-        refundAmount,
-        `Removed ${selectedLeads.length} problematic leads`,
-        selectedLeads.length,
-        campaign.totalLeadCount
-      );
+      // Call API route for refund request
+      const response = await fetch('/api/v2/admin/refund-request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          campaignId,
+          userEmail: campaign.ownerEmail || campaign.ownerUid,
+          originalAmount: campaign.totalCost,
+          refundAmount,
+          reason: `Removed ${selectedLeads.length} problematic leads`,
+          affectedLeads: selectedLeads.length,
+          totalLeads: campaign.totalLeadCount
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to queue refund request');
+      }
       
       alert(`Refund request queued for $${(refundAmount / 100).toFixed(2)} CAD`);
       

@@ -1,10 +1,22 @@
-import sgMail from '@sendgrid/mail';
-import fs from 'fs';
-import path from 'path';
+// Server-side only imports with runtime checks
+let sgMail: any = null;
+let fs: any = null;
+let path: any = null;
 
-// Initialize SendGrid
-if (process.env.SENDGRID_API_KEY) {
-  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+// Only import server-side modules if we're running on the server
+if (typeof window === 'undefined') {
+  try {
+    sgMail = require('@sendgrid/mail').default;
+    fs = require('fs');
+    path = require('path');
+    
+    // Initialize SendGrid
+    if (process.env.SENDGRID_API_KEY) {
+      sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+    }
+  } catch (error) {
+    console.warn('Server-side modules not available:', error);
+  }
 }
 
 const FROM_EMAIL = 'noreply@posttimely.com';
@@ -53,6 +65,11 @@ function renderTemplate(html: string, data: EmailData): string {
  * Load and compile email template
  */
 async function loadTemplate(templateName: string, data: EmailData): Promise<{ html: string; text: string }> {
+  // Runtime check for server-side modules
+  if (!fs || !path) {
+    throw new Error('Email service can only be used on the server side');
+  }
+  
   try {
     // Load the main template
     const templatePath = path.join(process.cwd(), 'src', 'emails', 'templates', `${templateName}.html`);
@@ -92,6 +109,11 @@ async function loadTemplate(templateName: string, data: EmailData): Promise<{ ht
  */
 export async function sendEmail(options: EmailOptions): Promise<{ success: boolean; error?: string }> {
   try {
+    // Runtime check for server-side modules
+    if (!sgMail) {
+      throw new Error('Email service can only be used on the server side');
+    }
+    
     if (!process.env.SENDGRID_API_KEY) {
       throw new Error('SENDGRID_API_KEY environment variable not set');
     }
