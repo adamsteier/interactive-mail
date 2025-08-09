@@ -184,7 +184,7 @@ const CampaignLeadViewer: React.FC<CampaignLeadViewerProps> = ({ campaignId }) =
                   </td>
                   <td className="py-3 px-4 font-medium text-white whitespace-nowrap">{lead.businessName}</td>
                   <td className="py-3 px-4">{lead.address}</td>
-                  <td className="py-3 px-4">{lead.businessType}</td>
+                  <td className="py-3 px-4">{lead.searchBusinessType}</td>
                   <td className="py-3 px-4">{lead.phoneNumber || 'N/A'}</td>
                   <td className="py-3 px-4">
                     {lead.website ? (

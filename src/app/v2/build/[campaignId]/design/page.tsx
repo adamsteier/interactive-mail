@@ -378,7 +378,6 @@ export default function DesignPage({ params }: { params: Params }) {
 
     try {
       setIsGenerating(true);
-      setSelectedBrief(brief);
       
       const currentAssignment = assignments[currentDesignIndex];
       
@@ -410,7 +409,6 @@ export default function DesignPage({ params }: { params: Params }) {
         if (currentDesignIndex < assignments.length - 1) {
           setCurrentDesignIndex(currentDesignIndex + 1);
           // Reset for next design
-          setSelectedBrief(null);
           setBriefGenerationRequest(null);
           setCurrentStep('forms');
         } else {
@@ -431,7 +429,6 @@ export default function DesignPage({ params }: { params: Params }) {
   const handleBackFromBriefs = () => {
     setCurrentStep('forms');
     setBriefGenerationRequest(null);
-    setSelectedBrief(null);
   };
 
   // Handle completion and navigation

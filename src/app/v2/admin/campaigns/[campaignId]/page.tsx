@@ -78,12 +78,6 @@ export default function CampaignDetailPage() {
   const [processing, setProcessing] = useState(false);
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
 
-  useEffect(() => {
-    if (campaignId) {
-      loadCampaignData();
-    }
-  }, [campaignId, loadCampaignData]);
-
   const loadCampaignData = useCallback(async () => {
     try {
       setLoading(true);
@@ -128,6 +122,12 @@ export default function CampaignDetailPage() {
       setLoading(false);
     }
   }, [campaignId]);
+
+  useEffect(() => {
+    if (campaignId) {
+      loadCampaignData();
+    }
+  }, [campaignId, loadCampaignData]);
 
   const handleRetryProcessing = async () => {
     if (!campaign || processing) return;

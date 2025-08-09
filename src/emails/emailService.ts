@@ -18,7 +18,7 @@ if (typeof window === 'undefined') {
     pathModule = require('path');
     
     // Initialize SendGrid
-    if (process.env.SENDGRID_API_KEY) {
+    if (process.env.SENDGRID_API_KEY && sgMail) {
       sgMail.setApiKey(process.env.SENDGRID_API_KEY);
     }
   } catch (error) {

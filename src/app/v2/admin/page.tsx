@@ -45,10 +45,6 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
 
-  useEffect(() => {
-    loadDashboardData();
-  }, [filter, loadDashboardData]);
-
   const loadDashboardData = useCallback(async () => {
     try {
       setLoading(true);
@@ -152,6 +148,10 @@ export default function AdminDashboard() {
       setLoading(false);
     }
   }, [filter]);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [filter, loadDashboardData]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
