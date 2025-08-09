@@ -230,7 +230,7 @@ async function generateBriefWithChatGPT(
     throw new Error('OpenAI API key not configured');
   }
 
-  const prompt = generatePrompt(context, temperature);
+  const prompt = generatePrompt(context);
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
