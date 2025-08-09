@@ -37,11 +37,6 @@ const CreativeBriefSelector = ({
   const [completedCount, setCompletedCount] = useState(0);
   const totalBriefs = 4;
 
-  // Generate briefs on mount
-  useEffect(() => {
-    generateBriefs();
-  }, [generateBriefs]);
-
   const generateBriefs = useCallback(async () => {
     if (!user) return;
 
@@ -98,6 +93,11 @@ const CreativeBriefSelector = ({
       setEditingBrief(briefId);
     }
   }, [briefs]);
+
+  // Generate briefs on mount
+  useEffect(() => {
+    generateBriefs();
+  }, [generateBriefs]);
 
   const handleSaveEdit = useCallback((briefId: string) => {
     const editedText = editedTexts[briefId];
