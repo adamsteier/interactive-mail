@@ -9,8 +9,7 @@ import {
   orderBy, 
   limit,
   updateDoc,
-  doc,
-  DocumentData 
+  doc 
 } from 'firebase/firestore';
 import { sendEmail, EmailTemplates } from '@/emails/emailService';
 
@@ -23,7 +22,7 @@ interface EmailNotification {
   type: 'campaign_failed' | 'refund_request' | 'campaign_stuck' | 'general';
   priority: 'urgent' | 'high' | 'normal' | 'low';
   campaignId?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, string | number | boolean | null>;
   createdAt: Timestamp;
   sent: boolean;
   sentAt?: Timestamp;
@@ -38,7 +37,7 @@ interface EmailNotification {
 async function sendNotificationEmail(
   notification: Omit<EmailNotification, 'createdAt' | 'sent'>,
   template: string,
-  templateData: any
+  templateData: Record<string, string | number | boolean | null>
 ) {
   try {
     // Try to send email immediately
@@ -47,7 +46,7 @@ async function sendNotificationEmail(
       subject: notification.subject,
       template,
       data: templateData,
-      priority: notification.priority as any
+      priority: notification.priority as 'low' | 'normal' | 'high' | 'urgent'
     });
 
     if (emailResult.success) {
@@ -343,7 +342,7 @@ export async function sendQueuedEmails() {
             amount: 0,
             failedAt: notification.createdAt.toDate().toLocaleString()
           },
-          priority: notification.priority as any
+          priority: notification.priority as 'low' | 'normal' | 'high' | 'urgent'
         });
         
         if (emailResult.success) {

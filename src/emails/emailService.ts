@@ -10,8 +10,11 @@ let pathModule: { resolve: typeof resolve; join: typeof join } | null = null;
 // Only import server-side modules if we're running on the server
 if (typeof window === 'undefined') {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     sgMail = require('@sendgrid/mail').default;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     fsModule = require('fs').promises;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     pathModule = require('path');
     
     // Initialize SendGrid
@@ -78,6 +81,7 @@ async function loadTemplate(templateName: string, data: EmailData): Promise<{ ht
     
     // Load the main template
     const templatePath = pathModule.join(process.cwd(), 'src', 'emails', 'templates', `${templateName}.html`);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const fs = require('fs'); // Use sync version for now
     let html = fs.readFileSync(templatePath, 'utf8');
     

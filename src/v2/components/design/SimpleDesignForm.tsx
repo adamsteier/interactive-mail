@@ -27,8 +27,8 @@ interface SimpleDesignFormProps {
   onBusinessDescriptionChange?: (description: string) => void;
 }
 
-// Goal examples organized by category
-// const goalExamples = {
+/* Goal examples organized by category
+const goalExamples = {
   promotions: [
     '10% off first visit',
     '20% discount this month',
@@ -61,7 +61,7 @@ interface SimpleDesignFormProps {
     'Call for free quote',
     'Schedule consultation'
   ]
-// };
+}; */
 
 const SimpleDesignForm = ({
   brandId,
