@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { doc, getDoc, collection, query, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
-import LoadingBar from '@/components/LoadingBar';
+// import LoadingBar from '@/components/LoadingBar';
 import CampaignProgress from '@/v2/components/CampaignProgress';
 
 // Define the params type for Next.js 15
@@ -47,7 +47,7 @@ export default function CampaignLeadsPage({ params }: { params: Params }) {
   const router = useRouter();
   const { user } = useAuth();
   const [campaignId, setCampaignId] = useState<string | null>(null);
-  const [campaign, setCampaign] = useState<CampaignData | null>(null);
+  const [, setCampaign] = useState<CampaignData | null>(null);
   const [leads, setLeads] = useState<LeadData[]>([]);
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);

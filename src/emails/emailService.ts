@@ -1,14 +1,18 @@
 // Server-side only imports with runtime checks
-let sgMail: any = null;
-let fs: any = null;
-let path: any = null;
+import type { MailService } from '@sendgrid/mail';
+import type { promises as fs } from 'fs';
+import type { resolve, join } from 'path';
+
+let sgMail: MailService | null = null;
+let fsModule: typeof fs | null = null;
+let pathModule: { resolve: typeof resolve; join: typeof join } | null = null;
 
 // Only import server-side modules if we're running on the server
 if (typeof window === 'undefined') {
   try {
     sgMail = require('@sendgrid/mail').default;
-    fs = require('fs');
-    path = require('path');
+    fsModule = require('fs').promises;
+    pathModule = require('path');
     
     // Initialize SendGrid
     if (process.env.SENDGRID_API_KEY) {
@@ -23,7 +27,7 @@ const FROM_EMAIL = 'noreply@posttimely.com';
 const FROM_NAME = 'PostTimely';
 
 interface EmailData {
-  [key: string]: any;
+  [key: string]: string | number | boolean | null | undefined;
 }
 
 interface EmailOptions {
@@ -66,21 +70,23 @@ function renderTemplate(html: string, data: EmailData): string {
  */
 async function loadTemplate(templateName: string, data: EmailData): Promise<{ html: string; text: string }> {
   // Runtime check for server-side modules
-  if (!fs || !path) {
+  if (!fsModule || !pathModule) {
     throw new Error('Email service can only be used on the server side');
   }
   
   try {
+    
     // Load the main template
-    const templatePath = path.join(process.cwd(), 'src', 'emails', 'templates', `${templateName}.html`);
+    const templatePath = pathModule.join(process.cwd(), 'src', 'emails', 'templates', `${templateName}.html`);
+    const fs = require('fs'); // Use sync version for now
     let html = fs.readFileSync(templatePath, 'utf8');
     
     // Load header component
-    const headerPath = path.join(process.cwd(), 'src', 'emails', 'components', 'header.html');
+    const headerPath = pathModule.join(process.cwd(), 'src', 'emails', 'components', 'header.html');
     const headerHtml = fs.readFileSync(headerPath, 'utf8');
     
     // Load footer component  
-    const footerPath = path.join(process.cwd(), 'src', 'emails', 'components', 'footer.html');
+    const footerPath = pathModule.join(process.cwd(), 'src', 'emails', 'components', 'footer.html');
     const footerHtml = fs.readFileSync(footerPath, 'utf8');
     
     // Replace partials
@@ -163,7 +169,7 @@ export async function sendEmail(options: EmailOptions): Promise<{ success: boole
     
     // SendGrid specific error handling
     if (error && typeof error === 'object' && 'response' in error) {
-      const sgError = error as any;
+      const sgError = error as { response?: { statusCode?: number; body?: unknown } };
       console.error('SendGrid error details:', {
         statusCode: sgError.response?.statusCode,
         body: sgError.response?.body

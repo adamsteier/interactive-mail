@@ -124,7 +124,7 @@ export default function DesignPage({ params }: { params: Params }) {
   
   // Data state
   const [campaignData, setCampaignData] = useState<CampaignData | null>(null);
-  const [brandData, setBrandData] = useState<V2Brand | null>(null);
+  const [brandData] = useState<V2Brand | null>(null);
   const [businessTypeData, setBusinessTypeData] = useState<BusinessTypeWithCount[]>([]);
   const [allBusinessTypes, setAllBusinessTypes] = useState<BusinessTypeWithCount[]>([]);
   
@@ -134,7 +134,7 @@ export default function DesignPage({ params }: { params: Params }) {
   const [currentDesignIndex, setCurrentDesignIndex] = useState(0);
   const [generationJobs, setGenerationJobs] = useState<Record<string, string>>({}); // designId -> jobId
   const [generationStatus, setGenerationStatus] = useState<Record<string, DesignGenerationJob>>({});
-  const [selectedBrief, setSelectedBrief] = useState<CreativeBrief | null>(null);
+  const [selectedBrief] = useState<CreativeBrief | null>(null);
   const [briefGenerationRequest, setBriefGenerationRequest] = useState<BriefGenerationRequest | null>(null);
   
   // UI state
@@ -385,7 +385,7 @@ export default function DesignPage({ params }: { params: Params }) {
       // Convert creative brief to design request (use the brief as the prompt)
       const designRequest: SimpleDesignRequest = {
         brandId: brief.brandId,
-        voice: brief.context.voice as any,
+        voice: brief.context.voice as 'professional' | 'friendly' | 'casual' | 'authoritative' | 'creative',
         goal: brief.briefText, // Use the entire brief as the goal/prompt
         industry: brief.context.industry,
         audience: brief.context.targetAudience,
@@ -452,27 +452,7 @@ export default function DesignPage({ params }: { params: Params }) {
     }
   };
 
-  // Handle design selection
-  const handleDesignSelection = async (designId: string, provider: string, imageUrl: string | undefined) => {
-    try {
-      // Save selection to campaign
-      await updateDoc(doc(db, 'campaigns', campaignId), {
-        [`designSelections.${designId}.${provider}`]: imageUrl,
-        updatedAt: serverTimestamp()
-      });
 
-      // Move to next design or complete
-      if (currentDesignIndex < assignments.length - 1) {
-        setCurrentDesignIndex(currentDesignIndex + 1);
-      } else {
-        setCurrentStep('generating');
-      }
-
-    } catch (err) {
-      console.error('Error saving design selection:', err);
-      setError(err instanceof Error ? err.message : 'Failed to save design selection');
-    }
-  };
 
   if (loading) {
     return (

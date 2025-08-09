@@ -133,25 +133,25 @@ function formatContactAndSocialForBrief(brand: V2Brand) {
   return { contactInfo, socialMedia };
 }
 
-function generatePrompt(context: BriefGenerationContext, temperature: number): string {
+function generatePrompt(context: BriefGenerationContext): string {
   const { contactInfo, socialMedia } = context;
   
   // Build contact information section
   let contactSection = '';
-  const contacts = Object.entries(contactInfo).filter(([_, info]) => info?.value);
+  const contacts = Object.entries(contactInfo).filter(([, info]) => info?.value);
   if (contacts.length > 0) {
     contactSection = '\nCONTACT INFORMATION (design appropriate icons):\n';
-    contacts.forEach(([_, info]) => {
+    contacts.forEach(([, info]) => {
       contactSection += `- ${info!.label}: ${info!.value}\n`;
     });
   }
   
   // Build social media section  
   let socialSection = '';
-  const socials = Object.entries(socialMedia).filter(([_, info]) => info?.value);
+  const socials = Object.entries(socialMedia).filter(([, info]) => info?.value);
   if (socials.length > 0) {
     socialSection = '\nSOCIAL MEDIA (design appropriate platform icons):\n';
-    socials.forEach(([_, info]) => {
+    socials.forEach(([, info]) => {
       socialSection += `- ${info!.label}: ${info!.value}\n`;
     });
   }

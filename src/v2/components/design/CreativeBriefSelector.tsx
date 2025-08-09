@@ -22,8 +22,8 @@ interface GenerationResponse {
 }
 
 const CreativeBriefSelector = ({
-  campaignId,
-  brandId, 
+  // campaignId,
+  // brandId, 
   generationRequest,
   onBriefSelected,
   onBack
@@ -40,7 +40,7 @@ const CreativeBriefSelector = ({
   // Generate briefs on mount
   useEffect(() => {
     generateBriefs();
-  }, []);
+  }, [generateBriefs]);
 
   const generateBriefs = useCallback(async () => {
     if (!user) return;

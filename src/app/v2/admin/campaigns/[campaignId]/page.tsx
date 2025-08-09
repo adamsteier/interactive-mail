@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { doc, getDoc, updateDoc, collection, query, getDocs, orderBy, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, query, getDocs, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { FiArrowLeft, FiClock, FiCheckCircle, FiAlertCircle, FiRefreshCw } from 'react-icons/fi';
+import { FiArrowLeft, FiCheckCircle, FiAlertCircle, FiRefreshCw } from 'react-icons/fi';
 import Link from 'next/link';
 import { format } from 'date-fns';
 // Removed server-side imports - now using API routes
@@ -34,11 +34,11 @@ interface CampaignDetails {
     stripePaymentIntentId?: string;
   };
   processingErrors?: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   contactInfo?: {
     email?: string | null;
     phone?: string | null;
-    capturedAt?: any;
+    capturedAt?: Timestamp | Date | null;
   };
   isAnonymous?: boolean;
 }
@@ -82,9 +82,9 @@ export default function CampaignDetailPage() {
     if (campaignId) {
       loadCampaignData();
     }
-  }, [campaignId]);
+  }, [campaignId, loadCampaignData]);
 
-  const loadCampaignData = async () => {
+  const loadCampaignData = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -127,7 +127,7 @@ export default function CampaignDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [campaignId]);
 
   const handleRetryProcessing = async () => {
     if (!campaign || processing) return;

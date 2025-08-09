@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { collection, query, where, orderBy, limit, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { FiAlertCircle, FiClock, FiCheckCircle, FiDollarSign } from 'react-icons/fi';
@@ -20,7 +20,7 @@ interface CampaignSummary {
   contactInfo?: {
     email?: string | null;
     phone?: string | null;
-    capturedAt?: any;
+    capturedAt?: Timestamp | Date | null;
   };
   isAnonymous?: boolean;
 }
@@ -47,9 +47,9 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     loadDashboardData();
-  }, [filter]);
+  }, [filter, loadDashboardData]);
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -151,7 +151,7 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -237,7 +237,7 @@ export default function AdminDashboard() {
         <div className="bg-charcoal rounded-lg p-6 border border-gray-800">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-light-gray text-sm">Today's Revenue</p>
+              <p className="text-light-gray text-sm">Today&apos;s Revenue</p>
               <p className="text-3xl font-bold text-white mt-1">
                 ${(stats.todayRevenue / 100).toFixed(2)}
               </p>

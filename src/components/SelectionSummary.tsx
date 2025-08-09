@@ -81,7 +81,7 @@ const SelectionSummary = ({ selectedPlaces, onStartCampaign, onSaveProgress }: S
                 <div>
                   <div className="text-sm font-medium text-yellow-500">Review Your Selection</div>
                   <div className="text-xs text-yellow-500/80 mt-1">
-                    Take a moment to review your selected leads. You can easily remove any leads you don't want to target by unchecking them.
+                    Take a moment to review your selected leads. You can easily remove any leads you don&apos;t want to target by unchecking them.
                   </div>
                 </div>
               </div>
@@ -221,7 +221,7 @@ const SelectionSummary = ({ selectedPlaces, onStartCampaign, onSaveProgress }: S
               <div>
                 <div className="text-sm font-medium text-yellow-500">Review Your Selection</div>
                 <div className="text-xs text-yellow-500/80 mt-1">
-                  Review your leads above. Uncheck any you don't want to target.
+                  Review your leads above. Uncheck any you don&apos;t want to target.
                 </div>
               </div>
             </div>

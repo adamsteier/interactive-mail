@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useIsAdmin } from '@/hooks/useIsAdmin';
 import LoadingBar from '@/components/LoadingBar';
 
@@ -51,12 +52,12 @@ export default function AdminLayout({
                 >
                   Dashboard
                 </a>
-                <a
+                <Link
                   href="/v2/admin/campaigns"
                   className="text-light-gray hover:text-electric-teal transition-colors px-3 py-2"
                 >
                   Campaigns
-                </a>
+                </Link>
                 <a
                   href="/v2/admin/monitoring"
                   className="text-light-gray hover:text-electric-teal transition-colors px-3 py-2"

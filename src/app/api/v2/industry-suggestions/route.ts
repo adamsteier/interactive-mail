@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         suggestions: Array.isArray(suggestions) ? suggestions.slice(0, 5) : [] 
       });
-    } catch (parseError) {
+    } catch {
       console.error('Error parsing OpenAI response:', response);
       return NextResponse.json({ suggestions: [] });
     }

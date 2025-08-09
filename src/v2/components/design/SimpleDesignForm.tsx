@@ -4,9 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   SimpleDesignRequest,
-  detectIndustryFromTypes,
-  suggestAudienceFromTypes,
-  getIndustryDesignSuggestions,
   validateDesignRequest
 } from '../../services/aiDesignService';
 
@@ -31,7 +28,7 @@ interface SimpleDesignFormProps {
 }
 
 // Goal examples organized by category
-const goalExamples = {
+// const goalExamples = {
   promotions: [
     '10% off first visit',
     '20% discount this month',
@@ -64,13 +61,13 @@ const goalExamples = {
     'Call for free quote',
     'Schedule consultation'
   ]
-};
+// };
 
 const SimpleDesignForm = ({
   brandId,
   businessTypes: initialBusinessTypes,
   availableBusinessTypes,
-  campaignId,
+  // campaignId,
   onSubmit,
   onToggleAdvanced,
   loading = false,
@@ -276,7 +273,7 @@ const SimpleDesignForm = ({
             Targeting {businessTypes.length} Business Type{businessTypes.length > 1 ? 's' : ''}
           </h3>
           <p className="text-[#EAEAEA]/60 text-sm mb-3">
-            These are the business types we'll be mailing to
+            These are the business types we&apos;ll be mailing to
           </p>
           
           <div className="flex flex-wrap gap-2 mb-3">
