@@ -22,6 +22,7 @@ export interface SimpleDesignRequest {
   goal: string;
   industry: string;
   audience: string;
+  businessDescription?: string;
 }
 
 export interface AdvancedDesignRequest extends SimpleDesignRequest {
@@ -227,6 +228,10 @@ export function generateSimpleDesignPrompt(
     ? `Use these brand colors: ${brandColors.join(', ')}.`
     : '';
 
+  const businessContext = request.businessDescription 
+    ? `\n\nBUSINESS CONTEXT: ${request.businessDescription}`
+    : '';
+
   return `Create a 6x4 inch landscape postcard design for a ${request.industry} business.
 
 LOGO SPACE: ${logoSpace.promptInstructions}
@@ -234,7 +239,7 @@ LOGO SPACE: ${logoSpace.promptInstructions}
 BRAND GUIDELINES:
 ${colorInstructions}
 Tone: ${request.voice}
-Target audience: ${request.audience}
+Target audience: ${request.audience}${businessContext}
 
 DESIGN GOAL: ${request.goal}
 
@@ -396,7 +401,7 @@ export async function generateIdeogramImage(params: IdeogramGenerationParams): P
 }
 
 /**
- * Call OpenAI API for image generation (placeholder - implement with actual OpenAI logic)
+ * Call OpenAI API for image generation using DALL-E 3
  */
 export async function generateOpenAIImage(prompt: string): Promise<{
   success: boolean;
@@ -407,15 +412,45 @@ export async function generateOpenAIImage(prompt: string): Promise<{
   const startTime = Date.now();
   
   try {
-    // TODO: Implement actual OpenAI DALL-E 3 integration
-    // For now, return a placeholder
-    await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
-    
-    return {
-      success: true,
-      imageUrl: `https://via.placeholder.com/1536x1024?text=OpenAI+Generated+Image+${encodeURIComponent(prompt.slice(0, 20))}...`,
-      executionTime: Date.now() - startTime
-    };
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    if (!openaiApiKey) {
+      throw new Error('OPENAI_API_KEY environment variable not set');
+    }
+
+    const response = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'dall-e-3',
+        prompt: prompt,
+        n: 1,
+        size: '1792x1024', // Closest to 6:4 aspect ratio
+        quality: 'hd',
+        style: 'natural', // Can be 'natural' or 'vivid'
+        response_format: 'url'
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`OpenAI API error: ${response.status} - ${JSON.stringify(errorData)}`);
+    }
+
+    const result = await response.json();
+    const executionTime = Date.now() - startTime;
+
+    if (result.data && result.data.length > 0) {
+      return {
+        success: true,
+        imageUrl: result.data[0].url,
+        executionTime
+      };
+    } else {
+      throw new Error('No images returned from OpenAI API');
+    }
 
   } catch (error) {
     console.error('OpenAI generation error:', error);
@@ -493,13 +528,23 @@ export async function queueDesignGeneration(
       retryCount: 0
     };
 
+    // Get the current user ID from the campaign
+    const campaignRef = doc(db, 'campaigns', campaignId);
+    const campaignSnap = await getDoc(campaignRef);
+    if (!campaignSnap.exists()) {
+      throw new Error('Campaign not found');
+    }
+    const userId = campaignSnap.data().ownerUid;
+
     const jobRef = await addDoc(collection(db, 'aiJobs'), {
       ...job,
       prompt,
       logoSpace,
       brandId: brand.id,
       generationType: 'dual_provider', // Flag for dual generation
-      requestData: request // Store original request for retry
+      requestData: request, // Store original request for retry
+      userId, // Required by Firestore rules
+      createdAt: serverTimestamp()
     });
 
     // Update design status

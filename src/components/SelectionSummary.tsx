@@ -69,6 +69,25 @@ const SelectionSummary = ({ selectedPlaces, onStartCampaign, onSaveProgress }: S
             </div>
           </div>
 
+          {/* Review Selection Message */}
+          {stats.count > 0 && (
+            <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-5 h-5 rounded-full bg-yellow-500/20 flex items-center justify-center mt-0.5">
+                  <svg className="w-3 h-3 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-yellow-500">Review Your Selection</div>
+                  <div className="text-xs text-yellow-500/80 mt-1">
+                    Take a moment to review your selected leads. You can easily remove any leads you don't want to target by unchecking them.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-3">
             <button
               onClick={onStartCampaign}
@@ -103,7 +122,7 @@ const SelectionSummary = ({ selectedPlaces, onStartCampaign, onSaveProgress }: S
             {/* Hover glow effect */}
             <div className="absolute inset-0 bg-gradient-to-t from-transparent to-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
             <span className="relative z-10 flex items-center justify-center gap-2">
-              Create & Send With AI
+              Continue to Brand Selection
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
@@ -122,7 +141,7 @@ const SelectionSummary = ({ selectedPlaces, onStartCampaign, onSaveProgress }: S
           </div>
           
           <p className="text-xs text-electric-teal/60 text-center">
-            AI creates unique postcards in seconds
+            You can modify your selection anytime during the campaign process
           </p>
 
           {/* Progress Indicator */}
@@ -138,14 +157,6 @@ const SelectionSummary = ({ selectedPlaces, onStartCampaign, onSaveProgress }: S
                 <span className="text-electric-teal">Business Info</span>
               </div>
               <div className="flex items-center gap-3">
-                <div className="flex-shrink-0 w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
-                  <svg className="w-3 h-3 text-charcoal" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <span className="text-electric-teal">Select Leads</span>
-              </div>
-              <div className="flex items-center gap-3">
                 <motion.div 
                   className="flex-shrink-0 w-5 h-5 rounded-full bg-electric-teal"
                   animate={{ 
@@ -158,23 +169,19 @@ const SelectionSummary = ({ selectedPlaces, onStartCampaign, onSaveProgress }: S
                     ease: "easeInOut"
                   }}
                 />
-                <span className="text-electric-teal/80">Design (AI/Human)</span>
+                <span className="text-electric-teal">Select Leads</span>
               </div>
               <div className="flex items-center gap-3">
-                <motion.div 
-                  className="flex-shrink-0 w-5 h-5 rounded-full bg-electric-teal/50"
-                  animate={{ 
-                    scale: [1, 1.2, 1],
-                    opacity: [0.3, 0.6, 0.3]
-                  }}
-                  transition={{ 
-                    duration: 2,
-                    repeat: Infinity,
-                    ease: "easeInOut",
-                    delay: 0.5
-                  }}
-                />
-                <span className="text-electric-teal/60">Send</span>
+                <div className="flex-shrink-0 w-5 h-5 rounded-full bg-electric-teal/30" />
+                <span className="text-electric-teal/60">Choose Brand</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex-shrink-0 w-5 h-5 rounded-full bg-electric-teal/30" />
+                <span className="text-electric-teal/60">AI Design</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex-shrink-0 w-5 h-5 rounded-full bg-electric-teal/30" />
+                <span className="text-electric-teal/60">Review & Pay</span>
               </div>
             </div>
           </div>
@@ -201,6 +208,25 @@ const SelectionSummary = ({ selectedPlaces, onStartCampaign, onSaveProgress }: S
             </div>
           </div>
         </div>
+
+        {/* Review Selection Message for Mobile */}
+        {stats.count > 0 && (
+          <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 mb-4">
+            <div className="flex items-start gap-2">
+              <div className="flex-shrink-0 w-4 h-4 rounded-full bg-yellow-500/20 flex items-center justify-center mt-0.5">
+                <svg className="w-2.5 h-2.5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <div className="text-sm font-medium text-yellow-500">Review Your Selection</div>
+                <div className="text-xs text-yellow-500/80 mt-1">
+                  Review your leads above. Uncheck any you don't want to target.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <button
           onClick={onStartCampaign}
@@ -235,7 +261,7 @@ const SelectionSummary = ({ selectedPlaces, onStartCampaign, onSaveProgress }: S
           {/* Hover glow effect */}
           <div className="absolute inset-0 bg-gradient-to-t from-transparent to-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
           <span className="relative z-10 flex items-center justify-center gap-2">
-            Create & Send With AI (${stats.cost.toFixed(2)})
+            Continue to Brand Selection
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
@@ -243,7 +269,7 @@ const SelectionSummary = ({ selectedPlaces, onStartCampaign, onSaveProgress }: S
         </button>
         
         <p className="text-xs text-electric-teal/60 text-center mt-2">
-          AI creates unique postcards in seconds
+          You can modify your selection anytime during the campaign process
         </p>
       </div>
     </>

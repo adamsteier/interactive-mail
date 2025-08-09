@@ -1,0 +1,64 @@
+{{>header subject="🚨 URGENT: Campaign Failed"}}
+
+<div class="priority-urgent">
+    <h1>🚨 Campaign Failed - Immediate Action Required</h1>
+    <p><strong>A campaign has failed and requires immediate attention.</strong></p>
+</div>
+
+<div class="alert">
+    <p><strong>Campaign ID:</strong> <span class="code">{{campaignId}}</span></p>
+    <p><strong>Error:</strong> {{error}}</p>
+</div>
+
+<h2>Campaign Details</h2>
+<div class="data-table">
+    <div class="data-row">
+        <div class="data-label">User Email</div>
+        <div class="data-value">{{userEmail}}</div>
+    </div>
+    <div class="data-row">
+        <div class="data-label">Lead Count</div>
+        <div class="data-value">{{leadCount}} recipients</div>
+    </div>
+    <div class="data-row">
+        <div class="data-label">Payment Amount</div>
+        <div class="data-value">${{amount}} CAD</div>
+    </div>
+    <div class="data-row">
+        <div class="data-label">Failed At</div>
+        <div class="data-value">{{failedAt}}</div>
+    </div>
+</div>
+
+<h2>Required Actions</h2>
+<ol style="color: #EAEAEA; padding-left: 20px;">
+    <li>Check the admin dashboard and review error logs</li>
+    <li>Investigate the root cause of the failure</li>
+    <li>Fix any issues (API keys, service availability, data problems)</li>
+    <li>Manually retry campaign processing or contact the user</li>
+    <li>Monitor for similar failures in other campaigns</li>
+</ol>
+
+<div style="text-align: center; margin: 40px 0;">
+    <a href="https://posttimely.com/v2/admin/campaigns/{{campaignId}}" class="button">
+        🔍 Review Campaign
+    </a>
+    <a href="https://console.firebase.google.com/project/post-timely-94681/functions/logs" class="button" style="background: linear-gradient(135deg, #FF00B8 0%, #FF6B6B 100%); margin-left: 10px;">
+        📋 View Error Logs
+    </a>
+</div>
+
+<div class="alert">
+    <p><strong>Impact:</strong> This campaign is stuck and will not process without manual intervention. The customer has paid and is expecting their postcards to be sent.</p>
+</div>
+
+<h3>Common Failure Causes</h3>
+<ul style="color: #EAEAEA; padding-left: 20px;">
+    <li><strong>API Issues:</strong> OpenAI, Ideogram, or Stannp API failures</li>
+    <li><strong>Image Processing:</strong> Failed to upscale or compose logo</li>
+    <li><strong>Address Validation:</strong> Too many geocoding failures</li>
+    <li><strong>Payment Issues:</strong> Stripe webhook or processing problems</li>
+    <li><strong>Database Issues:</strong> Firestore read/write failures</li>
+</ul>
+
+{{>footer email="adam@posttimely.com"}} 

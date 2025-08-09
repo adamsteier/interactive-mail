@@ -14,6 +14,7 @@ import { V2Design as Design } from '@/v2/types/design';
 import { V2Brand as Brand } from '@/v2/types/brand';
 import { processPostcardForPrint } from './imageProcessingService';
 import { batchCreatePostcards, getCampaignMailpieceStats, LeadData } from './stannpService';
+import { notifyFailedCampaign } from './emailNotificationService';
 
 export interface ProcessingResult {
   success: boolean;
@@ -98,10 +99,25 @@ export async function processPaidCampaign(
       try {
         console.log(`Processing design ${designId}`);
         
-        // Get the AI-generated image URL
-        const frontImageUrl = design.generation?.finalImageUrl;
+        // Get the user-selected image URL from design selections
+        let frontImageUrl: string | undefined;
+        
+        // Look for user's design selection in campaign data
+        const designSelections = campaign.designSelections || {};
+        const designSelection = designSelections[designId];
+        
+        if (designSelection) {
+          // Use the first available selected image (openai or ideogram)
+          frontImageUrl = designSelection.openai || designSelection.ideogram;
+        }
+        
+        // Fallback: Check if we have the AI generation result stored directly on design
+        if (!frontImageUrl && design.generation?.finalImageUrl) {
+          frontImageUrl = design.generation.finalImageUrl;
+        }
+        
         if (!frontImageUrl) {
-          throw new Error(`No front image URL for design ${designId}`);
+          throw new Error(`No selected image URL for design ${designId}. User may not have completed A/B selection.`);
         }
         
         // Process the image (upscale + logo) - returns ProcessingResult with front.url
@@ -225,6 +241,19 @@ export async function processPaidCampaign(
         processingErrors: errors,
         processingFailedAt: Timestamp.now()
       });
+      
+      // Send admin notification about the failure
+      const campaignSnap = await getDoc(doc(db, 'campaigns', campaignId));
+      if (campaignSnap.exists()) {
+        const campaign = campaignSnap.data();
+        await notifyFailedCampaign(
+          campaignId,
+          campaign.ownerEmail || campaign.ownerUid || 'Unknown user',
+          errorMsg,
+          campaign.totalLeadCount || 0,
+          campaign.totalCost || 0
+        );
+      }
     } catch (updateError) {
       console.error('Failed to update campaign status:', updateError);
     }

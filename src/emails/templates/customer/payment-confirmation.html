@@ -1,0 +1,87 @@
+{{>header subject="✅ Payment Confirmed - Your Campaign is Being Processed"}}
+
+<div class="priority-normal">
+    <h1>✅ Payment Confirmed!</h1>
+    <p><strong>Thank you! Your payment has been processed and your postcard campaign is now being prepared.</strong></p>
+</div>
+
+<div class="success">
+    <p><strong>Campaign ID:</strong> <span class="code">{{campaignId}}</span></p>
+    <p><strong>Payment Amount:</strong> ${{amount}} CAD</p>
+</div>
+
+<h2>Your Campaign Details</h2>
+<div class="data-table">
+    <div class="data-row">
+        <div class="data-label">Recipients</div>
+        <div class="data-value">{{leadCount}} businesses</div>
+    </div>
+    <div class="data-row">
+        <div class="data-label">Send Date</div>
+        <div class="data-value">{{scheduledSendDate}}</div>
+    </div>
+    <div class="data-row">
+        <div class="data-label">Estimated Delivery</div>
+        <div class="data-value">{{estimatedDeliveryStart}} - {{estimatedDeliveryEnd}}</div>
+    </div>
+    <div class="data-row">
+        <div class="data-label">Price per Postcard</div>
+        <div class="data-value">${{pricePerPostcard}} CAD</div>
+    </div>
+    <div class="data-row">
+        <div class="data-label">Payment Method</div>
+        <div class="data-value">{{paymentMethod}}</div>
+    </div>
+</div>
+
+<h2>What Happens Next?</h2>
+<ol style="color: #EAEAEA; padding-left: 20px;">
+    <li><strong>Design Finalization</strong> - Your selected designs are being prepared for print</li>
+    <li><strong>Address Validation</strong> - We're verifying all recipient addresses for successful delivery</li>
+    <li><strong>Quality Review</strong> - Our team reviews your campaign before sending</li>
+    <li><strong>Print & Mail</strong> - Postcards are printed and sent via Canada Post on your scheduled date</li>
+    <li><strong>Delivery Tracking</strong> - You'll receive updates as postcards are delivered</li>
+</ol>
+
+<div style="text-align: center; margin: 40px 0;">
+    <a href="https://posttimely.com/v2/build/{{campaignId}}/review" class="button">
+        👀 View Campaign
+    </a>
+    <a href="https://posttimely.com/dashboard" class="button" style="background: linear-gradient(135deg, #FF00B8 0%, #00F0FF 100%); margin-left: 10px;">
+        📊 Dashboard
+    </a>
+</div>
+
+<h2>Important Information</h2>
+<div style="background-color: #1A1A1A; border: 1px solid #444; padding: 20px; border-radius: 8px; margin: 20px 0;">
+    <h3 style="color: #00F0FF; margin-top: 0;">📅 Send Date: {{scheduledSendDate}}</h3>
+    <p style="color: #EAEAEA; margin: 10px 0;">{{#if isASAP}}
+        You selected ASAP shipping. Your postcards will be sent on the earliest available date.
+    {{else}}
+        You selected a custom send date. Your postcards will be sent on your chosen date.
+    {{/if}}</p>
+    
+    <h3 style="color: #00F0FF;">📮 Delivery Timeline</h3>
+    <p style="color: #EAEAEA; margin: 10px 0;">
+        After sending, postcards typically arrive within <strong>5-10 business days</strong> via Canada Post.
+        Delivery times may vary based on location and postal service schedules.
+    </p>
+    
+    <h3 style="color: #00F0FF;">📧 Updates</h3>
+    <p style="color: #EAEAEA; margin: 10px 0 0 0;">
+        We'll send you email updates when your campaign is approved and sent. You can also check your 
+        <a href="https://posttimely.com/dashboard" style="color: #00F0FF;">dashboard</a> anytime for status updates.
+    </p>
+</div>
+
+<h2>Need Changes?</h2>
+<p>If you need to make changes to your campaign, please contact us as soon as possible. Changes may not be possible once printing has started.</p>
+
+<div style="text-align: center; margin: 30px 0;">
+    <p style="color: #888; margin: 10px 0;">Questions about your campaign?</p>
+    <a href="mailto:support@posttimely.com" style="color: #00F0FF; text-decoration: none; font-weight: 600;">
+        📧 support@posttimely.com
+    </a>
+</div>
+
+{{>footer email="{{userEmail}}"}} 

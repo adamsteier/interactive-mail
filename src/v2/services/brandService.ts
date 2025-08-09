@@ -81,7 +81,8 @@ export async function createBrand(
       
       logo: {
         variants: logoVariants,
-        colors: colorAnalysis,
+        // Only include colors if we have analysis, and ensure no undefined values
+        ...(colorAnalysis && { colors: JSON.parse(JSON.stringify(colorAnalysis)) }),
         hasTransparentBackground: logoVariants.some(v => v.type === 'png'),
         preferredVariant: logoVariants.find(v => v.type === 'svg') ? 'svg' : 'png'
       },
@@ -113,10 +114,9 @@ export async function createBrand(
       usage: {
         totalCampaigns: 0,
         totalLeads: 0,
-        totalSpent: 0,
-        avgResponseRate: undefined,
-        lastUsed: undefined,
-        performanceScore: undefined
+        totalSpent: 0
+        // Optional fields are omitted rather than set to undefined
+        // avgResponseRate, lastUsed, and performanceScore will be added when available
       },
       
       validation: validateBrandCompleteness({
@@ -577,7 +577,7 @@ export function calculateLogoContrast(colors: ExtractedColors): ColorAnalysis['c
     primaryVsWhite: contrastVsWhite,
     primaryVsBlack: contrastVsBlack,
     isAccessible,
-    recommendations
+    ...(recommendations.length > 0 && { recommendations })
   };
 }
 
@@ -613,7 +613,7 @@ export function analyzeColorHarmony(colors: ExtractedColors): ColorAnalysis['har
   return {
     scheme,
     quality,
-    suggestions
+    ...(suggestions.length > 0 && { suggestions })
   };
 }
 

@@ -1,4 +1,4 @@
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp, FieldValue } from 'firebase/firestore';
 
 /**
  * V2 Design Types
@@ -324,4 +324,150 @@ export const TONE_OPTIONS = [
   { id: 'urgent', name: 'Urgent', description: 'Creates sense of urgency' },
   { id: 'casual', name: 'Casual', description: 'Relaxed and conversational' },
   { id: 'authoritative', name: 'Authoritative', description: 'Expert and confident' }
-] as const; 
+] as const;
+
+// Postcard Specifications
+export interface PostcardSpecs {
+  width: number; // inches
+  height: number; // inches
+  bleed: number; // inches
+  dpi: number;
+  format: 'landscape' | 'portrait';
+}
+
+// Creative Brief System
+export interface BriefGenerationContext {
+  // Brand data
+  brandName: string;
+  brandColors: string[];
+  logoAnalysis: {
+    width: number;
+    height: number;
+    position: { x: number; y: number };
+    backgroundRequirement: 'light' | 'dark';
+    promptInstructions: string;
+  };
+  
+  // Contact Information
+  contactInfo: {
+    phone?: { label: "Phone"; value: string };
+    email?: { label: "Email"; value: string };
+    website?: { label: "Website"; value: string };
+    address?: { label: "Address"; value: string };
+  };
+  
+  // Social Media
+  socialMedia: {
+    instagram?: { label: "Instagram"; value: string };
+    facebook?: { label: "Facebook"; value: string };
+    linkedin?: { label: "LinkedIn"; value: string };
+    twitter?: { label: "Twitter"; value: string };
+    tiktok?: { label: "TikTok"; value: string };
+    youtube?: { label: "YouTube"; value: string };
+  };
+  
+  // Campaign data  
+  industry: string;
+  businessTypes: string[];
+  leadCounts: Record<string, number>;
+  voice: string;
+  campaignGoal: string;
+  targetAudience: string;
+  businessDescription?: string;
+  imageryInstructions?: string;
+}
+
+export interface CreativeBrief {
+  id: string;
+  campaignId: string;
+  brandId: string;
+  userId: string;
+  
+  // Generation details
+  model: 'gpt-4.1' | 'gpt-4o';
+  temperature: number;
+  // FIXED: Allow FieldValue during creation, Timestamp when read
+  generatedAt: Timestamp | FieldValue;
+  
+  // Brief content
+  briefText: string; // Full editable text
+  
+  // Context used for generation
+  context: BriefGenerationContext;
+  
+  // Tracking
+  selected?: boolean;
+  designGenerated?: boolean;
+  edited?: boolean;
+  originalBriefText?: string; // If edited, keep original
+  
+  // Performance (if used)
+  designPerformance?: {
+    campaignSuccess?: boolean;
+    userFeedback?: number; // 1-5 rating
+    notes?: string;
+  };
+}
+
+export interface BriefGenerationJob {
+  id: string;
+  campaignId: string;
+  brandId: string;
+  userId: string;
+  status: 'generating' | 'complete' | 'failed';
+  // FIXED: Allow FieldValue during creation, Timestamp when read
+  startedAt: Timestamp | FieldValue;
+  completedAt?: Timestamp | FieldValue;
+  
+  // Results
+  briefs: CreativeBrief[];
+  totalBriefs: number;
+  completedBriefs: number;
+  
+  // Error handling
+  errors?: string[];
+}
+
+export interface BriefGenerationRequest {
+  campaignId: string;
+  brandId: string;
+  formData: {
+    voice: string;
+    goal: string;
+    industry: string;
+    audience: string;
+    businessDescription?: string;
+    imageryInstructions?: string;
+  };
+  businessTypes: Array<{
+    type: string;
+    count: number;
+  }>;
+}
+
+// For Firestore subcollection structure
+export type CreateBriefRequest = Omit<CreativeBrief, 'id' | 'generatedAt'>;
+export type UpdateBriefRequest = Partial<Pick<CreativeBrief, 'briefText' | 'selected' | 'edited' | 'designGenerated' | 'designPerformance'>>;
+
+// Utility types
+export type BriefFormData = Partial<BriefGenerationRequest['formData']>;
+
+// Constants
+export const BRIEF_GENERATION_CONFIG = {
+  totalBriefs: 4,
+  models: [
+    // FIXED: Make order type more flexible (1-4 but as number, not literal union)
+    { model: 'gpt-4.1' as const, temperature: 0.7, order: 1 as number }, // Fast first
+    { model: 'gpt-4o' as const, temperature: 0.5, order: 2 as number }, // Conservative
+    { model: 'gpt-4o' as const, temperature: 0.9, order: 3 as number }, // Creative
+    { model: 'gpt-4o' as const, temperature: 1.1, order: 4 as number }  // Experimental
+  ]
+} as const;
+
+export const POSTCARD_SPECS: PostcardSpecs = {
+  width: 6,
+  height: 4, 
+  bleed: 0.125,
+  dpi: 300,
+  format: 'landscape'
+} as const; 

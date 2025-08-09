@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import BrandSelector from '@/v2/components/brand/BrandSelector';
 import BrandCreator from '@/v2/components/brand/BrandCreator';
+import CampaignProgress from '@/v2/components/CampaignProgress';
 
 // Define the params type for Next.js 15
 type Params = Promise<{ campaignId: string }>;
@@ -26,28 +27,27 @@ export default function BrandSelectionPage({ params }: { params: Params }) {
   const [campaignData, setCampaignData] = useState<CampaignData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [campaignId, setCampaignId] = useState<string>('');
+  const [campaignId, setCampaignId] = useState<string | null>(null);
   const [showBrandCreator, setShowBrandCreator] = useState(false);
 
-  // Handle params promise for Next.js 15
-  useEffect(() => {
-    const loadParams = async () => {
-      const resolvedParams = await params;
-      setCampaignId(resolvedParams.campaignId);
-    };
-    loadParams();
-  }, [params]);
-
-  // Load campaign data
+  // Load campaign data once params are resolved
   useEffect(() => {
     const loadCampaign = async () => {
-      if (!campaignId || !user?.uid) return;
-
       try {
+        // Await the params promise
+        const resolvedParams = await params;
+        const id = resolvedParams.campaignId;
+        setCampaignId(id);
+
+        if (!id || !user?.uid) {
+          setLoading(false);
+          return;
+        }
+
         setLoading(true);
         setError(null);
 
-        const campaignRef = doc(db, 'campaigns', campaignId);
+        const campaignRef = doc(db, 'campaigns', id);
         const campaignSnap = await getDoc(campaignRef);
 
         if (!campaignSnap.exists()) {
@@ -69,6 +69,11 @@ export default function BrandSelectionPage({ params }: { params: Params }) {
           ownerUid: data.ownerUid
         });
 
+        // If brand is already selected, redirect to design step
+        if (data.brandId) {
+          router.push(`/v2/build/${id}/design`);
+        }
+
       } catch (err) {
         console.error('Error loading campaign:', err);
         setError(err instanceof Error ? err.message : 'Failed to load campaign');
@@ -78,19 +83,19 @@ export default function BrandSelectionPage({ params }: { params: Params }) {
     };
 
     loadCampaign();
-  }, [campaignId, user?.uid]);
+  }, [params, user?.uid]);
 
   const handleBrandSelected = async (brandId: string) => {
     if (!campaignData) return;
 
     try {
-      // TODO: Update campaign with selected brand
+      // Update campaign with selected brand
       console.log('Brand selected:', brandId, 'for campaign:', campaignData.id);
-      // await updateDoc(doc(db, 'campaigns', campaignData.id), {
-      //   brandId: brandId,
-      //   status: 'brand_selected',
-      //   updatedAt: serverTimestamp()
-      // });
+      await updateDoc(doc(db, 'campaigns', campaignData.id), {
+        brandId: brandId,
+        status: 'brand_selected',
+        updatedAt: serverTimestamp()
+      });
 
       // Navigate to design step
       router.push(`/v2/build/${campaignData.id}/design`);
@@ -221,7 +226,7 @@ export default function BrandSelectionPage({ params }: { params: Params }) {
             <div className="flex items-center space-x-4">
               {/* Back button */}
               <button
-                onClick={() => router.back()}
+                onClick={() => router.push(`/v2/build/${campaignId}/leads`)}
                 className="p-2 rounded-lg bg-[#00F0FF]/10 hover:bg-[#00F0FF]/20 transition-colors border border-[#00F0FF]/20"
                 title="Back to lead selection"
               >
@@ -240,7 +245,7 @@ export default function BrandSelectionPage({ params }: { params: Params }) {
                   AI Campaign Builder
                 </h1>
                 <p className="text-[#EAEAEA]/60">
-                  Step 1 of 4: Choose your brand
+                  Step 2 of 5: Choose your brand
                 </p>
               </div>
             </div>
@@ -258,39 +263,10 @@ export default function BrandSelectionPage({ params }: { params: Params }) {
         </div>
       </div>
 
-      {/* Progress indicator with wave animation */}
-      <div className="relative z-10 bg-[#1A1A1A]/90 backdrop-blur-sm border-b border-[#2F2F2F]">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center space-x-8">
-            {[
-              { step: 1, label: 'Brand', active: true },
-              { step: 2, label: 'Design', active: false },
-              { step: 3, label: 'Review', active: false },
-              { step: 4, label: 'Payment', active: false }
-            ].map((item, index) => (
-              <div key={item.step} className="flex items-center">
-                <div className={`
-                  w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold
-                  ${item.active 
-                    ? 'bg-[#00F0FF] text-[#1A1A1A] shadow-[0_0_20px_rgba(0,240,255,0.4)]' 
-                    : 'bg-[#2F2F2F] text-[#EAEAEA]/60'
-                  }
-                `}>
-                  {item.step}
-                </div>
-                <span className={`ml-2 text-sm font-medium ${
-                  item.active ? 'text-[#00F0FF]' : 'text-[#EAEAEA]/60'
-                }`}>
-                  {item.label}
-                </span>
-                {index < 3 && (
-                  <div className="w-12 h-px bg-[#2F2F2F] mx-4" />
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      {/* Progress indicator */}
+      {campaignId && (
+        <CampaignProgress currentStep={2} campaignId={campaignId} />
+      )}
 
       {/* Main content */}
       <motion.div

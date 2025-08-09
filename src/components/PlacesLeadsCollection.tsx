@@ -17,6 +17,7 @@ import { showAuthOverlay } from '@/lib/auth';
 interface DisplayCampaignLead extends CampaignLead {
     rating?: number | null;
     relevanceScore?: number | null;
+    // searchBusinessType is already defined in CampaignLead, no need to override
 }
 
 interface PlacesLeadsCollectionProps {
@@ -87,7 +88,8 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
              address: data.address,
              phoneNumber: data.phoneNumber,
              website: data.website,
-             businessType: data.businessType,
+             // STANDARDIZED: Use searchBusinessType as primary, with backward compatibility fallback
+             searchBusinessType: data.searchBusinessType || data.businessType || '',
              selected: data.selected,
              location: data.location,
              contacted: data.contacted,
@@ -154,14 +156,14 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
   }, [isLoadingSearch]);
 
   const businessTypes = useMemo(() => {
-    const types = new Set(leads.map(lead => lead.businessType).filter(Boolean));
+    const types = new Set(leads.map(lead => lead.searchBusinessType).filter(Boolean));
     return Array.from(types);
   }, [leads]);
 
   const filteredLeads: DisplayCampaignLead[] = useMemo(() => {
     return activeFilter === 'all' 
       ? leads 
-      : leads.filter(lead => lead.businessType === activeFilter);
+      : leads.filter(lead => lead.searchBusinessType === activeFilter);
   }, [leads, activeFilter]);
 
   const handleSelectLead = (leadId: string, shiftKey: boolean) => {
@@ -258,7 +260,7 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
           await Promise.all(updatePromises);
           
           // Update campaign with current state
-          const businessTypes = [...new Set(leads.map(lead => lead.businessType).filter(Boolean))];
+          const businessTypes = [...new Set(leads.map(lead => lead.searchBusinessType).filter(Boolean))];
           const campaignRef = doc(db, 'campaigns', campaignId);
           await updateDoc(campaignRef, {
               status: 'draft_with_leads',
@@ -330,11 +332,12 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
   const handleContinueAsGuest = () => {
       setShowAccountPrompt(false);
       if (hasSeenSoftPrompt) {
-          // If they've already dismissed the soft prompt, show email capture
+          // This is the medium prompt (when confirming selection) - show email capture
           setShowEmailCapture(true);
       } else {
-          // Otherwise, continue with the selection
-          handleConfirmSelectionInternal();
+          // This is the soft prompt - just dismiss it and let user continue selecting leads
+          setHasSeenSoftPrompt(true);
+          // Don't navigate away - let them continue selecting leads
       }
   };
 
@@ -381,7 +384,7 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
           await Promise.all(updatePromises);
           
           // Get unique business types from the leads
-          const businessTypes = [...new Set(leads.map(lead => lead.businessType).filter(Boolean))];
+          const businessTypes = [...new Set(leads.map(lead => lead.searchBusinessType).filter(Boolean))];
           
           // Update the campaign status to indicate it's ready for the next step
           const campaignRef = doc(db, 'campaigns', campaignId);
@@ -397,7 +400,7 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
 
           console.log("Campaign updated with selections:", campaignId);
 
-          // Navigate to the V2 campaign build page
+          // Navigate directly to brand selection since leads are already selected
           window.location.href = `/v2/build/${campaignId}/brand`;
       } catch (err) {
           console.error("Error updating campaign:", err);
@@ -460,7 +463,7 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
                   )}
               </h2>
               <p className="text-sm text-electric-teal/60 mt-1">
-                Your selections are saved automatically. You can go back and change them anytime.
+                Your selections are saved automatically. You can modify them at any step in the campaign builder.
               </p>
             </div>
             <button onClick={onClose} className="text-electric-teal hover:text-electric-teal/80">
@@ -513,7 +516,7 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
             >
               All ({leads.length})
             </button>
-            {businessTypes.map(type => (
+            {businessTypes.filter((type): type is string => Boolean(type)).map(type => (
               <button
                 key={type}
                 onClick={() => setActiveFilter(type)}
@@ -523,7 +526,7 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
                     : 'text-electric-teal hover:bg-electric-teal/10'
                 }`}
               >
-                {type} ({leads.filter(p => p.businessType === type).length})
+                {type} ({leads.filter(p => p.searchBusinessType === type).length})
               </button>
             ))}
           </div>
@@ -606,7 +609,7 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
                       </td>
                       <td className="p-2 break-words font-medium text-white">{lead.businessName}</td>
                       <td className="p-2 break-words">{lead.address}</td>
-                      <td className="p-2 break-words">{lead.businessType}</td>
+                      <td className="p-2 break-words">{lead.searchBusinessType}</td>
                       {showRatingColumn && 
                           <td className="p-2">{lead.rating ?? 'N/A'}</td>
                       }
@@ -671,10 +674,11 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
       <EmailCaptureModal
         isOpen={showEmailCapture}
         onClose={() => {
+          // User closed modal without providing email - just close it, don't proceed
           setShowEmailCapture(false);
-          handleConfirmSelectionInternal();
         }}
         onComplete={() => {
+          // User provided email - now proceed to next step
           setShowEmailCapture(false);
           handleConfirmSelectionInternal();
         }}

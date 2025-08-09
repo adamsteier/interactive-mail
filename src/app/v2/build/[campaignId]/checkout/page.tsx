@@ -10,6 +10,7 @@ import { auth } from '@/lib/firebase';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
 import { addDays, format, isWeekend, startOfDay } from 'date-fns';
+import { sendPaymentConfirmation } from '@/v2/services/emailNotificationService';
 
 // Initialize Stripe
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
@@ -328,6 +329,29 @@ export default function CheckoutPage({ params }: { params: Params }) {
         paidAt: new Date(),
         updatedAt: new Date(),
       });
+
+      // Send payment confirmation email
+      try {
+        if (campaignData && user?.email) {
+          const delivery = getEstimatedDelivery(selectedSendDate);
+          await sendPaymentConfirmation(
+            campaignId,
+            user.email,
+            Math.round(campaignData.pricing!.totalCost * 100), // Convert to cents
+            campaignData.totalLeadCount,
+            selectedSendDate,
+            delivery.start,
+            delivery.end,
+            Math.round(campaignData.pricing!.pricePerLead * 100), // Convert to cents
+            'Credit Card',
+            selectedSendDate.toDateString() === getMinimumSendDate().toDateString()
+          );
+          console.log('Payment confirmation email sent successfully');
+        }
+      } catch (emailError) {
+        console.error('Failed to send payment confirmation email:', emailError);
+        // Don't fail the whole process if email fails
+      }
 
       // Trigger campaign processing
       try {

@@ -39,7 +39,8 @@ export interface CampaignLead {
   address: string;
   phoneNumber?: string;
   website?: string;
-  businessType: string;
+  // STANDARDIZED: Using searchBusinessType as the primary field (V2 approach)
+  searchBusinessType: string;
   selected: boolean;
   location: {
     lat: number;
@@ -169,7 +170,8 @@ export const convertPlaceToLead = (
     placeId: place.place_id,
     businessName: place.name,
     address: place.vicinity || place.formatted_address || '',
-    businessType: place.businessType || '',
+    // STANDARDIZED: Only use searchBusinessType (V2 approach)
+    searchBusinessType: place.businessType || '',
     selected: false,
     location: {
       lat: place.geometry.location.lat,

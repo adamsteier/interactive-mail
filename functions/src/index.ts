@@ -9,6 +9,7 @@
 
 import { onCall, HttpsError, CallableRequest } from "firebase-functions/v2/https";
 import { onRequest } from "firebase-functions/v2/https";
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
@@ -33,7 +34,281 @@ export const helloWorld = onRequest((request, response) => {
   response.send("Hello from Firebase!");
 });
 
-// Generate Postcard Design Function
+// NEW: Auto-process AI design jobs when they're queued
+export const processAIDesignJob = onDocumentCreated(
+  {
+    document: "aiJobs/{jobId}",
+    region: "us-central1",
+    memory: "1GiB",
+    timeoutSeconds: 300, // 5 minutes for AI generation
+    secrets: ["OPENAI_API_KEY", "IDEOGRAM_API_KEY"],
+  },
+  async (event) => {
+    const jobId = event.params.jobId;
+    const jobData = event.data?.data();
+
+    if (!jobData) {
+      logger.error(`No data found for job ${jobId}`);
+      return;
+    }
+
+    // Only process queued jobs
+    if (jobData.status !== "queued") {
+      logger.info(`Job ${jobId} is not queued (status: ${jobData.status}), skipping`);
+      return;
+    }
+
+    logger.info(`Auto-processing AI design job: ${jobId}`);
+
+    try {
+      // Update status to generating
+      await db.collection("aiJobs").doc(jobId).update({
+        status: "generating",
+        progress: 10,
+        startedAt: new Date(),
+      });
+
+      // Get brand data
+      const brandDoc = await db
+        .collection("users")
+        .doc(jobData.userId)
+        .collection("brands")
+        .doc(jobData.brandId)
+        .get();
+
+      if (!brandDoc.exists) {
+        throw new Error("Brand not found");
+      }
+
+      const brandData = brandDoc.data();
+
+      // Update progress
+      await db.collection("aiJobs").doc(jobId).update({ progress: 20 });
+
+      // Create enhanced prompt using existing logic
+      const prompt = createV2PostcardPrompt(jobData.requestData, brandData, jobData.logoSpace);
+
+      logger.info(`Generated prompt for job ${jobId}: ${prompt.substring(0, 200)}...`);
+
+      // Update progress
+      await db.collection("aiJobs").doc(jobId).update({ 
+        progress: 30,
+        prompt: prompt 
+      });
+
+      // Generate with both providers in parallel
+      const [openaiResult, ideogramResult] = await Promise.allSettled([
+        generateWithOpenAI(prompt),
+        generateWithIdeogram(prompt),
+      ]);
+
+      // Update progress
+      await db.collection("aiJobs").doc(jobId).update({ progress: 80 });
+
+      // Process results
+      const results: any = {
+        logoPosition: {
+          x: jobData.logoSpace.position.x,
+          y: jobData.logoSpace.position.y,
+          width: jobData.logoSpace.width,
+          height: jobData.logoSpace.height,
+        }
+      };
+
+      // Process OpenAI result
+      if (openaiResult.status === "fulfilled") {
+        results.openai = {
+          frontImageUrl: openaiResult.value.imageUrl,
+          prompt: prompt,
+          model: "gpt-image-1",
+          executionTime: openaiResult.value.executionTime,
+        };
+      } else {
+        results.openai = {
+          frontImageUrl: "",
+          prompt: prompt,
+          model: "gpt-image-1",
+          executionTime: 0,
+          error: openaiResult.reason?.message || "OpenAI generation failed",
+        };
+      }
+
+      // Process Ideogram result
+      if (ideogramResult.status === "fulfilled") {
+        results.ideogram = {
+          frontImageUrl: ideogramResult.value.imageUrl,
+          prompt: prompt,
+          styleType: "AUTO",
+          renderingSpeed: "DEFAULT",
+          executionTime: ideogramResult.value.executionTime,
+        };
+      } else {
+        results.ideogram = {
+          frontImageUrl: "",
+          prompt: prompt,
+          styleType: "AUTO", 
+          renderingSpeed: "DEFAULT",
+          executionTime: 0,
+          error: ideogramResult.reason?.message || "Ideogram generation failed",
+        };
+      }
+
+      // Final update - mark as complete
+      await db.collection("aiJobs").doc(jobId).update({
+        status: "complete",
+        progress: 100,
+        completedAt: new Date(),
+        result: results,
+      });
+
+      // Update campaign design status
+      if (jobData.campaignId && jobData.designId) {
+        await db.collection("campaigns").doc(jobData.campaignId).update({
+          [`designs.${jobData.designId}.status`]: "complete",
+          [`designs.${jobData.designId}.result`]: results,
+          updatedAt: new Date(),
+        });
+      }
+
+      logger.info(`Successfully completed AI design job: ${jobId}`);
+
+    } catch (error) {
+      logger.error(`Error processing AI design job ${jobId}:`, error);
+
+      // Update job with error
+      await db.collection("aiJobs").doc(jobId).update({
+        status: "failed",
+        error: error instanceof Error ? error.message : "Unknown error",
+        completedAt: new Date(),
+      });
+
+      // Update campaign design status
+      if (jobData.campaignId && jobData.designId) {
+        await db.collection("campaigns").doc(jobData.campaignId).update({
+          [`designs.${jobData.designId}.status`]: "failed",
+          [`designs.${jobData.designId}.error`]: error instanceof Error ? error.message : "Unknown error",
+          updatedAt: new Date(),
+        });
+      }
+    }
+  }
+);
+
+// V2 Enhanced Postcard Prompt Generation
+function createV2PostcardPrompt(requestData: any, brandData: any, logoSpace: any): string {
+  const { 
+    voice, 
+    goal, 
+    industry, 
+    audience, 
+    businessDescription,
+    customHeadline,
+    customCTA,
+    imageDescription,
+    stylePreference,
+    colorMood,
+    elementsToExclude,
+    customPromptAdditions
+  } = requestData;
+
+  // Build comprehensive postcard prompt
+  let prompt = "Create a professional direct mail promotional postcard design " +
+    "(6x4 inch landscape) that will be mailed to potential customers.\n\n" +
+    "POSTCARD CONTEXT: This is a promotional postcard that recipients " +
+    `will receive in their mailbox to promote a ${industry} business. ` +
+    "It must grab attention and drive action.\n\n" +
+    `LOGO SPACE: ${logoSpace.promptInstructions}\n\n` +
+    "BRAND GUIDELINES:";
+
+  // Add brand colors from V2 brand structure
+  if (brandData.logo?.colors?.extracted?.palette) {
+    const colors = brandData.logo.colors.extracted.palette.slice(0, 3);
+    prompt += `\nBrand colors: ${colors.join(", ")}`;
+  }
+
+  if (brandData.styleComponents?.primaryColor) {
+    prompt += `\nPrimary brand color: ${brandData.styleComponents.primaryColor}`;
+  }
+  if (brandData.styleComponents?.secondaryColor) {
+    prompt += `\nSecondary brand color: ${brandData.styleComponents.secondaryColor}`;
+  }
+
+  prompt += `\nTone: ${voice}
+Target audience: ${audience}
+Campaign goal: ${goal}`;
+
+  if (businessDescription) {
+    prompt += `\nBusiness context: ${businessDescription}`;
+  }
+
+  prompt += "\n\nCONTENT REQUIREMENTS:";
+
+  // Handle headline
+  if (customHeadline) {
+    prompt += `\nHeadline: "${customHeadline}"`;
+  } else {
+    prompt += `\nGenerate an attention-grabbing headline that appeals to ${audience} and promotes the ${goal}`;
+  }
+
+  // Handle CTA - ALWAYS ensure there's a CTA
+  if (customCTA) {
+    prompt += `\nCall-to-action: "${customCTA}"`;
+  } else {
+    prompt += "\nGenerate a compelling call-to-action button/text that encourages " +
+      "immediate response (examples: \"Call Now\", \"Visit Today\", \"Book Online\", \"Get Started\", \"Save Now\")";
+  }
+
+  // Contact information requirement
+  prompt += "\nContact info: Include placeholder areas for phone number, website, " +
+    "and address in an attractive, readable layout";
+
+  // Image requirements
+  if (imageDescription) {
+    prompt += `\nImagery: ${imageDescription}`;
+  } else {
+    prompt += `\nImagery: High-quality, professional images relevant to ${industry} that appeal to ${audience}`;
+  }
+
+  // Style preferences
+  if (stylePreference) {
+    prompt += `\nStyle: ${stylePreference}`;
+  }
+
+  if (colorMood) {
+    prompt += `\nColor mood: ${colorMood}`;
+  }
+
+  prompt += `
+
+TECHNICAL REQUIREMENTS:
+- 6x4 inch landscape orientation optimized for print
+- 300 DPI quality
+- Modern typography that's readable when printed
+- Professional layout with proper hierarchy
+- Ensure all text is large enough to read in mail format
+- Use the latest image generation capabilities for sharp, clear text
+
+DESIGN PRINCIPLES:
+- This postcard will be physically mailed, so it must stand out in a mailbox
+- Include enough white space for readability
+- Make the most important information (headline, CTA) most prominent
+- Ensure contact information is clearly visible but not overwhelming
+- Create visual appeal that makes recipients want to keep the postcard`;
+
+  // Elements to exclude
+  if (elementsToExclude && elementsToExclude.length > 0) {
+    prompt += `\n\nAVOID: ${elementsToExclude.join(", ")}`;
+  }
+
+  // Custom additions
+  if (customPromptAdditions) {
+    prompt += `\n\nADDITIONAL REQUIREMENTS: ${customPromptAdditions}`;
+  }
+
+  return prompt;
+}
+
+// Original Generate Postcard Design Function (V1)
 export const generatePostcardDesign = onCall(
   {
     region: "us-central1",

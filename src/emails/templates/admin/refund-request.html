@@ -1,0 +1,73 @@
+{{>header subject="💰 Refund Request - Action Required"}}
+
+<div class="priority-high">
+    <h1>💰 Refund Request - Manual Approval Needed</h1>
+    <p><strong>A refund has been requested and requires manual processing.</strong></p>
+</div>
+
+<h2>Refund Details</h2>
+<div class="data-table">
+    <div class="data-row">
+        <div class="data-label">Campaign ID</div>
+        <div class="data-value"><span class="code">{{campaignId}}</span></div>
+    </div>
+    <div class="data-row">
+        <div class="data-label">User Email</div>
+        <div class="data-value">{{userEmail}}</div>
+    </div>
+    <div class="data-row">
+        <div class="data-label">Original Amount</div>
+        <div class="data-value">${{originalAmount}} CAD</div>
+    </div>
+    <div class="data-row">
+        <div class="data-label">Refund Amount</div>
+        <div class="data-value" style="color: #FF00B8; font-weight: bold;">${{refundAmount}} CAD</div>
+    </div>
+    <div class="data-row">
+        <div class="data-label">Leads Removed</div>
+        <div class="data-value">{{removedLeads}} of {{totalLeads}}</div>
+    </div>
+    <div class="data-row">
+        <div class="data-label">Refund %</div>
+        <div class="data-value">{{refundPercentage}}%</div>
+    </div>
+</div>
+
+<h2>Reason for Refund</h2>
+<div style="background-color: #1A1A1A; border: 1px solid #444; padding: 20px; border-radius: 8px; margin: 20px 0;">
+    <p style="color: #EAEAEA; margin: 0; font-style: italic;">{{reason}}</p>
+</div>
+
+<h2>Required Actions</h2>
+<ol style="color: #EAEAEA; padding-left: 20px;">
+    <li><strong>Review the campaign</strong> to verify the refund is justified</li>
+    <li><strong>Check the refund calculation</strong> - should be proportional to removed leads</li>
+    <li><strong>Process the refund in Stripe Dashboard</strong></li>
+    <li><strong>Update the campaign status</strong> once refund is complete</li>
+    <li><strong>Send confirmation</strong> to the customer if needed</li>
+</ol>
+
+<div style="text-align: center; margin: 40px 0;">
+    <a href="https://posttimely.com/v2/admin/campaigns/{{campaignId}}" class="button">
+        📊 Review Campaign
+    </a>
+    <a href="https://dashboard.stripe.com/payments" class="button" style="background: linear-gradient(135deg, #FF00B8 0%, #6366F1 100%); margin-left: 10px;">
+        💳 Stripe Dashboard
+    </a>
+</div>
+
+<div class="success">
+    <p><strong>Calculation Check:</strong></p>
+    <p>Refund Amount = ({{removedLeads}} ÷ {{totalLeads}}) × ${{originalAmount}} = <strong>${{refundAmount}} CAD</strong></p>
+</div>
+
+<h3>Refund Processing Steps</h3>
+<ol style="color: #EAEAEA; padding-left: 20px;">
+    <li>Go to <a href="https://dashboard.stripe.com/payments" style="color: #00F0FF;">Stripe Dashboard</a></li>
+    <li>Search for Payment Intent: <span class="code">{{paymentIntentId}}</span></li>
+    <li>Click "Refund" and enter amount: <strong>${{refundAmount}}</strong></li>
+    <li>Reason: "Leads removed due to address validation issues"</li>
+    <li>Update campaign status to reflect the refund</li>
+</ol>
+
+{{>footer email="adam@posttimely.com"}} 

@@ -100,7 +100,7 @@ export async function createDesignAssignments(
           businessTypes: businessTypeData.map(bt => bt.type),
           leadCount: businessTypeData.reduce((sum, bt) => sum + bt.count, 0),
           designName: 'Universal Design',
-          createdAt: serverTimestamp() as Timestamp
+          createdAt: Timestamp.now() // Use Timestamp.now() instead of serverTimestamp()
         }];
         break;
 
@@ -111,7 +111,7 @@ export async function createDesignAssignments(
           businessTypes: [bt.type],
           leadCount: bt.count,
           designName: `${bt.type.charAt(0).toUpperCase() + bt.type.slice(1)} Design`,
-          createdAt: serverTimestamp() as Timestamp
+          createdAt: Timestamp.now() // Use Timestamp.now() instead of serverTimestamp()
         }));
         break;
 
@@ -282,7 +282,7 @@ export async function addDesignToAssignments(
       businessTypes: [],
       leadCount: 0,
       designName,
-      createdAt: serverTimestamp() as Timestamp
+      createdAt: Timestamp.now() // Use Timestamp.now() instead of serverTimestamp()
     };
 
     const updatedAssignments = [...summary.assignments, newAssignment];

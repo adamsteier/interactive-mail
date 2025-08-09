@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   SimpleDesignRequest,
   detectIndustryFromTypes,
@@ -10,59 +10,212 @@ import {
   validateDesignRequest
 } from '../../services/aiDesignService';
 
+interface BusinessTypeWithCount {
+  type: string;
+  count: number;
+}
+
 interface SimpleDesignFormProps {
   brandId: string;
-  businessTypes: string[];
+  businessTypes: BusinessTypeWithCount[];
+  availableBusinessTypes: BusinessTypeWithCount[]; // All business types from campaign
+  campaignId: string;
   onSubmit: (request: SimpleDesignRequest) => void;
   onToggleAdvanced: () => void;
   loading?: boolean;
   initialData?: Partial<SimpleDesignRequest>;
+  initialIndustry?: string;
+  initialDescription?: string;
+  onBusinessTypesChange?: (businessTypes: BusinessTypeWithCount[]) => void;
+  onBusinessDescriptionChange?: (description: string) => void;
 }
+
+// Goal examples organized by category
+const goalExamples = {
+  promotions: [
+    '10% off first visit',
+    '20% discount this month',
+    'Buy one get one free',
+    'Limited time offer',
+    'Free consultation',
+    '50% off second service'
+  ],
+  announcements: [
+    'Grand opening',
+    'New location',
+    'Now hiring',
+    'New services/products available',
+    'Under new management',
+    'Celebrating 10 years'
+  ],
+  seasonal: [
+    'Holiday specials',
+    'Summer promotion',
+    'Back to school offer',
+    'End of year sale',
+    'Spring cleaning special',
+    'Black Friday deals'
+  ],
+  engagement: [
+    'Join our loyalty program',
+    'Follow us on social media',
+    'Book your appointment today',
+    'Visit our website',
+    'Call for free quote',
+    'Schedule consultation'
+  ]
+};
 
 const SimpleDesignForm = ({
   brandId,
-  businessTypes,
+  businessTypes: initialBusinessTypes,
+  availableBusinessTypes,
+  campaignId,
   onSubmit,
   onToggleAdvanced,
   loading = false,
-  initialData
+  initialData,
+  initialIndustry,
+  initialDescription,
+  onBusinessTypesChange,
+  onBusinessDescriptionChange
 }: SimpleDesignFormProps) => {
-  // Auto-detected values
-  const detectedIndustry = detectIndustryFromTypes(businessTypes);
-  const audienceSuggestions = suggestAudienceFromTypes(businessTypes);
-  const designSuggestions = getIndustryDesignSuggestions(detectedIndustry);
+  // Business types state
+  const [businessTypes, setBusinessTypes] = useState<BusinessTypeWithCount[]>(initialBusinessTypes);
+  const [showAddBusinessTypes, setShowAddBusinessTypes] = useState(false);
+  
+  // Business description state
+  const [businessDescription, setBusinessDescription] = useState(initialDescription || '');
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [showFullDescription, setShowFullDescription] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState<SimpleDesignRequest>({
     brandId,
     voice: initialData?.voice || 'professional',
     goal: initialData?.goal || '',
-    industry: initialData?.industry || detectedIndustry,
-    audience: initialData?.audience || audienceSuggestions[0] || ''
+    industry: initialData?.industry || initialIndustry || '',
+    audience: initialData?.audience || businessTypes.map(bt => bt.type.replace(/_/g, ' ')).join(', ')
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [showSuggestions, setShowSuggestions] = useState<Record<string, boolean>>({});
+  const [showGoalSuggestions, setShowGoalSuggestions] = useState(false);
+  const [goalSuggestions, setGoalSuggestions] = useState<string[]>([]);
+  const [loadingGoalSuggestions, setLoadingGoalSuggestions] = useState(false);
+  const [imageryDescription, setImageryDescription] = useState('');
+  const [showImageryField, setShowImageryField] = useState(false);
+  const [customAudience, setCustomAudience] = useState(false);
 
   // Update form when initial data changes
   useEffect(() => {
-    if (initialData) {
+    if (initialData || initialIndustry || initialDescription) {
       setFormData(prev => ({
         ...prev,
         ...initialData,
+        industry: initialData?.industry || initialIndustry || prev.industry,
         brandId // Always keep current brandId
       }));
     }
-  }, [initialData, brandId]);
+  }, [initialData, brandId, initialIndustry, initialDescription]);
+
+  // Update audience when business types change
+  useEffect(() => {
+    if (!customAudience) {
+      setFormData(prev => ({
+        ...prev,
+        audience: businessTypes.map(bt => bt.type.replace(/_/g, ' ')).join(', ') + ' businesses'
+      }));
+    }
+  }, [businessTypes, customAudience]);
+
+  // Campaign goal suggestions
+  const fetchGoalSuggestions = useCallback(async () => {
+    if (!formData.industry || formData.industry.length < 2) return;
+    
+    setLoadingGoalSuggestions(true);
+    try {
+      const response = await fetch('/api/v2/campaign-goal-suggestions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          industry: formData.industry,
+          businessTypes: businessTypes.map(bt => bt.type)
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setGoalSuggestions(data.suggestions || []);
+      }
+    } catch (error) {
+      console.error('Error fetching goal suggestions:', error);
+    } finally {
+      setLoadingGoalSuggestions(false);
+    }
+  }, [formData.industry, businessTypes]);
+
+  // Handle business type removal
+  const handleRemoveBusinessType = useCallback((typeToRemove: string) => {
+    if (businessTypes.length <= 1) {
+      setErrors(prev => ({ ...prev, businessTypes: 'At least one business type is required' }));
+      return;
+    }
+    
+    const newBusinessTypes = businessTypes.filter(bt => bt.type !== typeToRemove);
+    setBusinessTypes(newBusinessTypes);
+    onBusinessTypesChange?.(newBusinessTypes);
+    
+    // Clear error if it exists
+    if (errors.businessTypes) {
+      setErrors(prev => ({ ...prev, businessTypes: '' }));
+    }
+  }, [businessTypes, onBusinessTypesChange, errors.businessTypes]);
+
+  // Handle business type addition
+  const handleAddBusinessType = useCallback((typeToAdd: BusinessTypeWithCount) => {
+    if (businessTypes.some(bt => bt.type === typeToAdd.type)) return;
+    
+    const newBusinessTypes = [...businessTypes, typeToAdd];
+    setBusinessTypes(newBusinessTypes);
+    onBusinessTypesChange?.(newBusinessTypes);
+    setShowAddBusinessTypes(false);
+  }, [businessTypes, onBusinessTypesChange]);
+
+  // Handle business description save
+  const handleSaveDescription = useCallback(async () => {
+    try {
+      setBusinessDescription(businessDescription);
+      onBusinessDescriptionChange?.(businessDescription);
+      setIsEditingDescription(false);
+    } catch (error) {
+      console.error('Error saving description:', error);
+    }
+  }, [businessDescription, onBusinessDescriptionChange]);
 
   // Handle form submission
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     
-    const validation = validateDesignRequest(formData);
+    // Validate business types
+    if (businessTypes.length === 0) {
+      setErrors(prev => ({ ...prev, businessTypes: 'At least one business type is required' }));
+      return;
+    }
+    
+    // Add imagery to goal if provided and include business description
+    const finalFormData = {
+      ...formData,
+      goal: imageryDescription 
+        ? `${formData.goal}. Imagery: ${imageryDescription}`
+        : formData.goal,
+      businessDescription: businessDescription,
+      businessTypes: businessTypes.map(bt => bt.type)
+    };
+    
+    const validation = validateDesignRequest(finalFormData);
     if (validation.isValid) {
       setErrors({});
-      onSubmit(formData);
+      onSubmit(finalFormData);
     } else {
       const errorMap: Record<string, string> = {};
       validation.errors.forEach(error => {
@@ -72,7 +225,7 @@ const SimpleDesignForm = ({
       });
       setErrors(errorMap);
     }
-  }, [formData, onSubmit]);
+  }, [formData, imageryDescription, businessDescription, businessTypes, onSubmit]);
 
   // Handle field changes
   const updateField = useCallback((field: keyof SimpleDesignRequest, value: string) => {
@@ -92,6 +245,11 @@ const SimpleDesignForm = ({
     { value: 'creative', label: 'Creative', description: 'Innovative and artistic' }
   ];
 
+  // Available business types for adding
+  const availableToAdd = availableBusinessTypes.filter(
+    available => !businessTypes.some(bt => bt.type === available.type)
+  );
+
   return (
     <div className="max-w-2xl mx-auto">
       <motion.div
@@ -102,140 +260,177 @@ const SimpleDesignForm = ({
         {/* Header */}
         <div className="text-center">
           <h2 className="text-2xl font-bold text-[#EAEAEA] mb-2">
-            Simple Design Mode
+            Design Brief
           </h2>
           <p className="text-[#EAEAEA]/60 mb-4">
-            Quick 5-field form - AI handles all creative decisions
+            Tell us about your business and campaign goals to create the perfect postcard
           </p>
-          <button
-            onClick={onToggleAdvanced}
-            className="text-[#00F0FF] hover:text-[#FF00B8] transition-colors text-sm flex items-center gap-1 mx-auto"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            Switch to Advanced Mode
-          </button>
         </div>
 
-        {/* Auto-detected Info */}
-        <div className="bg-[#00F0FF]/10 border border-[#00F0FF]/30 rounded-lg p-4">
-          <h3 className="text-[#00F0FF] font-medium mb-2 flex items-center gap-2">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        {/* Business Types Being Targeted */}
+        <div className="bg-[#2F2F2F]/50 rounded-lg p-4 border border-[#00F0FF]/20">
+          <h3 className="text-[#EAEAEA] font-medium mb-3 flex items-center gap-2">
+            <svg className="w-5 h-5 text-[#00F0FF]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            Auto-detected from your leads
+            Targeting {businessTypes.length} Business Type{businessTypes.length > 1 ? 's' : ''}
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-[#EAEAEA]/60">Industry:</span>
-              <span className="text-[#EAEAEA] ml-2">{detectedIndustry}</span>
-            </div>
-            <div>
-              <span className="text-[#EAEAEA]/60">Business Types:</span>
-              <span className="text-[#EAEAEA] ml-2 capitalize">
-                {businessTypes.map(bt => bt.replace(/_/g, ' ')).join(', ')}
-              </span>
-            </div>
+          <p className="text-[#EAEAEA]/60 text-sm mb-3">
+            These are the business types we'll be mailing to
+          </p>
+          
+          <div className="flex flex-wrap gap-2 mb-3">
+            {businessTypes.map((businessType) => (
+              <div
+                key={businessType.type}
+                className="flex items-center gap-2 bg-[#00F0FF]/10 text-[#00F0FF] px-3 py-2 rounded-full border border-[#00F0FF]/30"
+              >
+                <span className="text-sm capitalize">
+                  {businessType.type.replace(/_/g, ' ')}
+                </span>
+                <span className="text-xs bg-[#00F0FF]/20 px-2 py-0.5 rounded-full">
+                  {businessType.count}
+                </span>
+                {businessTypes.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveBusinessType(businessType.type)}
+                    className="ml-1 text-[#00F0FF]/60 hover:text-[#FF00B8] transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            ))}
+            
+            {availableToAdd.length > 0 && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowAddBusinessTypes(!showAddBusinessTypes)}
+                  className="flex items-center gap-1 bg-[#00F0FF]/10 text-[#00F0FF] px-3 py-2 rounded-full border border-[#00F0FF]/30 hover:bg-[#00F0FF]/20 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  <span className="text-sm">Add More</span>
+                </button>
+
+                {showAddBusinessTypes && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="absolute top-full left-0 mt-2 bg-[#2F2F2F] border border-[#00F0FF]/30 rounded-lg p-3 min-w-64 z-10"
+                  >
+                    <p className="text-[#EAEAEA]/60 text-xs mb-2">Available business types:</p>
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {availableToAdd.map((businessType) => (
+                        <button
+                          key={businessType.type}
+                          type="button"
+                          onClick={() => handleAddBusinessType(businessType)}
+                          className="w-full flex items-center justify-between p-2 rounded hover:bg-[#00F0FF]/10 transition-colors text-left"
+                        >
+                          <span className="text-[#EAEAEA] text-sm capitalize">
+                            {businessType.type.replace(/_/g, ' ')}
+                          </span>
+                          <span className="text-[#00F0FF] text-xs">
+                            {businessType.count} leads
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+            )}
           </div>
+          
+          {errors.businessTypes && (
+            <p className="text-[#FF00B8] text-sm">{errors.businessTypes}</p>
+          )}
         </div>
+
+        {/* Business Information */}
+        {businessDescription && (
+          <div className="bg-[#00F0FF]/10 rounded-lg p-4 border border-[#00F0FF]/30">
+            <h3 className="text-[#EAEAEA] font-medium mb-2 flex items-center gap-2">
+              <svg className="w-5 h-5 text-[#00F0FF]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Using Your Business Information
+            </h3>
+            
+            {isEditingDescription ? (
+              <div className="space-y-3">
+                <textarea
+                  value={businessDescription}
+                  onChange={(e) => setBusinessDescription(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#2F2F2F] border border-[#00F0FF]/30 rounded-lg text-[#EAEAEA] placeholder-[#EAEAEA]/60 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] resize-none"
+                  rows={4}
+                  placeholder="Describe your business..."
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveDescription}
+                    className="px-4 py-2 bg-[#00F0FF] text-[#1A1A1A] rounded-lg font-medium hover:bg-[#00F0FF]/90 transition-colors"
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBusinessDescription(initialDescription || '');
+                      setIsEditingDescription(false);
+                    }}
+                    className="px-4 py-2 bg-[#2F2F2F] text-[#EAEAEA] rounded-lg font-medium hover:bg-[#2F2F2F]/80 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <p className="text-[#EAEAEA]/80 text-sm">
+                  {showFullDescription || businessDescription.length <= 150 
+                    ? businessDescription 
+                    : `${businessDescription.slice(0, 150)}...`}
+                </p>
+                <div className="flex items-center gap-2 mt-2">
+                  {businessDescription.length > 150 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowFullDescription(!showFullDescription)}
+                      className="text-[#00F0FF] text-xs hover:text-[#FF00B8] transition-colors"
+                    >
+                      {showFullDescription ? 'Show Less' : 'Read More'}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingDescription(true)}
+                    className="text-[#00F0FF] text-xs hover:text-[#FF00B8] transition-colors"
+                  >
+                    Edit
+                  </button>
+                </div>
+                <p className="text-[#00F0FF]/60 text-xs mt-2">
+                  ✓ AI will use this context to create more relevant designs
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Voice/Tone */}
-          <div>
-            <label className="block text-sm font-medium text-[#EAEAEA] mb-3">
-              Voice & Tone *
-            </label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {voiceOptions.map(option => (
-                <div
-                  key={option.value}
-                  className={`
-                    cursor-pointer rounded-lg border-2 p-4 transition-all duration-200
-                    ${formData.voice === option.value
-                      ? 'border-[#00F0FF] bg-[#00F0FF]/10 shadow-[0_0_15px_rgba(0,240,255,0.3)]'
-                      : 'border-[#2F2F2F] bg-[#2F2F2F]/30 hover:border-[#00F0FF]/50'
-                    }
-                  `}
-                  onClick={() => updateField('voice', option.value)}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`
-                      w-5 h-5 rounded-full border-2 flex items-center justify-center
-                      ${formData.voice === option.value
-                        ? 'border-[#00F0FF] bg-[#00F0FF]'
-                        : 'border-[#2F2F2F]'
-                      }
-                    `}>
-                      {formData.voice === option.value && (
-                        <div className="w-2 h-2 bg-[#1A1A1A] rounded-full" />
-                      )}
-                    </div>
-                    <div>
-                      <h4 className="text-[#EAEAEA] font-medium">{option.label}</h4>
-                      <p className="text-[#EAEAEA]/60 text-sm">{option.description}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Goal */}
+          {/* Industry - Simplified */}
           <div>
             <label className="block text-sm font-medium text-[#EAEAEA] mb-2">
-              Design Goal *
-            </label>
-            <div className="relative">
-              <textarea
-                value={formData.goal}
-                onChange={(e) => updateField('goal', e.target.value)}
-                className={`
-                  w-full px-4 py-3 bg-[#2F2F2F] border rounded-lg text-[#EAEAEA] placeholder-[#EAEAEA]/60 
-                  focus:outline-none focus:ring-2 focus:ring-[#00F0FF] transition-all resize-none h-24
-                  ${errors.goal ? 'border-[#FF00B8]' : 'border-[#2F2F2F]'}
-                `}
-                placeholder="What do you want to achieve? e.g., Attract new customers, promote seasonal menu, increase appointments..."
-                onFocus={() => setShowSuggestions(prev => ({ ...prev, goal: true }))}
-              />
-              {errors.goal && (
-                <p className="text-[#FF00B8] text-sm mt-1">{errors.goal}</p>
-              )}
-            </div>
-
-            {/* Goal Suggestions */}
-            {showSuggestions.goal && designSuggestions.goalSuggestions.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="mt-2 bg-[#2F2F2F]/50 rounded-lg p-3 border border-[#00F0FF]/20"
-              >
-                <p className="text-[#EAEAEA]/60 text-xs mb-2">Suggestions for {detectedIndustry}:</p>
-                <div className="flex flex-wrap gap-2">
-                  {designSuggestions.goalSuggestions.map((suggestion, index) => (
-                    <button
-                      key={index}
-                      type="button"
-                      onClick={() => {
-                        updateField('goal', suggestion);
-                        setShowSuggestions(prev => ({ ...prev, goal: false }));
-                      }}
-                      className="text-xs bg-[#00F0FF]/20 text-[#00F0FF] px-2 py-1 rounded hover:bg-[#00F0FF]/30 transition-colors"
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </div>
-
-          {/* Industry */}
-          <div>
-            <label className="block text-sm font-medium text-[#EAEAEA] mb-2">
-              Industry *
+              Your Business Industry *
             </label>
             <input
               type="text"
@@ -246,14 +441,108 @@ const SimpleDesignForm = ({
                 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] transition-all
                 ${errors.industry ? 'border-[#FF00B8]' : 'border-[#2F2F2F]'}
               `}
-              placeholder="e.g., Food & Beverage, Automotive, Health & Beauty"
+              placeholder="What industry is your business in? (e.g., Restaurant, Law Office, Auto Repair, Dental Practice)"
             />
             {errors.industry && (
               <p className="text-[#FF00B8] text-sm mt-1">{errors.industry}</p>
             )}
             <p className="text-[#EAEAEA]/60 text-xs mt-1">
-              Auto-detected: {detectedIndustry}
+              This helps us create industry-specific design elements and messaging
             </p>
+          </div>
+
+          {/* Campaign Goal with AI Suggestions */}
+          <div>
+            <label className="block text-sm font-medium text-[#EAEAEA] mb-2">
+              Campaign Goal *
+            </label>
+            <div className="relative">
+              <textarea
+                value={formData.goal}
+                onChange={(e) => updateField('goal', e.target.value)}
+                className={`
+                  w-full px-4 py-3 bg-[#2F2F2F] border rounded-lg text-[#EAEAEA] placeholder-[#EAEAEA]/60 
+                  focus:outline-none focus:ring-2 focus:ring-[#00F0FF] transition-all resize-none
+                  ${errors.goal ? 'border-[#FF00B8]' : 'border-[#2F2F2F]'}
+                `}
+                rows={3}
+                placeholder="What do you want to achieve with this postcard campaign?"
+              />
+              {errors.goal && (
+                <p className="text-[#FF00B8] text-sm mt-1">{errors.goal}</p>
+              )}
+              
+              {/* AI Suggestions Toggle */}
+              <div className="flex items-center justify-between mt-2">
+                <div className="text-[#EAEAEA]/60 text-xs">
+                  <p className="mb-1">💡 <strong>Campaigns perform better with:</strong></p>
+                  <ul className="list-disc list-inside space-y-0.5 ml-4">
+                    <li>A clear offer or promotion</li>
+                    <li>Specific call-to-action</li>
+                    <li>What differentiates you from competitors</li>
+                  </ul>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowGoalSuggestions(!showGoalSuggestions);
+                    if (!showGoalSuggestions && goalSuggestions.length === 0) {
+                      fetchGoalSuggestions();
+                    }
+                  }}
+                  className="flex items-center gap-2 text-[#00F0FF] hover:text-[#FF00B8] transition-colors text-sm"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                  AI Suggestions
+                </button>
+              </div>
+
+              {/* Goal Suggestions */}
+              <AnimatePresence>
+                {showGoalSuggestions && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-3 bg-[#2F2F2F]/50 rounded-lg p-4 border border-[#00F0FF]/20"
+                  >
+                    {loadingGoalSuggestions ? (
+                      <div className="flex items-center justify-center py-4">
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                          className="w-5 h-5 border-2 border-[#00F0FF] border-t-transparent rounded-full"
+                        />
+                        <span className="ml-2 text-[#00F0FF] text-sm">Generating suggestions...</span>
+                      </div>
+                    ) : goalSuggestions.length > 0 ? (
+                      <div className="space-y-2">
+                        <p className="text-[#EAEAEA]/60 text-xs mb-3">Click any suggestion to use it:</p>
+                        {goalSuggestions.map((suggestion, index) => (
+                          <button
+                            key={index}
+                            type="button"
+                            onClick={() => {
+                              updateField('goal', suggestion);
+                              setShowGoalSuggestions(false);
+                            }}
+                            className="w-full text-left p-3 bg-[#1A1A1A] hover:bg-[#00F0FF]/10 rounded-lg transition-colors border border-[#2F2F2F] hover:border-[#00F0FF]/30"
+                          >
+                            <span className="text-[#EAEAEA] text-sm">{suggestion}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[#EAEAEA]/60 text-sm text-center py-2">
+                        No suggestions available. Please add your industry first.
+                      </p>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
 
           {/* Target Audience */}
@@ -262,80 +551,151 @@ const SimpleDesignForm = ({
               Target Audience *
             </label>
             <div className="relative">
-              <input
-                type="text"
-                value={formData.audience}
-                onChange={(e) => updateField('audience', e.target.value)}
-                className={`
-                  w-full px-4 py-3 bg-[#2F2F2F] border rounded-lg text-[#EAEAEA] placeholder-[#EAEAEA]/60 
-                  focus:outline-none focus:ring-2 focus:ring-[#00F0FF] transition-all
-                  ${errors.audience ? 'border-[#FF00B8]' : 'border-[#2F2F2F]'}
-                `}
-                placeholder="Who are you trying to reach?"
-                onFocus={() => setShowSuggestions(prev => ({ ...prev, audience: true }))}
-              />
+              {!customAudience ? (
+                <div className="bg-[#2F2F2F] border border-[#2F2F2F] rounded-lg p-3 flex items-center justify-between">
+                  <span className="text-[#EAEAEA]">
+                    {businessTypes.map(bt => bt.type.replace(/_/g, ' ')).join(', ')} businesses
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomAudience(true);
+                      updateField('audience', `${businessTypes.map(bt => bt.type.replace(/_/g, ' ')).join(', ')} businesses`);
+                    }}
+                    className="text-[#00F0FF] hover:text-[#FF00B8] transition-colors text-sm"
+                  >
+                    Edit
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <input
+                    type="text"
+                    value={formData.audience}
+                    onChange={(e) => updateField('audience', e.target.value)}
+                    className={`
+                      w-full px-4 py-3 bg-[#2F2F2F] border rounded-lg text-[#EAEAEA] placeholder-[#EAEAEA]/60 
+                      focus:outline-none focus:ring-2 focus:ring-[#00F0FF] transition-all pr-16
+                      ${errors.audience ? 'border-[#FF00B8]' : 'border-[#2F2F2F]'}
+                    `}
+                    placeholder="Who are you trying to reach?"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomAudience(false);
+                      updateField('audience', businessTypes.map(bt => bt.type.replace(/_/g, ' ')).join(', ') + ' businesses');
+                    }}
+                    className="absolute right-3 top-3 text-[#EAEAEA]/60 hover:text-[#FF00B8] transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </>
+              )}
               {errors.audience && (
                 <p className="text-[#FF00B8] text-sm mt-1">{errors.audience}</p>
               )}
             </div>
-
-            {/* Audience Suggestions */}
-            {showSuggestions.audience && audienceSuggestions.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="mt-2 bg-[#2F2F2F]/50 rounded-lg p-3 border border-[#00F0FF]/20"
-              >
-                <p className="text-[#EAEAEA]/60 text-xs mb-2">Suggested audiences:</p>
-                <div className="flex flex-wrap gap-2">
-                  {audienceSuggestions.map((suggestion, index) => (
-                    <button
-                      key={index}
-                      type="button"
-                      onClick={() => {
-                        updateField('audience', suggestion);
-                        setShowSuggestions(prev => ({ ...prev, audience: false }));
-                      }}
-                      className="text-xs bg-[#00F0FF]/20 text-[#00F0FF] px-2 py-1 rounded hover:bg-[#00F0FF]/30 transition-colors"
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
-                </div>
-              </motion.div>
-            )}
           </div>
 
-          {/* Generate Button */}
-          <div className="flex justify-center pt-6">
+          {/* Voice Selection */}
+          <div>
+            <label className="block text-sm font-medium text-[#EAEAEA] mb-2">
+              Brand Voice *
+            </label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {voiceOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => updateField('voice', option.value)}
+                  className={`
+                    p-4 rounded-lg border text-left transition-all
+                    ${formData.voice === option.value
+                      ? 'border-[#00F0FF] bg-[#00F0FF]/10'
+                      : 'border-[#2F2F2F] bg-[#2F2F2F] hover:border-[#00F0FF]/50'
+                    }
+                  `}
+                >
+                  <div className="font-medium text-[#EAEAEA] mb-1">
+                    {option.label}
+                  </div>
+                  <div className="text-sm text-[#EAEAEA]/60">
+                    {option.description}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Imagery Description (Optional) */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-[#EAEAEA]">
+                Imagery Instructions (Optional)
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowImageryField(!showImageryField)}
+                className="text-[#00F0FF] hover:text-[#FF00B8] transition-colors text-sm"
+              >
+                {showImageryField ? 'Hide' : 'Add Instructions'}
+              </button>
+            </div>
+            
+            <AnimatePresence>
+              {showImageryField && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-2"
+                >
+                  <textarea
+                    value={imageryDescription}
+                    onChange={(e) => setImageryDescription(e.target.value)}
+                    className="w-full px-4 py-3 bg-[#2F2F2F] border border-[#2F2F2F] rounded-lg text-[#EAEAEA] placeholder-[#EAEAEA]/60 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] transition-all resize-none"
+                    rows={3}
+                    placeholder="Describe specific imagery you'd like to see (e.g., 'Include images of our storefront', 'Use photos of happy customers', 'Show before/after examples')"
+                  />
+                  <p className="text-[#EAEAEA]/60 text-xs">
+                    This will be included in your design brief to help AI create more relevant visuals
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Submit Button */}
+          <div className="flex gap-4">
             <button
               type="submit"
               disabled={loading}
-              className="bg-[#00F0FF] text-[#1A1A1A] px-8 py-4 rounded-lg font-semibold hover:bg-[#FF00B8] transition-all duration-200 hover:shadow-[0_0_20px_rgba(255,0,184,0.4)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3 text-lg"
+              className="flex-1 bg-[#00F0FF] text-[#1A1A1A] py-4 px-6 rounded-lg font-semibold hover:bg-[#FF00B8] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
-                <>
+                <div className="flex items-center justify-center gap-2">
                   <motion.div
                     animate={{ rotate: 360 }}
                     transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
                     className="w-5 h-5 border-2 border-[#1A1A1A] border-t-transparent rounded-full"
                   />
                   Generating Design...
-                </>
+                </div>
               ) : (
-                <>
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  Generate AI Design
-                </>
+                'Generate Creative Briefs'
               )}
             </button>
-          </div>
-
-          {/* Estimated Time */}
-          <div className="text-center text-[#EAEAEA]/60 text-sm">
-            Estimated generation time: 30-45 seconds
+            
+            <button
+              type="button"
+              onClick={onToggleAdvanced}
+              className="px-6 py-4 bg-[#2F2F2F] text-[#EAEAEA] rounded-lg font-semibold hover:bg-[#2F2F2F]/80 transition-all duration-200 border border-[#00F0FF]/20"
+            >
+              Advanced Mode
+            </button>
           </div>
         </form>
       </motion.div>

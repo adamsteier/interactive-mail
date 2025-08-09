@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import GlobalAuthOverlay from '@/components/GlobalAuthOverlay';
 import AuthFailureNotice from '@/components/AuthFailureNotice';
+import SuppressHydrationWarning from '@/components/SuppressHydrationWarning';
 
 // Create a separate client component for the navigation with auth
 function Navigation() {
@@ -103,6 +104,7 @@ export default function ClientLayout({
 }) {
   return (
     <AuthProvider>
+      <SuppressHydrationWarning />
       <header className="fixed top-0 right-0 z-50 p-4 flex justify-end">
         <Navigation />
       </header>

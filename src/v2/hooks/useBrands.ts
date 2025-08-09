@@ -273,9 +273,9 @@ export function useBrandAnalytics(brandId: string | null) {
     completeness: brand.validation.score,
     totalCampaigns: brand.usage.totalCampaigns,
     totalSpent: brand.usage.totalSpent,
-    avgResponseRate: brand.usage.avgResponseRate,
-    performanceScore: brand.usage.performanceScore,
-    lastUsed: brand.usage.lastUsed,
+    ...(brand.usage.avgResponseRate !== undefined && { avgResponseRate: brand.usage.avgResponseRate }),
+    ...(brand.usage.performanceScore !== undefined && { performanceScore: brand.usage.performanceScore }),
+    ...(brand.usage.lastUsed && { lastUsed: brand.usage.lastUsed }),
     
     insights: {
       needsLogo: !brand.logo.variants.length,

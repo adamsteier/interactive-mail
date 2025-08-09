@@ -198,6 +198,9 @@ export interface V2Campaign {
   brandId?: string;
   designAssignments: CampaignDesignAssignment[];
   
+  // User's A/B testing selections (designId -> { openai?: string, ideogram?: string })
+  designSelections?: Record<string, { openai?: string; ideogram?: string }>;
+  
   // Lead Information
   totalLeadCount: number;
   businessTypes: string[]; // Extracted from leads

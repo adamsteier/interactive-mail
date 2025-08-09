@@ -1,0 +1,179 @@
+# PostTimely Email System Overview
+
+## Brand Guidelines
+- Primary: Electric Teal (#00F0FF)
+- Secondary: Neon Magenta (#FF00B8) 
+- Background: Dark Charcoal (#1A1A1A)
+- Text: Light Gray (#EAEAEA)
+
+## Email Categories
+
+### 🔔 ADMIN NOTIFICATIONS (to: adam@posttimely.com)
+
+#### 1. Campaign Failed Alert
+- **File**: `src/emails/admin/campaign-failed.html`
+- **Trigger**: Campaign processing fails
+- **Priority**: URGENT
+- **Data**: campaignId, userEmail, error, leadCount, amount
+- **Action**: Admin needs to fix and retry
+
+#### 2. Refund Request Alert  
+- **File**: `src/emails/admin/refund-request.html`
+- **Trigger**: Campaign needs leads removed (bad addresses, etc.)
+- **Priority**: HIGH
+- **Data**: campaignId, userEmail, originalAmount, refundAmount, reason, removedLeads
+- **Action**: Admin approves refund in Stripe
+
+#### 3. Campaign Stuck Alert
+- **File**: `src/emails/admin/campaign-stuck.html`
+- **Trigger**: Campaign in processing >30 minutes
+- **Priority**: MEDIUM
+- **Data**: campaignId, userEmail, status, stuckDuration
+- **Action**: Admin investigates and retries
+
+#### 4. High Geocoding Failure Alert
+- **File**: `src/emails/admin/geocoding-failures.html`
+- **Trigger**: >20% of leads fail address validation
+- **Priority**: MEDIUM  
+- **Data**: campaignId, userEmail, failedCount, totalCount, failureReasons
+- **Action**: Admin reviews addresses
+
+#### 5. Payment Processing Issue
+- **File**: `src/emails/admin/payment-issue.html`
+- **Trigger**: Stripe webhook failures or payment inconsistencies
+- **Priority**: HIGH
+- **Data**: campaignId, userEmail, paymentIntentId, issue
+- **Action**: Admin checks Stripe dashboard
+
+### 👤 CUSTOMER NOTIFICATIONS (to: user email)
+
+#### 6. Payment Confirmation
+- **File**: `src/emails/customer/payment-confirmation.html`
+- **Trigger**: Successful payment
+- **Priority**: NORMAL
+- **Data**: campaignId, amount, leadCount, scheduledSendDate, estimatedDelivery
+- **Action**: None (confirmation)
+
+#### 7. Campaign Approved & Sent
+- **File**: `src/emails/customer/campaign-sent.html`
+- **Trigger**: Postcards sent to print/mail
+- **Priority**: NORMAL
+- **Data**: campaignId, leadCount, actualSendDate, estimatedDelivery, trackingInfo
+- **Action**: None (confirmation)
+
+#### 8. Design Generation Complete
+- **File**: `src/emails/customer/designs-ready.html`
+- **Trigger**: AI generation complete, needs user A/B selection
+- **Priority**: NORMAL
+- **Data**: campaignId, designCount, reviewUrl
+- **Action**: User reviews and selects designs
+
+#### 9. Campaign Delayed
+- **File**: `src/emails/customer/campaign-delayed.html`
+- **Trigger**: Issues found, send date pushed back
+- **Priority**: NORMAL
+- **Data**: campaignId, originalDate, newDate, reason, compensationOffered
+- **Action**: Customer informed of delay
+
+#### 10. Partial Refund Processed
+- **File**: `src/emails/customer/partial-refund.html`
+- **Trigger**: Leads removed, refund issued
+- **Priority**: NORMAL
+- **Data**: campaignId, removedLeads, refundAmount, reason, remainingLeads
+- **Action**: None (confirmation)
+
+#### 11. Campaign Delivery Complete
+- **File**: `src/emails/customer/delivery-complete.html`
+- **Trigger**: All postcards delivered (or attempt period ended)
+- **Priority**: LOW
+- **Data**: campaignId, deliveredCount, totalCount, deliveryStats, responseTracking
+- **Action**: Optional feedback survey
+
+### 🚨 ERROR NOTIFICATIONS (both admin and customer)
+
+#### 12. Critical System Error
+- **File**: `src/emails/system/critical-error.html`
+- **Trigger**: Database, API, or infrastructure failures
+- **Priority**: CRITICAL
+- **Data**: errorType, errorMessage, affectedCampaigns, timestamp
+- **Action**: Immediate investigation
+
+## Integration Points
+
+### Triggered From:
+- `campaignProcessingService.ts` - Failed campaigns, processing complete
+- `checkout/page.tsx` - Payment confirmation
+- `aiDesignService.ts` - Design generation complete  
+- `stannpService.ts` - Delivery updates via webhooks
+- `refundService.ts` - Refund processing
+- Cloud Functions - System monitoring
+
+### Email Service Implementation:
+- **Provider**: SendGrid API
+- **Environment**: SENDGRID_API_KEY
+- **From Address**: noreply@posttimely.com
+- **Templates**: HTML with fallback text
+- **Tracking**: Open rates, click tracking enabled
+- **Queue**: Firestore collection for retry logic
+
+## Template Structure
+```
+src/emails/
+├── templates/
+│   ├── admin/
+│   │   ├── campaign-failed.html
+│   │   ├── refund-request.html
+│   │   ├── campaign-stuck.html
+│   │   ├── geocoding-failures.html
+│   │   └── payment-issue.html
+│   ├── customer/
+│   │   ├── payment-confirmation.html
+│   │   ├── campaign-sent.html
+│   │   ├── designs-ready.html
+│   │   ├── campaign-delayed.html
+│   │   ├── partial-refund.html
+│   │   └── delivery-complete.html
+│   └── system/
+│       └── critical-error.html
+├── components/
+│   ├── header.html
+│   ├── footer.html
+│   └── button.html
+└── styles/
+    └── email-styles.css
+```
+
+## Priority Implementation Order:
+1. ✅ Admin: Campaign Failed (URGENT) - **LIVE & TESTED**
+2. ✅ Admin: Refund Request (HIGH) - **LIVE & TESTED**  
+3. ✅ Customer: Payment Confirmation (HIGH) - **LIVE & INTEGRATED**
+4. ✅ Admin: Campaign Stuck (MEDIUM) - **LIVE** (uses failed template)
+5. 🔄 Customer: Campaign Sent (MEDIUM) - **TODO**
+6. 🔄 Customer: Designs Ready (MEDIUM) - **TODO**
+7. 🔄 Remaining templates (LOW) - **TODO**
+
+## Current Status: ✅ **CORE EMAIL SYSTEM OPERATIONAL**
+
+### What's Working:
+- ✅ SendGrid integration with API key
+- ✅ HTML email templates with brand styling
+- ✅ Template engine with variable substitution
+- ✅ Email sending with fallback queuing
+- ✅ Payment confirmation emails (auto-sent after checkout)
+- ✅ Admin failure alerts (auto-sent on campaign errors)
+- ✅ Admin refund requests (manual trigger needed)
+- ✅ Test endpoint: `/api/v2/test-email`
+
+### Integration Points:
+- ✅ `checkout/page.tsx` - Sends payment confirmation
+- ✅ `emailNotificationService.ts` - Sends admin alerts
+- ✅ Firebase Functions - Can trigger admin alerts on failures
+- 🔄 Campaign processing - Need to wire up success/failure notifications
+- 🔄 Stannp webhooks - Need delivery confirmations
+
+## SendGrid Implementation:
+- Dynamic templates with variable substitution
+- Branded HTML with mobile-responsive design
+- Text fallbacks for all HTML emails
+- Unsubscribe handling
+- Bounce and spam monitoring
