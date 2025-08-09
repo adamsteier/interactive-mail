@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { processPaidCampaign, isCampaignReadyForProcessing } from '@/v2/services/campaignProcessingService';
+import { requireTestEnvironment } from '@/lib/apiAuth';
 
 export async function POST(request: NextRequest) {
+  // DEVELOPMENT ONLY: Check if test routes are allowed
+  const testCheck = requireTestEnvironment();
+  if (testCheck) {
+    return testCheck;
+  }
   try {
     const body = await request.json();
     const { campaignId, checkOnly = false } = body;
@@ -49,6 +55,11 @@ export async function POST(request: NextRequest) {
 
 // GET endpoint to check campaign status
 export async function GET(request: NextRequest) {
+  // DEVELOPMENT ONLY: Check if test routes are allowed
+  const testCheck = requireTestEnvironment();
+  if (testCheck) {
+    return testCheck;
+  }
   try {
     const searchParams = request.nextUrl.searchParams;
     const campaignId = searchParams.get('campaignId');

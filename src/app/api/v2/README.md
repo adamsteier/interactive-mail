@@ -3,6 +3,15 @@
 ## Overview
 This directory contains the API endpoints for the V2 campaign system. These endpoints handle payment processing, campaign fulfillment, and monitoring.
 
+## Authentication Overview
+
+All API endpoints now have proper authentication:
+
+- **User Routes**: Require Firebase ID token in `Authorization: Bearer <token>` header
+- **Admin Routes**: Require Firebase ID token + admin status in Firestore
+- **Cron Routes**: Require `CRON_SECRET` in `Authorization: Bearer <secret>` header  
+- **Test Routes**: Only available in development or when `ALLOW_TEST_ROUTES=true`
+
 ## Production Endpoints
 
 ### `/api/v2/create-payment-intent`
@@ -35,8 +44,50 @@ This directory contains the API endpoints for the V2 campaign system. These endp
 ### `/api/v2/process-scheduled-campaigns`
 - **Method**: GET/POST
 - **Purpose**: Process all campaigns scheduled for today (called by cron job)
-- **Authentication**: Optional (Bearer token with CRON_SECRET)
+- **Authentication**: Required (Bearer token with CRON_SECRET)
 - **Usage**: Set up daily cron job to call this endpoint
+
+## Admin Endpoints
+
+### `/api/v2/admin/update-status`
+- **Method**: POST
+- **Purpose**: Manually update campaign status (admin only)
+- **Authentication**: Required (Firebase ID token + admin status)
+- **Body**:
+  ```json
+  {
+    "campaignId": "string",
+    "status": "paid" | "processing" | "sent" | "failed" | "scheduled"
+  }
+  ```
+
+### `/api/v2/admin/retry-campaign`
+- **Method**: POST
+- **Purpose**: Retry failed campaign processing (admin only)
+- **Authentication**: Required (Firebase ID token + admin status)
+- **Body**:
+  ```json
+  {
+    "campaignId": "string"
+  }
+  ```
+
+### `/api/v2/admin/refund-request`
+- **Method**: POST
+- **Purpose**: Queue refund request notification (admin only)
+- **Authentication**: Required (Firebase ID token + admin status)
+- **Body**:
+  ```json
+  {
+    "campaignId": "string",
+    "userEmail": "string",
+    "originalAmount": number,
+    "refundAmount": number,
+    "reason": "string",
+    "affectedLeads": number,
+    "totalLeads": number
+  }
+  ```
 
 ### `/api/webhooks/stannp`
 - **Method**: POST
@@ -46,9 +97,12 @@ This directory contains the API endpoints for the V2 campaign system. These endp
 
 ## Test Endpoints
 
+**Note**: Test endpoints are only available in development mode or when `ALLOW_TEST_ROUTES=true` environment variable is set.
+
 ### `/api/v2/test-image-processing`
 - **Method**: POST
 - **Purpose**: Test image upscaling and logo overlay
+- **Authentication**: Development environment only
 - **Body**:
   ```json
   {
@@ -66,6 +120,7 @@ This directory contains the API endpoints for the V2 campaign system. These endp
 ### `/api/v2/test-stannp`
 - **Method**: GET/POST
 - **Purpose**: Test Stannp API integration
+- **Authentication**: Development environment only
 - **Query params**: 
   - `action`: "test" | "create" | "status"
   - `mailpieceId`: (for status action)
@@ -73,6 +128,7 @@ This directory contains the API endpoints for the V2 campaign system. These endp
 ### `/api/v2/test-campaign-processing`
 - **Method**: POST
 - **Purpose**: Test the campaign processing service
+- **Authentication**: Development environment only
 - **Body**:
   ```json
   {
@@ -84,6 +140,7 @@ This directory contains the API endpoints for the V2 campaign system. These endp
 ### `/api/v2/test-full-flow`
 - **Method**: GET/POST
 - **Purpose**: Test the complete campaign flow
+- **Authentication**: Development environment only
 - **GET**: Check campaign status
   - Query: `?campaignId=YOUR_CAMPAIGN_ID`
 - **POST**: Simulate actions
@@ -106,8 +163,9 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...
 STANNP_API_KEY=your_api_key
 NEXT_PUBLIC_STANNP_REGION=US  # or EU
 
-# Optional
+# Security
 CRON_SECRET=your_secret_for_cron_jobs
+ALLOW_TEST_ROUTES=false  # Set to 'true' to enable test routes in production
 NEXT_PUBLIC_APP_URL=https://www.magicmailing.com/
 ```
 

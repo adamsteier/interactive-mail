@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { processReadyCampaigns } from '@/v2/services/campaignProcessingService';
+import { requireCronAuth } from '@/lib/apiAuth';
 
 // This endpoint should be called daily by a cron job (e.g., Vercel Cron, GitHub Actions, or external service)
 export async function GET(request: NextRequest) {
   try {
-    // Optionally check for a secret to prevent unauthorized calls
-    const authHeader = request.headers.get('Authorization');
-    const expectedSecret = process.env.CRON_SECRET;
-    
-    if (expectedSecret && authHeader !== `Bearer ${expectedSecret}`) {
-      return NextResponse.json({
-        success: false,
-        error: 'Unauthorized'
-      }, { status: 401 });
+    // CRON ONLY: Require CRON_SECRET authentication
+    const cronAuthError = requireCronAuth(request);
+    if (cronAuthError) {
+      return cronAuthError;
     }
     
     console.log('Starting scheduled campaign processing...');

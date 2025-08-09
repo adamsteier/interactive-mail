@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { requireAdmin } from '@/lib/apiAuth';
 
 export async function POST(request: NextRequest) {
+  // ADMIN ONLY: Require admin authentication
+  const adminAuth = await requireAdmin(request);
+  if (!adminAuth.success) {
+    return adminAuth.response!;
+  }
   try {
     const { campaignId, status } = await request.json();
 

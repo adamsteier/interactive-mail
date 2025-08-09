@@ -1,0 +1,112 @@
+## Audit Report: V2 Campaign System (Aug 8)
+
+### Executive Summary
+- The core V2 flow is production-capable: Lead Selection → Brand → Creative Briefs → AI A/B Designs → Review → Payment → Scheduling → Processing.
+- Immediate blockers are minimal. Primary focus should be Phase 5 (Admin & Monitoring), automation (cron), and observability.
+- One critical bug identified in brand lookup during background generation (Phase 4). See P0 below.
+
+## Findings by Phase
+
+### Phase 1: Brand Management (Complete)
+- Works: Brand creation/editing, logo analysis, color extraction, optional contact/social fields, brand selection.
+- Gaps/Improvements:
+  - Add brand completeness meter and validation warnings (optional social/contact fields should not block).
+  - Provide “brand kit” quick export and reusability across campaigns.
+  - Track brand usage analytics (times used, conversion performance) and last used at.
+  - Enforce consistent brand guideline colors in design prompts more explicitly.
+
+### Phase 2: Design System (Complete)
+- Works: Simple/Advanced requests, creative brief generation (4 briefs, GPT-4.1/4o with varied temperatures), brief selection/edit, queue design generation, dual-provider A/B (OpenAI + Ideogram), progress UI.
+- Gaps/Improvements:
+  - Persist selected brief metadata to Firestore alongside the design for admin analytics (model, temperature, edit flag, selection reason).
+  - Add rate limiting/backoff for brief generation (protect costs) and a per-user budget guard.
+  - Stream brief generation (SSE) for better perceived performance if supported.
+  - Add guard-rails in prompts (no sensitive imagery, compliance notes; exclude brand fonts for now but capture typography hints if available).
+  - Provide “regenerate brief” per-slot instead of regenerating all 4.
+  - Add negative prompt guidance and grid options (no columns/2-column/3-column) as structured toggles.
+  - Capture prompt lineage: brandId, inputs, prompt text hash for de-duplication and caching.
+
+### Phase 3: Review & Payment (Complete)
+- Works: Review page, blind A/B, checkout with Stripe, ASAP/custom scheduling, CAD currency, secure auth.
+- Gaps/Improvements:
+  - Taxes/receipts: ensure tax handling as needed; auto-email receipt with PDF link (SendGrid template).
+  - Coupon/discount codes (optional).
+  - Clear refund policy and partial-refund UX if leads drop post-validation.
+  - Extend max scheduling window beyond 90 days if business requires.
+  - Add post-payment confirmation email with campaign summary and next steps.
+
+### Phase 4: Backend Integration (Complete, 1 critical bug)
+- Works: Image processing pipeline (upscale + logo), Stannp integration, campaign processing service, test endpoints.
+- Critical Bug (P0): In `processDualProviderGeneration`, brand lookup uses campaignId as userId:
+  - Code reads: `doc(db, 'users', jobData.campaignId, 'brands', jobData.brandId)`
+  - Should use `jobData.userId` (user-first storage). This would fail brand fetch at runtime. Fix before scale.
+- Gaps/Improvements:
+  - Idempotency keys for processing to avoid double-processing on retries.
+  - Structured logging with correlation IDs (jobId, campaignId) and log levels.
+  - Ensure all Cloud Functions honor timeouts and have retry policies; add dead-letter/compensation strategy.
+  - Validate Storage upload MIME/types and sizes; sanitize URLs; ensure public URL generation is robust.
+
+### Phase 5: Admin & Monitoring (In Progress)
+- Works: Campaign detail page with manual retry/status updates; refund request API route scaffold; some admin UI in place.
+- Gaps/Improvements:
+  - Admin Dashboard (list, filters, quick stats): paid/scheduled/processing/sent/failed, today’s sends, failures.
+  - Scheduled Campaign Manager: list/edit/cancel/force process.
+  - Brief Analytics: totals, selection rate, edit rate, performance by model/temperature.
+  - Alerts/Notifications: Slack/email on failures and threshold breaches.
+  - RBAC: Protect admin routes with custom claims or allowlist; secure API routes with auth checks.
+
+### Phase 6: Production Hardening (Next)
+- Gaps/Improvements:
+  - Cron: Vercel Cron (or Cloud Scheduler) calling `/api/v2/process-scheduled-campaigns` daily/hourly.
+  - Monitoring & Alerts: Sentry/LogRocket; uptime monitoring; error rate dashboards.
+  - Geocoding/Address validation: Lightweight validation pre-Stannp; flag obvious invalid addresses.
+  - Rate limiting & cost controls for AI endpoints.
+
+### Phase 7: Testing & Migration
+- Gaps/Improvements:
+  - Tests: Unit (services/types), integration (design flow, payment, processing), load tests for AI gen & Firestore usage.
+  - Accessibility and mobile responsiveness audits.
+  - Data migration: Backfill V1 → V2 where needed; verify `searchBusinessType` standardization, add migration scripts for legacy campaigns/leads.
+  - Secure and limit access to test endpoints in production.
+
+### Phase 8: Polish & Launch
+- Gaps/Improvements:
+  - UI polish: skeletons, transitions, helpful tooltips, microcopy.
+  - Onboarding: lightweight getting-started guide within the app.
+  - Docs: API docs, admin manual, troubleshooting, developer README refresh.
+  - Launch prep: performance audit, security review, backup/restore drill, marketing materials.
+
+## Cross-Cutting Improvements
+- Security & Auth
+  - Protect admin APIs with Firebase ID token + admin claim checks.
+  - Verify webhook signatures (Stannp) before trusting events.
+  - Harden Firestore rules for v2 paths; add integration tests for rules.
+- Observability
+  - Add Sentry across API routes and functions; structured logs for traceability.
+  - Metrics: brief generation cost/time, model success rate, image processing times, Stannp API success rate.
+- Cost & Rate Limits
+  - Enforce per-user/day quotas on brief/image generation.
+  - Cache prompts and de-duplicate near-identical requests.
+- Data Model Hygiene
+  - Persist: selected brief details on design; user selection outcomes (A/B winner origin).
+  - Add composite indexes as needed for new admin queries (status/date filters).
+
+## Prioritized Recommendations
+- P0 (Fix Today)
+  - Correct brand lookup in `processDualProviderGeneration` to use `userId` instead of `campaignId`.
+  - Lock down admin API routes with auth checks (custom claims/allowlist).
+- P1 (This Week)
+  - Implement Vercel Cron for `/api/v2/process-scheduled-campaigns`.
+  - Build Admin Dashboard overview (lists, filters, KPIs) + Scheduled Campaign Manager.
+  - Persist selected brief metadata and expose in admin analytics.
+  - Add Sentry; add structured logs in AI jobs and processing.
+- P2 (Next 2–3 Weeks)
+  - Webhook signature verification; retry policies; idempotency.
+  - Rate limiting/cost controls for AI endpoints; caching.
+  - Tests: core units + integration; accessibility pass; mobile QA.
+  - UI polish and onboarding; receipts and optional coupons.
+
+## How It Comes Together
+- The system is already end-to-end functional. Stabilizing operations (cron, admin visibility, observability) and fixing the P0 brand lookup will make the pipeline robust under real load.
+- Capturing and surfacing creative brief and A/B outcome data will close the loop for continuous improvement (which models/temps work best per industry/goal/brand).
+- With admin controls, automated scheduling, and monitoring in place, you’ll be positioned for confident launch and iteration.

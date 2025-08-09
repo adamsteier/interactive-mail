@@ -39,6 +39,7 @@ export interface DesignGenerationJob {
   id: string;
   campaignId: string;
   designId: string;
+  userId: string; // Required for Firestore rules and brand access
   status: 'queued' | 'generating' | 'complete' | 'failed';
   progress: number; // 0-100
   estimatedTime: number; // seconds
@@ -517,17 +518,6 @@ export async function queueDesignGeneration(
       ? generateAdvancedDesignPrompt(request, brand, logoSpace)
       : generateSimpleDesignPrompt(request, brand, logoSpace);
 
-    // Create job document
-    const job: Omit<DesignGenerationJob, 'id'> = {
-      campaignId,
-      designId,
-      status: 'queued',
-      progress: 0,
-      estimatedTime: 60, // 60 seconds for dual generation
-      startedAt: serverTimestamp() as Timestamp,
-      retryCount: 0
-    };
-
     // Get the current user ID from the campaign
     const campaignRef = doc(db, 'campaigns', campaignId);
     const campaignSnap = await getDoc(campaignRef);
@@ -535,6 +525,18 @@ export async function queueDesignGeneration(
       throw new Error('Campaign not found');
     }
     const userId = campaignSnap.data().ownerUid;
+
+    // Create job document
+    const job: Omit<DesignGenerationJob, 'id'> = {
+      campaignId,
+      designId,
+      userId,
+      status: 'queued',
+      progress: 0,
+      estimatedTime: 60, // 60 seconds for dual generation
+      startedAt: serverTimestamp() as Timestamp,
+      retryCount: 0
+    };
 
     const jobRef = await addDoc(collection(db, 'aiJobs'), {
       ...job,
@@ -613,7 +615,7 @@ export async function processDualProviderGeneration(jobId: string): Promise<{
     });
 
     // Get brand data
-    const brandRef = doc(db, 'users', jobData.campaignId, 'brands', jobData.brandId);
+    const brandRef = doc(db, 'users', jobData.userId, 'brands', jobData.brandId);
     const brandSnap = await getDoc(brandRef);
     
     if (!brandSnap.exists()) {
