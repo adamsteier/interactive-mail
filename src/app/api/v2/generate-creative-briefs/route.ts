@@ -1,8 +1,7 @@
 // Ensure Node.js runtime for firebase-admin
 export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
-import { doc, getDoc, collection, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { V2Brand } from '@/v2/types/brand';
@@ -346,13 +345,16 @@ export async function POST(request: NextRequest) {
     const requestData: BriefGenerationRequest = await request.json();
     const { campaignId, brandId, formData, businessTypes } = requestData;
 
+    // Use Admin Firestore
+    const adminDb = getFirestore();
+
     // Fetch brand data (stored under users/{uid}/brands)
-    const brandDoc = await getDoc(doc(db, 'users', userId, 'brands', brandId));
-    if (!brandDoc.exists()) {
+    const brandSnap = await adminDb.collection('users').doc(userId).collection('brands').doc(brandId).get();
+    if (!brandSnap.exists) {
       return NextResponse.json({ error: 'Brand not found' }, { status: 404 });
     }
 
-    const brand = brandDoc.data() as V2Brand;
+    const brand = brandSnap.data() as V2Brand;
     
     // Calculate logo space
     const logoAnalysis = calculateLogoSpace(brand);
@@ -385,12 +387,12 @@ export async function POST(request: NextRequest) {
     };
 
     // Create generation job
-    const jobRef = await addDoc(collection(db, 'users', userId, 'briefJobs'), {
+    const jobRef = await adminDb.collection('users').doc(userId).collection('briefJobs').add({
       campaignId,
       brandId,
       userId,
       status: 'generating',
-      startedAt: serverTimestamp(),
+      startedAt: FieldValue.serverTimestamp(),
       briefs: [],
       totalBriefs: BRIEF_GENERATION_CONFIG.totalBriefs,
       completedBriefs: 0,
@@ -422,7 +424,7 @@ export async function POST(request: NextRequest) {
         };
 
         // Save brief
-        const briefRef = await addDoc(collection(db, 'users', userId, 'creativeBriefs'), brief);
+        const briefRef = await adminDb.collection('users').doc(userId).collection('creativeBriefs').add(brief);
         
         return {
           id: briefRef.id,
@@ -455,9 +457,9 @@ export async function POST(request: NextRequest) {
     ).map(result => result.error);
 
     // Update job with results
-    await updateDoc(doc(db, 'users', userId, 'briefJobs', jobRef.id), {
+    await adminDb.collection('users').doc(userId).collection('briefJobs').doc(jobRef.id).update({
       status: 'complete',
-      completedAt: serverTimestamp(),
+      completedAt: FieldValue.serverTimestamp(),
       briefs: successfulBriefs,
       completedBriefs: successfulBriefs.length,
       errors: errors.length > 0 ? errors : undefined
