@@ -1,3 +1,5 @@
+// Ensure Node.js runtime for firebase-admin
+export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import { doc, getDoc, collection, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -17,6 +19,40 @@ import { calculateLogoSpace } from '@/v2/services/aiDesignService';
 // Initialize Firebase Admin if needed - moved to function to avoid build-time execution
 function initializeFirebaseAdmin() {
   if (!getApps().length) {
+    // 1) Try SERVICE_ACCOUNT_BASE64 (entire JSON base64-encoded)
+    const saJsonB64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
+    if (saJsonB64) {
+      try {
+        const json = Buffer.from(saJsonB64, 'base64').toString('utf8');
+        const sa = JSON.parse(json);
+        initializeApp({ credential: cert({
+          projectId: sa.project_id,
+          clientEmail: sa.client_email,
+          privateKey: sa.private_key
+        })});
+        return;
+      } catch (e) {
+        console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT_BASE64', e);
+      }
+    }
+
+    // 2) Try SERVICE_ACCOUNT_JSON (raw JSON string env)
+    const saJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    if (saJson) {
+      try {
+        const sa = JSON.parse(saJson);
+        initializeApp({ credential: cert({
+          projectId: sa.project_id,
+          clientEmail: sa.client_email,
+          privateKey: sa.private_key
+        })});
+        return;
+      } catch (e) {
+        console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON', e);
+      }
+    }
+
+    // 3) Try individual env vars
     const projectId = process.env.FIREBASE_PROJECT_ID;
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
@@ -32,16 +68,12 @@ function initializeFirebaseAdmin() {
     }
 
     if (!projectId || !clientEmail || !privateKey) {
-      console.error('Missing Firebase envs', { hasProjectId: !!projectId, hasClientEmail: !!clientEmail, hasPrivateKey: !!privateKey });
+      console.error('[Firebase Admin] Missing envs', { hasProjectId: !!projectId, hasClientEmail: !!clientEmail, hasPrivateKey: !!privateKey });
       throw new Error('Firebase configuration is incomplete');
     }
 
     initializeApp({
-      credential: cert({
-        projectId,
-        clientEmail,
-        privateKey,
-      }),
+      credential: cert({ projectId, clientEmail, privateKey })
     });
   }
 }
@@ -353,7 +385,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Create generation job
-    const jobRef = await addDoc(collection(db, `v2/${userId}/briefJobs`), {
+    const jobRef = await addDoc(collection(db, 'users', userId, 'briefJobs'), {
       campaignId,
       brandId,
       userId,
@@ -390,7 +422,7 @@ export async function POST(request: NextRequest) {
         };
 
         // Save brief
-        const briefRef = await addDoc(collection(db, `v2/${userId}/creativeBriefs`), brief);
+        const briefRef = await addDoc(collection(db, 'users', userId, 'creativeBriefs'), brief);
         
         return {
           id: briefRef.id,
@@ -423,7 +455,7 @@ export async function POST(request: NextRequest) {
     ).map(result => result.error);
 
     // Update job with results
-    await updateDoc(doc(db, `v2/${userId}/briefJobs`, jobRef.id), {
+    await updateDoc(doc(db, 'users', userId, 'briefJobs', jobRef.id), {
       status: 'complete',
       completedAt: serverTimestamp(),
       briefs: successfulBriefs,
