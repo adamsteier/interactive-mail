@@ -213,7 +213,7 @@ export default function DesignPage({ params }: { params: Params }) {
               combinedBusinessData = session.businessData;
             }
           } catch (e) {
-            console.warn('Could not load session for businessData fallback');
+            console.warn('Could not load session for businessData fallback', e);
           }
         }
 
