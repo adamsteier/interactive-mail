@@ -14,26 +14,25 @@ import {
 } from '@/v2/types/design';
 import { calculateLogoSpace } from '@/v2/services/aiDesignService';
 
-// Initialize Firebase Admin if needed
-if (!getApps().length) {
-  if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !process.env.FIREBASE_PRIVATE_KEY) {
-    console.error('Missing required Firebase environment variables');
-    throw new Error('Firebase configuration is incomplete');
+// Initialize Firebase Admin if needed - moved to function to avoid build-time execution
+function initializeFirebaseAdmin() {
+  if (!getApps().length) {
+    if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !process.env.FIREBASE_PRIVATE_KEY) {
+      console.error('Missing required Firebase environment variables');
+      throw new Error('Firebase configuration is incomplete');
+    }
+    
+    initializeApp({
+      credential: cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      }),
+    });
   }
-  
-  initializeApp({
-    credential: cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
-  });
 }
 
-// FIXED: Validate OpenAI API key
-if (!process.env.OPENAI_API_KEY) {
-  console.error('Missing OpenAI API key');
-}
+// OpenAI API key validation is done in the POST handler
 
 interface OpenAIResponse {
   choices: Array<{
@@ -44,6 +43,9 @@ interface OpenAIResponse {
 }
 
 async function verifyAuth(request: NextRequest) {
+  // Initialize Firebase Admin before using it
+  initializeFirebaseAdmin();
+  
   const authHeader = request.headers.get('authorization');
   if (!authHeader?.startsWith('Bearer ')) {
     throw new Error('No authorization token provided');

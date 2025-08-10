@@ -42,45 +42,29 @@ interface ApiRequestBody {
 
 // --- End Type Definitions ---
 
-// Initialize Firebase Admin SDK
-// Check if FIREBASE_SERVICE_ACCOUNT_JSON is set
-if (!process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-  console.error('Firebase Service Account JSON not found in environment variables.');
-  // You might want to throw an error here or handle it appropriately
-}
+// Initialize Firebase Admin SDK - moved to function to avoid build-time execution
+function initializeFirebaseAdmin() {
+  if (!getApps().length) {
+    // Check if FIREBASE_SERVICE_ACCOUNT_JSON is set
+    if (!process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+      console.error('Firebase Service Account JSON not found in environment variables.');
+      throw new Error('Firebase Service Account JSON not found in environment variables.');
+    }
 
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '{}');
-
-// Initialize only if no apps exist
-if (!getApps().length) {
-  try {
-    initializeApp({
-      credential: cert(serviceAccount)
-    });
-    console.log('Firebase Admin SDK Initialized');
-  } catch (error) {
-    console.error('Firebase Admin SDK Initialization Error:', error);
-    // Handle initialization error appropriately
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '{}');
+    try {
+      initializeApp({
+        credential: cert(serviceAccount)
+      });
+      console.log('Firebase Admin SDK Initialized');
+    } catch (error) {
+      console.error('Firebase Admin SDK Initialization Error:', error);
+      throw error;
+    }
   }
 }
 
-const dbAdmin = getFirestore(); // Use a different name like dbAdmin to avoid conflicts if client 'db' is ever used server-side
-
-// Initialize OpenAI
-if (!process.env.OPENAI_API_KEY) {
-  console.error('OpenAI API Key not found in environment variables.');
-  // Handle missing key appropriately
-}
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-// TODO: Initialize SendGrid
-if (!process.env.SENDGRID_API_KEY) {
-  console.error('SendGrid API Key not found in environment variables.');
-  // Handle missing key appropriately
-}
-sgMail.setApiKey(process.env.SENDGRID_API_KEY || '');
+// Services are initialized in the POST handler to avoid build-time execution
 
 export async function POST(req: Request) {
   let documentId: string | undefined;
@@ -89,6 +73,25 @@ export async function POST(req: Request) {
   let targetCampaignType: string | undefined;
 
   try {
+    // Initialize all services
+    initializeFirebaseAdmin();
+    const dbAdmin = getFirestore(); // Use a different name like dbAdmin to avoid conflicts if client 'db' is ever used server-side
+
+    // Initialize OpenAI
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('OpenAI API Key not found in environment variables.');
+      return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
+    }
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+
+    // Initialize SendGrid
+    if (!process.env.SENDGRID_API_KEY) {
+      console.error('SendGrid API Key not found in environment variables.');
+      return NextResponse.json({ error: 'SendGrid API key not configured' }, { status: 500 });
+    }
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY || '');
     const body: ApiRequestBody = await req.json();
     documentId = body.documentId;
     targetCampaignType = body.targetCampaignType; // Get the target campaign type

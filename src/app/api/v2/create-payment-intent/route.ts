@@ -4,19 +4,23 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { initializeApp, getApps } from 'firebase-admin/app';
 
-// Initialize Firebase Admin if not already initialized
-if (!getApps().length) {
-  initializeApp();
+// Initialize Firebase Admin if not already initialized - moved to function to avoid build-time execution
+function initializeFirebaseAdmin() {
+  if (!getApps().length) {
+    initializeApp();
+  }
 }
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-06-30.basil',
 });
 
-const db = getFirestore();
-
 export async function POST(request: NextRequest) {
   try {
+    // Initialize Firebase Admin before using it
+    initializeFirebaseAdmin();
+    const db = getFirestore();
+    
     // Get the authorization header
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
