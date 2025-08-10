@@ -61,7 +61,7 @@ const ProgressiveStrategyLoader = () => {
       </div>
 
       {/* Overall Progress */}
-      <div className="mb-5">
+      <div className="mb-5 overflow-hidden">
         <div className="flex justify-between items-center mb-2">
           <div className="text-sm text-electric-teal/80">Strategy Progress</div>
           <div className="text-sm text-electric-teal/60">
@@ -85,7 +85,7 @@ const ProgressiveStrategyLoader = () => {
       </div>
 
       {/* Current Step Status */}
-      <div className="mb-4">
+      <div className="mb-4 overflow-hidden">
         <motion.div
           key={currentStepIndex}
           initial={{ opacity: 0, y: 10 }}
@@ -120,7 +120,7 @@ const ProgressiveStrategyLoader = () => {
         </motion.div>
 
         {/* Step Progress Bar */}
-        <div className="mt-3 ml-11">
+        <div className="mt-3 ml-11 overflow-hidden">
           <div className="h-2 w-full rounded-full bg-electric-teal/20">
             <motion.div
               className="h-full rounded-full bg-gradient-to-r from-electric-teal/60 to-neon-magenta/60"

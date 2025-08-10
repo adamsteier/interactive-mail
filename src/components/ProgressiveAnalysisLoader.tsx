@@ -141,7 +141,7 @@ const ProgressiveAnalysisLoader = () => {
       </div>
 
       {/* Completed Steps List */}
-      <div className="mt-4 max-h-32 overflow-y-auto">
+      <div className="mt-4 max-h-32 overflow-y-hidden">
         {analysisSteps.slice(0, currentStepIndex).map((step, index) => (
           <motion.div
             key={index}

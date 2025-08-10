@@ -429,17 +429,25 @@ const SimpleDesignForm = ({
             <label className="block text-sm font-medium text-[#EAEAEA] mb-2">
               Your Business Industry *
             </label>
-            <input
-              type="text"
-              value={formData.industry}
-              onChange={(e) => updateField('industry', e.target.value)}
-              className={`
-                w-full px-4 py-3 bg-[#2F2F2F] border rounded-lg text-[#EAEAEA] placeholder-[#EAEAEA]/60 
-                focus:outline-none focus:ring-2 focus:ring-[#00F0FF] transition-all
-                ${errors.industry ? 'border-[#FF00B8]' : 'border-[#2F2F2F]'}
-              `}
-              placeholder="What industry is your business in? (e.g., Restaurant, Law Office, Auto Repair, Dental Practice)"
-            />
+            <div className="relative">
+              <input
+                type="text"
+                value={formData.industry}
+                onChange={(e) => updateField('industry', e.target.value)}
+                className={`
+                  w-full px-4 py-3 bg-[#2F2F2F] border rounded-lg text-[#EAEAEA] placeholder-[#EAEAEA]/60 
+                  focus:outline-none focus:ring-2 focus:ring-[#00F0FF] transition-all pr-24
+                  ${errors.industry ? 'border-[#FF00B8]' : 'border-[#2F2F2F]'}
+                `}
+                placeholder="What industry is your business in? (e.g., Restaurant, Law Office, Auto Repair, Dental Practice)"
+              />
+              {/* Prefill helper using saved session data */}
+              {initialIndustry && !formData.industry && (
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[#EAEAEA]/50">
+                  Prefilled
+                </span>
+              )}
+            </div>
             {errors.industry && (
               <p className="text-[#FF00B8] text-sm mt-1">{errors.industry}</p>
             )}

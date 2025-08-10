@@ -13,6 +13,7 @@ import {
   getDocs
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { getSession } from '@/lib/sessionService';
 import { useAuth } from '@/contexts/AuthContext';
 import { V2Brand } from '@/v2/types/brand';
 import { 
@@ -203,13 +204,27 @@ export default function DesignPage({ params }: { params: Params }) {
           return;
         }
 
+        // Prefer campaign businessData; fallback to session if missing
+        let combinedBusinessData = data.businessData;
+        if (!combinedBusinessData) {
+          try {
+            const session = await getSession();
+            if (session?.businessData) {
+              combinedBusinessData = session.businessData;
+            }
+          } catch (e) {
+            console.warn('Could not load session for businessData fallback');
+          }
+        }
+
         setCampaignData({
           id: campaignSnap.id,
           totalLeadCount: data.totalLeadCount || data.selectedLeadCount || 0, // FIXED: Fallback values
           businessTypes: data.businessTypes || [],
           status: data.status || 'draft',
           ownerUid: data.ownerUid,
-          brandId: data.brandId
+          brandId: data.brandId,
+          businessData: combinedBusinessData
         });
 
         // Get business type counts from leads (handles both V1 and V2 data)
