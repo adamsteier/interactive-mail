@@ -17,16 +17,30 @@ import { calculateLogoSpace } from '@/v2/services/aiDesignService';
 // Initialize Firebase Admin if needed - moved to function to avoid build-time execution
 function initializeFirebaseAdmin() {
   if (!getApps().length) {
-    if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !process.env.FIREBASE_PRIVATE_KEY) {
-      console.error('Missing required Firebase environment variables');
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+    const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
+    const privateKeyB64 = process.env.FIREBASE_PRIVATE_KEY_BASE64;
+
+    let privateKey: string | undefined = privateKeyRaw?.replace(/\\n/g, '\n');
+    if (!privateKey && privateKeyB64) {
+      try {
+        privateKey = Buffer.from(privateKeyB64, 'base64').toString('utf8');
+      } catch (e) {
+        console.error('Failed to decode FIREBASE_PRIVATE_KEY_BASE64', e);
+      }
+    }
+
+    if (!projectId || !clientEmail || !privateKey) {
+      console.error('Missing Firebase envs', { hasProjectId: !!projectId, hasClientEmail: !!clientEmail, hasPrivateKey: !!privateKey });
       throw new Error('Firebase configuration is incomplete');
     }
-    
+
     initializeApp({
       credential: cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        projectId,
+        clientEmail,
+        privateKey,
       }),
     });
   }
@@ -300,8 +314,8 @@ export async function POST(request: NextRequest) {
     const requestData: BriefGenerationRequest = await request.json();
     const { campaignId, brandId, formData, businessTypes } = requestData;
 
-    // Fetch brand data
-    const brandDoc = await getDoc(doc(db, `v2/${userId}/brands`, brandId));
+    // Fetch brand data (stored under users/{uid}/brands)
+    const brandDoc = await getDoc(doc(db, 'users', userId, 'brands', brandId));
     if (!brandDoc.exists()) {
       return NextResponse.json({ error: 'Brand not found' }, { status: 404 });
     }
