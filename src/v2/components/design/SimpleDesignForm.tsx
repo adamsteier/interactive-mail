@@ -138,7 +138,8 @@ const SimpleDesignForm = ({
     
     setLoadingGoalSuggestions(true);
     try {
-      const response = await fetch('/api/v2/smart-goal-suggestions', {
+      // 1) Quick suggestions (fast, small)
+      const quickResp = await fetch('/api/v2/smart-goal-suggestions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -146,21 +147,43 @@ const SimpleDesignForm = ({
           businessTypes: businessTypes.map(bt => bt.type),
           brandVoice: formData.voice,
           businessDescription: businessDescription,
-          // Optional: target area if present in description (simple heuristic)
-          targetArea: undefined
+          targetArea: undefined,
+          mode: 'quick',
+          limit: 3
         })
       });
       
-      if (response.ok) {
-        const data = await response.json();
-        const rich = (data.suggestions || []) as Array<{ headline: string; subcopy?: string; offer?: string; cta?: string; urgency?: string; rationale?: string; category: string; }>;
-        // Map to display strings combining parts
-        const mapped = rich.map(s => {
-          const parts = [s.headline, s.offer, s.subcopy, s.urgency, s.cta].filter(Boolean);
-          return parts.join(' • ');
+      if (quickResp.ok) {
+        const quickData = await quickResp.json();
+        const richQuick = (quickData.suggestions || []) as Array<{ headline: string; subcopy?: string; offer?: string; cta?: string; urgency?: string; rationale?: string; category: string; }>;
+        const quickMapped = richQuick.map(s => [s.headline, s.offer, s.subcopy, s.urgency, s.cta].filter(Boolean).join(' • '));
+        setGoalSuggestions(quickMapped);
+      }
+
+      // 2) Full suggestions (append when ready)
+      const fullResp = await fetch('/api/v2/smart-goal-suggestions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          industry: formData.industry,
+          businessTypes: businessTypes.map(bt => bt.type),
+          brandVoice: formData.voice,
+          businessDescription: businessDescription,
+          targetArea: undefined,
+          mode: 'full',
+          limit: 10
+        })
+      });
+
+      if (fullResp.ok) {
+        const fullData = await fullResp.json();
+        const richFull = (fullData.suggestions || []) as Array<{ headline: string; subcopy?: string; offer?: string; cta?: string; urgency?: string; rationale?: string; category: string; }>;
+        const fullMapped = richFull.map(s => [s.headline, s.offer, s.subcopy, s.urgency, s.cta].filter(Boolean).join(' • '));
+        // Merge, de-duplicate, and append
+        setGoalSuggestions(prev => {
+          const set = new Set([...(prev || []), ...fullMapped]);
+          return Array.from(set);
         });
-        // Fallback to raw suggestions if shape differs
-        setGoalSuggestions(mapped.length > 0 ? mapped : (data.suggestions || []));
       }
     } catch (error) {
       console.error('Error fetching goal suggestions:', error);

@@ -29,11 +29,17 @@ async function callOpenAI(payload: {
   brandVoice?: Voice;
   businessDescription?: string;
   targetArea?: string;
+  mode?: 'quick' | 'full';
+  limit?: number;
 }): Promise<SmartGoalSuggestion[]> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error('OPENAI_API_KEY is not set');
   }
+
+  const desiredCount = Math.max(1, Math.min(payload.limit ?? (payload.mode === 'quick' ? 3 : 10), 10));
+  const temperature = payload.mode === 'quick' ? 0.3 : 0.7;
+  const maxTokens = payload.mode === 'quick' ? 600 : 1200;
 
   const system = `You are a direct mail marketing strategist. Create concise, postcard-ready campaign goal suggestions.
 Return ONLY valid JSON with this exact shape: {"suggestions": Array<{
@@ -47,7 +53,8 @@ Return ONLY valid JSON with this exact shape: {"suggestions": Array<{
 }>}
 Rules:
 - Use the provided context (industry, business types, description, area, voice) to make ideas specific but not templated to a single niche.
-- Mix 8–10 ideas across categories: promos, guarantees, speed/availability, differentiation, bundles, awareness.
+- Generate exactly ${desiredCount} ideas.
+- Mix ideas across categories: promos, guarantees, speed/availability, differentiation, bundles, awareness.
 - Use concrete numbers/timeframes when appropriate (e.g., "within 2 hours", "save 15%", "3 runs/week"), but avoid false claims.
 - Keep copy punchy (headlines ~6–10 words, subcopy one sentence). No placeholders like [Business Name] or [service].`;
 
@@ -67,7 +74,8 @@ Rules:
     },
     body: JSON.stringify({
       model: 'gpt-4o-mini',
-      temperature: 0.7,
+      temperature,
+      max_tokens: maxTokens,
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: JSON.stringify(user) }
@@ -121,7 +129,7 @@ Rules:
     }))
     .filter(s => s.headline);
 
-  return cleaned.slice(0, 10);
+  return cleaned.slice(0, desiredCount);
 }
 
 export async function POST(request: NextRequest) {
@@ -142,7 +150,9 @@ export async function POST(request: NextRequest) {
       businessTypes,
       brandVoice,
       businessDescription,
-      targetArea
+      targetArea,
+      mode: (sanitizeString(body.mode) as 'quick' | 'full' | undefined) || 'full',
+      limit: typeof body.limit === 'number' ? body.limit : undefined
     });
 
     return NextResponse.json({ suggestions });
