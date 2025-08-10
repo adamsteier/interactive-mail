@@ -415,7 +415,7 @@ export async function POST(request: NextRequest) {
           userId,
           model: config.model,
           temperature: config.temperature,
-          generatedAt: serverTimestamp(),
+          generatedAt: FieldValue.serverTimestamp(),
           briefText,
           context,
           selected: false,
