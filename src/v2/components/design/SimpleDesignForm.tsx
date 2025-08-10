@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   SimpleDesignRequest,
@@ -103,6 +103,13 @@ const SimpleDesignForm = ({
   const [showImageryField, setShowImageryField] = useState(false);
   const [customAudience, setCustomAudience] = useState(false);
 
+  // Refs for autoscroll to invalid fields
+  const businessTypesRef = useRef<HTMLDivElement>(null);
+  const industryInputRef = useRef<HTMLInputElement>(null);
+  const goalTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const audienceContainerRef = useRef<HTMLDivElement>(null);
+  const audienceInputRef = useRef<HTMLInputElement>(null);
+
   // Update form when initial data changes
   useEffect(() => {
     if (initialData || initialIndustry || initialDescription) {
@@ -131,25 +138,36 @@ const SimpleDesignForm = ({
     
     setLoadingGoalSuggestions(true);
     try {
-      const response = await fetch('/api/v2/campaign-goal-suggestions', {
+      const response = await fetch('/api/v2/smart-goal-suggestions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           industry: formData.industry,
-          businessTypes: businessTypes.map(bt => bt.type)
+          businessTypes: businessTypes.map(bt => bt.type),
+          brandVoice: formData.voice,
+          businessDescription: businessDescription,
+          // Optional: target area if present in description (simple heuristic)
+          targetArea: undefined
         })
       });
       
       if (response.ok) {
         const data = await response.json();
-        setGoalSuggestions(data.suggestions || []);
+        const rich = (data.suggestions || []) as Array<{ headline: string; subcopy?: string; offer?: string; cta?: string; urgency?: string; rationale?: string; category: string; }>;
+        // Map to display strings combining parts
+        const mapped = rich.map(s => {
+          const parts = [s.headline, s.offer, s.subcopy, s.urgency, s.cta].filter(Boolean);
+          return parts.join(' • ');
+        });
+        // Fallback to raw suggestions if shape differs
+        setGoalSuggestions(mapped.length > 0 ? mapped : (data.suggestions || []));
       }
     } catch (error) {
       console.error('Error fetching goal suggestions:', error);
     } finally {
       setLoadingGoalSuggestions(false);
     }
-  }, [formData.industry, businessTypes]);
+  }, [formData.industry, businessTypes, formData.voice, businessDescription]);
 
   // Handle business type removal
   const handleRemoveBusinessType = useCallback((typeToRemove: string) => {
@@ -196,6 +214,8 @@ const SimpleDesignForm = ({
     // Validate business types
     if (businessTypes.length === 0) {
       setErrors(prev => ({ ...prev, businessTypes: 'At least one business type is required' }));
+      // Scroll to business types section
+      businessTypesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
     
@@ -221,8 +241,30 @@ const SimpleDesignForm = ({
         if (error.includes('audience')) errorMap.audience = error;
       });
       setErrors(errorMap);
+
+      // Determine first error field and autoscroll/focus
+      type ErrorKey = 'industry' | 'goal' | 'audience';
+      let firstError: ErrorKey | undefined;
+      if (errorMap.industry) firstError = 'industry';
+      else if (errorMap.goal) firstError = 'goal';
+      else if (errorMap.audience) firstError = 'audience';
+
+      if (firstError === 'industry') {
+        industryInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        industryInputRef.current?.focus();
+      } else if (firstError === 'goal') {
+        goalTextareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        goalTextareaRef.current?.focus();
+      } else if (firstError === 'audience') {
+        // Ensure the audience input is visible before focusing
+        setCustomAudience(true);
+        setTimeout(() => {
+          audienceContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          audienceInputRef.current?.focus();
+        }, 0);
+      }
     }
-  }, [formData, imageryDescription, businessDescription, businessTypes, onSubmit]);
+  }, [formData, imageryDescription, businessDescription, businessTypes, onSubmit, setCustomAudience]);
 
   // Handle field changes
   const updateField = useCallback((field: keyof SimpleDesignRequest, value: string) => {
@@ -265,7 +307,7 @@ const SimpleDesignForm = ({
         </div>
 
         {/* Business Types Being Targeted */}
-        <div className="bg-[#2F2F2F]/50 rounded-lg p-4 border border-[#00F0FF]/20">
+        <div ref={businessTypesRef} className="bg-[#2F2F2F]/50 rounded-lg p-4 border border-[#00F0FF]/20">
           <h3 className="text-[#EAEAEA] font-medium mb-3 flex items-center gap-2">
             <svg className="w-5 h-5 text-[#00F0FF]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -434,6 +476,7 @@ const SimpleDesignForm = ({
                 type="text"
                 value={formData.industry}
                 onChange={(e) => updateField('industry', e.target.value)}
+                ref={industryInputRef}
                 className={`
                   w-full px-4 py-3 bg-[#2F2F2F] border rounded-lg text-[#EAEAEA] placeholder-[#EAEAEA]/60 
                   focus:outline-none focus:ring-2 focus:ring-[#00F0FF] transition-all pr-24
@@ -465,6 +508,7 @@ const SimpleDesignForm = ({
               <textarea
                 value={formData.goal}
                 onChange={(e) => updateField('goal', e.target.value)}
+                ref={goalTextareaRef}
                 className={`
                   w-full px-4 py-3 bg-[#2F2F2F] border rounded-lg text-[#EAEAEA] placeholder-[#EAEAEA]/60 
                   focus:outline-none focus:ring-2 focus:ring-[#00F0FF] transition-all resize-none
@@ -551,7 +595,7 @@ const SimpleDesignForm = ({
           </div>
 
           {/* Target Audience */}
-          <div>
+          <div ref={audienceContainerRef}>
             <label className="block text-sm font-medium text-[#EAEAEA] mb-2">
               Target Audience *
             </label>
@@ -578,6 +622,7 @@ const SimpleDesignForm = ({
                     type="text"
                     value={formData.audience}
                     onChange={(e) => updateField('audience', e.target.value)}
+                    ref={audienceInputRef}
                     className={`
                       w-full px-4 py-3 bg-[#2F2F2F] border rounded-lg text-[#EAEAEA] placeholder-[#EAEAEA]/60 
                       focus:outline-none focus:ring-2 focus:ring-[#00F0FF] transition-all pr-16
