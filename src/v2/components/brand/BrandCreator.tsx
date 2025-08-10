@@ -123,6 +123,7 @@ const BrandCreator = ({
   // UI state
   const [currentStep, setCurrentStep] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showMoreSocials, setShowMoreSocials] = useState(false);
 
   const steps = [
     { id: 'basic', title: 'Basic Info', description: 'Brand name and logo' },
@@ -298,6 +299,10 @@ const BrandCreator = ({
     { key: 'tiktok', label: 'TikTok', placeholder: '@username or https://tiktok.com/@username', icon: '🎵' },
     { key: 'youtube', label: 'YouTube', placeholder: 'https://youtube.com/channel/name', icon: '📹' }
   ];
+
+  const primarySocialKeys = ['instagram', 'facebook'] as const;
+  const primarySocialPlatforms = socialPlatforms.filter(p => (primarySocialKeys as readonly string[]).includes(p.key));
+  const additionalSocialPlatforms = socialPlatforms.filter(p => !(primarySocialKeys as readonly string[]).includes(p.key));
 
   return (
     <div className={`${mode === 'modal' ? 'fixed inset-0 bg-black/50 flex items-center justify-center z-50' : 'w-full'}`}>
@@ -510,10 +515,14 @@ const BrandCreator = ({
 
                 {/* Social Media */}
                 <div className="space-y-4">
-                  <h4 className="text-md font-medium text-[#EAEAEA] mb-3">Social Media</h4>
-                  
+                  <div className="flex items-center justify-between mb-1">
+                    <h4 className="text-md font-medium text-[#EAEAEA]">Social Media</h4>
+                    <span className="text-xs px-2 py-0.5 rounded-full border border-[#00F0FF]/50 text-[#00F0FF]">Optional</span>
+                  </div>
+
+                  {/* Always-visible: Instagram + Facebook */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {socialPlatforms.map((platform) => (
+                    {primarySocialPlatforms.map((platform) => (
                       <div key={platform.key}>
                         <label className="block text-sm font-medium text-[#EAEAEA] mb-2">
                           <span className="mr-2">{platform.icon}</span>
@@ -524,9 +533,9 @@ const BrandCreator = ({
                           value={formData.socialMedia[platform.key as keyof typeof formData.socialMedia]}
                           onChange={(e) => setFormData(prev => ({
                             ...prev,
-                            socialMedia: { 
-                              ...prev.socialMedia, 
-                              [platform.key]: e.target.value 
+                            socialMedia: {
+                              ...prev.socialMedia,
+                              [platform.key]: e.target.value
                             }
                           }))}
                           className="w-full px-4 py-3 bg-[#2F2F2F] border border-[#2F2F2F] rounded-lg text-[#EAEAEA] placeholder-[#EAEAEA]/60 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] transition-all"
@@ -535,6 +544,68 @@ const BrandCreator = ({
                       </div>
                     ))}
                   </div>
+
+                  {/* More socials toggle */}
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowMoreSocials(prev => !prev)}
+                      className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-lg border border-[#00F0FF]/50 text-[#00F0FF] bg-[#00F0FF]/10 hover:text-[#FF00B8] hover:border-[#FF00B8]/50 hover:bg-[#FF00B8]/10 transition-colors shadow-[0_0_10px_rgba(0,240,255,0.25)]"
+                    >
+                      {showMoreSocials ? (
+                        <>
+                          <span>Hide additional socials</span>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                          </svg>
+                        </>
+                      ) : (
+                        <>
+                          <span>More socials</span>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Additional socials: LinkedIn, Twitter/X, TikTok, YouTube */}
+                  <AnimatePresence initial={false}>
+                    {showMoreSocials && (
+                      <motion.div
+                        key="more-socials"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {additionalSocialPlatforms.map((platform) => (
+                            <div key={platform.key}>
+                              <label className="block text-sm font-medium text-[#EAEAEA] mb-2">
+                                <span className="mr-2">{platform.icon}</span>
+                                {platform.label}
+                              </label>
+                              <input
+                                type="text"
+                                value={formData.socialMedia[platform.key as keyof typeof formData.socialMedia]}
+                                onChange={(e) => setFormData(prev => ({
+                                  ...prev,
+                                  socialMedia: {
+                                    ...prev.socialMedia,
+                                    [platform.key]: e.target.value
+                                  }
+                                }))}
+                                className="w-full px-4 py-3 bg-[#2F2F2F] border border-[#2F2F2F] rounded-lg text-[#EAEAEA] placeholder-[#EAEAEA]/60 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] transition-all"
+                                placeholder={platform.placeholder}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </motion.div>
             )}

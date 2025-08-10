@@ -124,7 +124,7 @@ export default function DesignPage({ params }: { params: Params }) {
   
   // Data state
   const [campaignData, setCampaignData] = useState<CampaignData | null>(null);
-  const [brandData] = useState<V2Brand | null>(null);
+  const [brandData, setBrandData] = useState<V2Brand | null>(null);
   const [businessTypeData, setBusinessTypeData] = useState<BusinessTypeWithCount[]>([]);
   const [allBusinessTypes, setAllBusinessTypes] = useState<BusinessTypeWithCount[]>([]);
   
@@ -183,16 +183,24 @@ export default function DesignPage({ params }: { params: Params }) {
           throw new Error('Unauthorized access to campaign');
         }
 
-        // FIXED: Validate brand exists if brandId is set
+        // Validate and load brand if brandId is set
         if (data.brandId) {
           const brandRef = doc(db, 'users', user.uid, 'brands', data.brandId);
           const brandSnap = await getDoc(brandRef);
-          
+
           if (!brandSnap.exists()) {
             console.warn('Brand not found, redirecting to brand selection');
             router.push(`/v2/build/${id}/brand`);
             return;
           }
+
+          // Load brand data into state so the page can render
+          const loadedBrand = { id: brandSnap.id, ...(brandSnap.data() as V2Brand) } as V2Brand;
+          setBrandData(loadedBrand);
+        } else {
+          // No brand selected, send back to brand selection step
+          router.push(`/v2/build/${id}/brand`);
+          return;
         }
 
         setCampaignData({
@@ -515,7 +523,35 @@ export default function DesignPage({ params }: { params: Params }) {
   }
 
   if (!campaignData || !brandData) {
-    return null;
+    return (
+      <div className="min-h-screen bg-[#1A1A1A] flex items-center justify-center">
+        <motion.div 
+          className="text-center"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+        >
+          <div className="flex space-x-1 mb-4">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <motion.div
+                key={i}
+                className="w-2 h-8 bg-[#00F0FF] rounded-full"
+                animate={{
+                  scaleY: [0.5, 1.5, 0.5],
+                  opacity: [0.5, 1, 0.5]
+                }}
+                transition={{
+                  duration: 1.2,
+                  repeat: Infinity,
+                  delay: i * 0.1,
+                  ease: "easeInOut"
+                }}
+              />
+            ))}
+          </div>
+          <p className="text-[#00F0FF] text-lg font-medium">Loading brand...</p>
+        </motion.div>
+      </div>
+    );
   }
 
   return (
