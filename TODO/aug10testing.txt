@@ -1,0 +1,343 @@
+Pre-Launch Testing Checklist — V2 Campaign System (Aug 10)
+
+Use this as a working checklist. Check each item in production (or staging mirroring prod). Prefer two browser profiles (normal + incognito) to simulate different users.
+
+P0 — Must Verify Before Anything Else
+- Brand lookup in background generation uses user-first storage
+  - [x] AI
+  - [ ] Human
+  - Ensure code uses userId (not campaignId) when reading brand during generation/processing
+    - [x] AI
+    - [ ] Human
+  - Trigger a dual-provider generation; confirm brand loads and writes under `/v2/{userId}/...`
+    - [ ] AI
+    - [ ] Human
+  - No “permission denied” or missing-doc errors in logs
+    - [ ] AI
+    - [ ] Human
+
+Authentication & Account Linking
+- Anonymous session auto-creates on first visit
+  - [x] AI
+  - [ ] Human
+- Link at payment: email/password → preserves campaigns (same campaignId before/after link)
+  - [x] AI
+  - [ ] Human
+- Link with Google → preserves campaigns
+  - [x] AI
+  - [ ] Human
+- Token propagation: all API calls include valid Firebase ID token
+  - [x] AI
+  - [ ] Human
+- Missing/expired token returns 401 from protected API routes
+  - [x] AI
+  - [ ] Human
+
+RBAC / Admin Access Controls
+- Admin pages (`/v2/admin/**`) require admin claim or allowlist
+  - [x] AI
+  - [ ] Human
+- Non-admin user gets 403/redirect on admin pages and admin APIs
+  - [x] AI
+  - [ ] Human
+- Admin can access dashboards, details, and actions
+  - [x] AI
+  - [ ] Human
+
+Firestore & Storage Security Rules (User-First Structure)
+- Only owner can read/write `/v2/{userId}/**` Firestore docs
+  - [x] AI
+  - [ ] Human
+- Cross-user access is denied (incognito vs primary account)
+  - [x] AI
+  - [ ] Human
+- Storage rules: uploads/downloads only allowed for owner under `/v2/{userId}/...`
+  - [x] AI
+  - [ ] Human
+- Public URLs generated for Stannp assets do not expose unintended paths
+  - [ ] AI
+  - [ ] Human
+- Required composite indexes exist (no missing index errors for admin queries)
+  - [x] AI
+  - [ ] Human
+
+End-to-End Flow (Happy Paths)
+- Lead Selection → Brand → Creative Briefs → AI A/B → Review → Checkout → Scheduling → Processing
+  - [x] AI
+  - [ ] Human
+- Refresh/resume mid-flow without data loss
+  - [ ] AI
+  - [ ] Human
+- Back/forward navigation preserves state
+  - [ ] AI
+  - [ ] Human
+- Single-brand auto-proceed works
+  - [x] AI
+  - [ ] Human
+
+Creative Briefs & A/B Design Generation
+- Generates 4 briefs; selecting one persists properly to Firestore
+  - [ ] AI
+  - [ ] Human
+- Dual-provider images (OpenAI + Ideogram) generate in parallel; progress UI updates
+  - [x] AI
+  - [ ] Human
+- Error fallback works (one provider fails → other succeeds)
+  - [ ] AI
+  - [ ] Human
+- Generation times and status messages display correctly (10–60s window)
+  - [ ] AI
+  - [ ] Human
+
+Image Processing Pipeline
+- Upscale pipeline produces expected dimensions; quality acceptable
+  - [x] AI
+  - [ ] Human
+- Logo composition overlays correctly (positions, sizing)
+  - [x] AI
+  - [ ] Human
+- Invalid image inputs handled with clear errors
+  - [x] AI
+  - [ ] Human
+- Thumbnail generation produced and stored
+  - [x] AI
+  - [ ] Human
+- Public URL generation for Stannp works; MIME/type set correctly
+  - [x] AI
+  - [ ] Human
+- Performance: <5s per image under normal load
+  - [ ] AI
+  - [ ] Human
+
+Payments / Stripe
+- PaymentIntent created server-side with valid Firebase auth
+  - [x] AI
+  - [ ] Human
+- CAD currency; amount matches lead count and pricing rules
+  - [x] AI
+  - [ ] Human
+- Scheduled date stored in PaymentIntent metadata
+  - [x] AI
+  - [ ] Human
+- 3DS-required card handled gracefully
+  - [ ] AI
+  - [ ] Human
+- Declined card → clear error; can retry without duplicating charges
+  - [ ] AI
+  - [ ] Human
+- Duplicate submit protection/idempotency (double click does not double-charge)
+  - [ ] AI
+  - [ ] Human
+- Refund flow (admin): partial and full refund paths tested
+  - [ ] AI
+  - [ ] Human
+- Receipt/confirmation email sent (if enabled)
+  - [x] AI
+  - [ ] Human
+
+Scheduling
+- ASAP selection enforces minimum 36+ hours
+  - [x] AI
+  - [ ] Human
+- Custom date enforces min/max window (90 days) and business-day logic
+  - [x] AI
+  - [ ] Human
+- Timezone/DST sanity checks (no off-by-one day)
+  - [ ] AI
+  - [ ] Human
+- Delivery estimate shown (5–10 business days)
+  - [x] AI
+  - [ ] Human
+
+Campaign Processing Service
+- Auto-trigger on successful payment (ASAP) → processing starts
+  - [x] AI
+  - [ ] Human
+- Scheduled campaigns do not process before selected date
+  - [ ] AI
+  - [ ] Human
+- Manual trigger endpoint works for admins
+  - [ ] AI
+  - [ ] Human
+- Status transitions recorded (paid → processing → sent/failed)
+  - [x] AI
+  - [ ] Human
+- Idempotency: retries don’t double-process same leads
+  - [ ] AI
+  - [ ] Human
+- Large campaigns chunked; progress across chunks visible
+  - [x] AI
+  - [ ] Human
+
+Stannp Integration
+- Single postcard creation works; returns mailpiece ID
+  - [x] AI
+  - [ ] Human
+- Batch creation works; rate limiting respected
+  - [x] AI
+  - [ ] Human
+- Campaign tag filters list mailpieces by campaign
+  - [x] AI
+  - [ ] Human
+- Address validation errors surfaced and handled
+  - [ ] AI
+  - [ ] Human
+- Test endpoints gated to admin only
+  - [ ] AI
+  - [ ] Human
+
+Webhooks (Stannp)
+- Webhook route reachable from Stannp (or test harness)
+  - [x] AI
+  - [ ] Human
+- Event updates mailpiece status correctly
+  - [x] AI
+  - [ ] Human
+- Returns/failures update campaign analytics and status
+  - [x] AI
+  - [ ] Human
+- Signature verification planned (if not yet enabled) — ensure events are idempotent/deduped
+  - [ ] AI
+  - [ ] Human
+
+Admin Console
+- Overview lists campaigns with filters: paid/scheduled/processing/sent/failed
+  - [x] AI
+  - [ ] Human
+- Quick stats: today’s sends, scheduled, failures
+  - [x] AI
+  - [ ] Human
+- Campaign detail view: timeline, previews, lead counts, tracking, error logs
+  - [ ] AI
+  - [ ] Human
+- Manual retry works; safe-guards against double-processing
+  - [ ] AI
+  - [ ] Human
+- Scheduled Campaign Manager: edit/cancel/force process
+  - [ ] AI
+  - [ ] Human
+
+Observability & Monitoring
+- Sentry (or equivalent) captures API and function errors
+  - [ ] AI
+  - [ ] Human
+- Structured logs include correlation IDs (jobId, campaignId)
+  - [ ] AI
+  - [ ] Human
+- Uptime monitoring set for key routes/APIs
+  - [ ] AI
+  - [ ] Human
+- Cost tracking in place for AI, Stannp, Stripe fees
+  - [ ] AI
+  - [ ] Human
+
+Performance & Load
+- Cold-start behavior acceptable for API routes/functions
+  - [ ] AI
+  - [ ] Human
+- Parallel generation under load maintains UX (progress UI not stuck)
+  - [ ] AI
+  - [ ] Human
+- Firestore usage within quotas; indexes performant
+  - [ ] AI
+  - [ ] Human
+- Rate limiting / per-user daily budgets enforced (where configured)
+  - [ ] AI
+  - [ ] Human
+
+Accessibility & UX QA
+- WCAG 2.1 basics: keyboard navigation, focus states, contrast
+  - [ ] AI
+  - [ ] Human
+- Responsive layouts across mobile/tablet/desktop
+  - [ ] AI
+  - [ ] Human
+- Cross-browser: Chrome, Safari, Firefox, Edge
+  - [ ] AI
+  - [ ] Human
+- Slow network and offline handling (messaging, retries)
+  - [ ] AI
+  - [ ] Human
+
+Data Hygiene & Migration
+- V1 → V2 migration scripts (if needed) validated on sample data
+  - [ ] AI
+  - [ ] Human
+- `searchBusinessType` standardization verified
+  - [ ] AI
+  - [ ] Human
+- `createCampaign` extracts businessTypes; denormalized totals saved (leadCount, totalCost)
+  - [ ] AI
+  - [ ] Human
+- Backups/export available per user; GDPR delete verified
+  - [ ] AI
+  - [ ] Human
+
+Emails & Notifications
+- Payment confirmation email template renders correctly
+  - [x] AI
+  - [ ] Human
+- Admin failure alerts delivered (email/Slack) on processing errors
+  - [x] AI
+  - [ ] Human
+- Links in emails point to correct `/v2/...` routes
+  - [x] AI
+  - [ ] Human
+
+Cron & Automation
+- Vercel Cron (or Scheduler) calls `/api/v2/process-scheduled-campaigns` on schedule
+  - [ ] AI
+  - [ ] Human
+- Auth/permissions on cron route verified
+  - [x] AI
+  - [ ] Human
+- Safe re-entrancy (cron overlap) and idempotency
+  - [ ] AI
+  - [ ] Human
+
+Security Hardening
+- Admin APIs require admin claim; tested negative/positive cases
+  - [x] AI
+  - [ ] Human
+- Test endpoints disabled or admin-gated in production
+  - [ ] AI
+  - [ ] Human
+- Stripe keys and other secrets only server-side; no leakage to client
+  - [x] AI
+  - [ ] Human
+- Webhook signature verification enabled or clearly flagged
+  - [ ] AI
+  - [ ] Human
+- Basic OWASP checks: input validation, headers, CSRF where applicable
+  - [ ] AI
+  - [ ] Human
+
+Next.js 15 Route Handlers
+- Dynamic routes use async params correctly (await `params`) and function under prod build
+  - [x] AI
+  - [ ] Human
+- All `/api/**` routes validate method, auth, and input
+  - [x] AI
+  - [ ] Human
+
+Final Go-Live Checklist
+- Environment variables and Firebase Secrets set in prod
+  - [ ] AI
+  - [ ] Human
+- Rules and indexes deployed (no pending changes)
+  - [x] AI
+  - [ ] Human
+- Domain/proxy configured; HTTPS enforced
+  - [ ] AI
+  - [ ] Human
+- Analytics/metrics enabled; budgets/alerts configured
+  - [ ] AI
+  - [ ] Human
+- Debug/test flags off; test routes blocked to non-admins
+  - [ ] AI
+  - [ ] Human
+- Run one full end-to-end live campaign with a small lead set
+  - [ ] AI
+  - [ ] Human
+
+

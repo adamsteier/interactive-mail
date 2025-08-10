@@ -1,0 +1,113 @@
+AI Findings — Aug 10
+
+Legend
+- [PASS]: Verified by code inspection; runtime validation still recommended
+- [UNCLEAR]: Needs runtime test or environment validation
+- [GAP]: Missing or likely incomplete; propose changes below
+
+Security, Auth, and RBAC
+- [PASS] Admin route gating: `requireAdmin()` enforced in `update-status`; client-side guard in `src/app/v2/admin/layout.tsx`.
+- [GAP] Other admin APIs (`retry-campaign`, `refund-request`) lack server-side admin checks.
+  - Proposed change: add `requireAdmin(request)` to both routes.
+- [PASS] Cron route auth: `/api/v2/process-scheduled-campaigns` uses `requireCronAuth()`.
+- [PASS] Firebase ID token verification in `/api/v2/create-payment-intent` with CAD currency and ownership check.
+
+Anonymous Auth & Linking
+- [PASS] Anonymous auto sign-in and linking flows implemented in `AuthContext.tsx` (`signInAnonymously`, `linkWithCredential`, Google linking).
+- [PASS] Payment flow fetches ID token client-side before creating PaymentIntent.
+
+User-First Storage & Rules
+- [PASS] Image processing uploads to `v2/{userId}/campaigns/{campaignId}/...`.
+- [PASS] Storage rules enforce user-first paths; Firestore rules gate access by owner.
+- [UNCLEAR] Public URL exposure: URLs are public by default; ensure only final assets are linkable externally.
+
+Design Generation & Background Jobs
+- [PASS] P0 bug fixed: `processDualProviderGeneration` fetches brand via `users/{userId}/brands/{brandId}`.
+- [PASS] Dual-provider parallel gen present; prompts include logo-space logic.
+- [UNCLEAR] Error fallback path (one provider fails) handled in return but needs runtime check; ensure UI degrades gracefully.
+- [PASS] AI jobs collection rules and fields present; progress updates implemented.
+
+Image Processing
+- [PASS] Upscale to 1871x1271; logo composite with inches→pixels conversion; thumbnails and working uploads exist.
+- [UNCLEAR] <5s per image depends on deploy target; needs runtime metric.
+
+Payments & Checkout
+- [PASS] CAD currency; metadata includes `campaignId`, `userId`, `scheduledSendDate`, `leadCount`.
+- [UNCLEAR] 3DS/declined/idempotency not enforced in code; relies on Stripe default UX; need client protection (disable button on submit + server idempotency keys).
+- [PASS] Post-payment flow updates campaign to paid and triggers processing endpoint.
+- [PASS] Customer and admin email helpers exist (`emailNotificationService.ts`).
+
+Scheduling & Processing
+- [PASS] ASAP vs future date logic in trigger; scheduled route available for cron.
+- [UNCLEAR] “Do not process before date” relies on cron/GET; ensure no immediate path bypasses for future dates.
+- [PASS] Leads chunking supported via `leadsChunks`.
+- [UNCLEAR] Idempotency around processing and retries not explicit; risk of double-processing on manual retry/webhook races.
+
+Stannp Integration & Webhooks
+- [PASS] Single and batch postcard creation with retry/backoff and rate-limiting between batches.
+- [PASS] Webhook updates mailpiece status; event map present.
+- [GAP] Webhook signature verification is TODO; add verification and idempotent update guard.
+- [UNCLEAR] Address validation surface: errors bubbled but preflight validation minimal.
+
+Admin Console
+- [PASS] Overview page with filters and stats implemented.
+- [UNCLEAR] Detail page capabilities (timeline, previews, logs) need review; no explicit manual retry gating.
+
+Observability & Ops
+- [GAP] No Sentry setup found; logs are console only.
+- [GAP] No structured correlation IDs; consider per-request/job IDs in logs.
+- [GAP] Uptime monitors and cost dashboards not present.
+
+Performance & Resilience
+- [UNCLEAR] Load behavior for parallel gen and Firestore quotas not validated.
+- [GAP] Rate limiting/budget guards for AI endpoints not implemented.
+
+Accessibility & UX
+- [UNCLEAR] WCAG, responsiveness, and cross-browser need manual QA.
+
+Data Hygiene & Migration
+- [UNCLEAR] Migration scripts for V1→V2 not present.
+- [UNCLEAR] `createCampaign` businessTypes extraction/denorm totals partially handled in `PlacesLeadsCollection` but not on creation.
+
+Cron & Automation
+- [UNCLEAR] Cron not configured in `vercel.json`; endpoint exists and is protected.
+
+Next.js 15 Route Params
+- [PASS] Async params pattern used in dynamic routes (e.g., browse-ai task, v2 pages).
+
+Proposed Code Changes (do not apply yet; for review)
+1) Harden admin APIs
+   - Add `requireAdmin(request)` to:
+     - `src/app/api/v2/admin/retry-campaign/route.ts`
+     - `src/app/api/v2/admin/refund-request/route.ts`
+
+2) Webhook signature + idempotency
+   - Implement signature verification in `src/app/api/webhooks/stannp/route.ts` using `STANNP_WEBHOOK_SECRET`.
+   - Add idempotent update guard in `updateMailpieceStatus` (skip if same status already recorded for same event ID).
+
+3) Stripe idempotency and 3DS UX
+   - Use Stripe idempotency key on PaymentIntent creation (e.g., `Idempotency-Key` header based on `campaignId+timestamp`).
+   - Disable submit button after first click; track `processing` (already present) and ensure server rejects duplicates.
+
+4) Processing idempotency
+   - In `processPaidCampaign`, create and check a processing lock doc or status flag to prevent concurrent runs; store last processed at and compare.
+
+5) Observability
+   - Add Sentry to client and server (API routes and services). Capture errors in AI/stannp flows.
+   - Introduce correlation IDs (campaignId/jobId) in logs and pass through services.
+
+6) Admin test endpoints gating
+   - Ensure all `/api/v2/test-*` routes check `requireTestEnvironment()`.
+
+7) Cron configuration
+   - Add Vercel Cron in `vercel.json` to call `/api/v2/process-scheduled-campaigns` daily/hourly with `CRON_SECRET`.
+
+8) Data model hygiene
+   - On `createCampaign`, persist `businessTypes`, `leadCount`, `totalCost` at creation (not just after lead selection).
+   - Add simple address pre-validation before Stannp call; flag obvious invalids.
+
+9) Security rules sanity
+   - Review Storage global read rule; consider restricting if sensitive assets could be uploaded; ensure only final print files are intended to be public.
+
+Items Marked UNCLEAR need runtime/manual tests; GAP items have concrete remediation above.
+
