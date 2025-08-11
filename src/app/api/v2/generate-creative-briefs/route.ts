@@ -105,75 +105,75 @@ function formatContactAndSocialForBrief(brand: V2Brand) {
   const contactInfo: BriefGenerationContext['contactInfo'] = {};
   const socialMedia: BriefGenerationContext['socialMedia'] = {};
   
-  // Format contact info with clean labels
-  if (brand.businessInfo.phone) {
+  // Format contact info with clean labels - only include if value exists and is truthy
+  if (brand.businessInfo?.phone?.trim()) {
     contactInfo.phone = {
       label: "Phone",
-      value: brand.businessInfo.phone
+      value: brand.businessInfo.phone.trim()
     };
   }
   
-  if (brand.businessInfo.email) {
+  if (brand.businessInfo?.email?.trim()) {
     contactInfo.email = {
       label: "Email", 
-      value: brand.businessInfo.email
+      value: brand.businessInfo.email.trim()
     };
   }
   
-  if (brand.businessInfo.website) {
+  if (brand.businessInfo?.website?.trim()) {
     contactInfo.website = {
       label: "Website",
-      value: brand.businessInfo.website
+      value: brand.businessInfo.website.trim()
     };
   }
   
-  if (brand.businessInfo.address) {
+  if (brand.businessInfo?.address?.trim()) {
     contactInfo.address = {
       label: "Address",
-      value: brand.businessInfo.address
+      value: brand.businessInfo.address.trim()
     };
   }
   
-  // Format social media with platform labels
-  if (brand.socialMedia.instagram) {
+  // Format social media with platform labels - only include if value exists and is truthy
+  if (brand.socialMedia?.instagram?.trim()) {
     socialMedia.instagram = {
       label: "Instagram",
-      value: brand.socialMedia.instagram
+      value: brand.socialMedia.instagram.trim()
     };
   }
   
-  if (brand.socialMedia.facebook) {
+  if (brand.socialMedia?.facebook?.trim()) {
     socialMedia.facebook = {
       label: "Facebook",
-      value: brand.socialMedia.facebook
+      value: brand.socialMedia.facebook.trim()
     };
   }
   
-  if (brand.socialMedia.linkedin) {
+  if (brand.socialMedia?.linkedin?.trim()) {
     socialMedia.linkedin = {
       label: "LinkedIn",
-      value: brand.socialMedia.linkedin
+      value: brand.socialMedia.linkedin.trim()
     };
   }
   
-  if (brand.socialMedia.twitter) {
+  if (brand.socialMedia?.twitter?.trim()) {
     socialMedia.twitter = {
       label: "Twitter",
-      value: brand.socialMedia.twitter
+      value: brand.socialMedia.twitter.trim()
     };
   }
   
-  if (brand.socialMedia.tiktok) {
+  if (brand.socialMedia?.tiktok?.trim()) {
     socialMedia.tiktok = {
       label: "TikTok",
-      value: brand.socialMedia.tiktok
+      value: brand.socialMedia.tiktok.trim()
     };
   }
   
-  if (brand.socialMedia.youtube) {
+  if (brand.socialMedia?.youtube?.trim()) {
     socialMedia.youtube = {
       label: "YouTube",
-      value: brand.socialMedia.youtube
+      value: brand.socialMedia.youtube.trim()
     };
   }
   
@@ -366,7 +366,7 @@ export async function POST(request: NextRequest) {
     // Format contact and social data
     const { contactInfo, socialMedia } = formatContactAndSocialForBrief(brand);
     
-    // Create generation context
+    // Create generation context - explicitly handle all optional fields
     const context: BriefGenerationContext = {
       brandName: brand.name,
       brandColors,
@@ -382,6 +382,7 @@ export async function POST(request: NextRequest) {
       voice: formData.voice,
       campaignGoal: formData.goal,
       targetAudience: formData.audience,
+      // Only include optional fields if they have defined values
       ...(formData.businessDescription ? { businessDescription: formData.businessDescription } : {}),
       ...(formData.imageryInstructions ? { imageryInstructions: formData.imageryInstructions } : {})
     };
@@ -408,7 +409,7 @@ export async function POST(request: NextRequest) {
           config.temperature
         );
 
-        // Create brief document
+        // Create brief document - ensure no undefined values
         const brief: Omit<CreativeBrief, 'id'> = {
           campaignId,
           brandId,
@@ -456,14 +457,20 @@ export async function POST(request: NextRequest) {
       'error' in result
     ).map(result => result.error);
 
-    // Update job with results
-    await adminDb.collection('users').doc(userId).collection('briefJobs').doc(jobRef.id).update({
+    // Update job with results - avoid undefined values
+    const jobUpdate: any = {
       status: 'complete',
       completedAt: FieldValue.serverTimestamp(),
       briefs: successfulBriefs,
-      completedBriefs: successfulBriefs.length,
-      errors: errors.length > 0 ? errors : undefined
-    });
+      completedBriefs: successfulBriefs.length
+    };
+    
+    // Only add errors field if there are actual errors
+    if (errors.length > 0) {
+      jobUpdate.errors = errors;
+    }
+    
+    await adminDb.collection('users').doc(userId).collection('briefJobs').doc(jobRef.id).update(jobUpdate);
 
     return NextResponse.json({
       success: true,
