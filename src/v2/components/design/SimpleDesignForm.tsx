@@ -164,8 +164,9 @@ const SimpleDesignForm = ({
           const richQuick = (quickData.suggestions || []) as Array<{ headline: string; subcopy?: string; offer?: string; cta?: string; urgency?: string; rationale?: string; category: string; }>;
           const quickMapped = richQuick.map(s => [s.headline, s.offer, s.subcopy, s.urgency, s.cta].filter(Boolean).join(' • '));
           
-          // Show quick results immediately
+          // Show quick results immediately and re-enable loading for full suggestions
           setGoalSuggestions(quickMapped);
+          setLoadingGoalSuggestions(true); // Keep loading for full suggestions
           console.log('Quick suggestions loaded:', quickMapped.length);
         }
       }).catch(error => {
@@ -194,18 +195,19 @@ const SimpleDesignForm = ({
             console.log('Full suggestions loaded. Total:', combined.length);
             return combined;
           });
+          
+          // Turn off loading indicator for additional suggestions
+          setLoadingGoalSuggestions(false);
         }
       }).catch(error => {
         console.error('Error fetching full suggestions:', error);
       });
 
-      // Wait for quick to finish (should be faster), then stop loading indicator when full is done
-      await quickPromise;
-      await fullPromise;
+      // Wait for both to complete (loading states handled within each promise)
+      await Promise.allSettled([quickPromise, fullPromise]);
       
     } catch (error) {
       console.error('Error fetching goal suggestions:', error);
-    } finally {
       setLoadingGoalSuggestions(false);
     }
   }, [formData.industry, businessTypes, formData.voice, businessDescription]);
@@ -598,16 +600,7 @@ const SimpleDesignForm = ({
                     exit={{ opacity: 0, height: 0 }}
                     className="mt-3 bg-[#2F2F2F]/50 rounded-lg p-4 border border-[#00F0FF]/20"
                   >
-                    {loadingGoalSuggestions ? (
-                      <div className="flex items-center justify-center py-4">
-                        <motion.div
-                          animate={{ rotate: 360 }}
-                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                          className="w-5 h-5 border-2 border-[#00F0FF] border-t-transparent rounded-full"
-                        />
-                        <span className="ml-2 text-[#00F0FF] text-sm">Generating suggestions...</span>
-                      </div>
-                    ) : goalSuggestions.length > 0 ? (
+                    {goalSuggestions.length > 0 ? (
                       <div className="space-y-2">
                         <p className="text-[#EAEAEA]/60 text-xs mb-3">Click any suggestion to use it:</p>
                         {goalSuggestions.map((suggestion, index) => (
@@ -623,6 +616,30 @@ const SimpleDesignForm = ({
                             <span className="text-[#EAEAEA] text-sm">{suggestion}</span>
                           </button>
                         ))}
+                        {loadingGoalSuggestions && (
+                          <div className="border-t border-[#00F0FF]/20 pt-3 mt-3">
+                            <div className="flex items-center justify-center py-3 bg-[#00F0FF]/5 rounded-lg border border-[#00F0FF]/20">
+                              <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                className="w-4 h-4 border-2 border-[#00F0FF] border-t-transparent rounded-full"
+                              />
+                              <div className="ml-3">
+                                <span className="text-[#00F0FF] text-sm font-medium">Loading more suggestions...</span>
+                                <p className="text-[#EAEAEA]/60 text-xs mt-0.5">Getting additional personalized ideas for your campaign</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : loadingGoalSuggestions ? (
+                      <div className="flex items-center justify-center py-4">
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                          className="w-5 h-5 border-2 border-[#00F0FF] border-t-transparent rounded-full"
+                        />
+                        <span className="ml-2 text-[#00F0FF] text-sm">Generating suggestions...</span>
                       </div>
                     ) : (
                       <p className="text-[#EAEAEA]/60 text-sm text-center py-2">
