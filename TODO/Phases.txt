@@ -37,6 +37,10 @@
 - ✅ **Payment Integration**: Checkout triggers automatic processing
 - ✅ **Smart Scheduling**: ASAP vs future date handling
 - ✅ **Test Endpoints**: All services have test endpoints
+- ✅ **AI Image Storage**: Downloads and permanently stores generated images in Firebase Storage
+  - Images stored at: `v2/{userId}/campaigns/{campaignId}/previews/{provider}_{designId}_{timestamp}.png`
+  - Prevents expiration of OpenAI and Ideogram temporary URLs
+  - User-scoped storage matching V2 security rules
 
 **Phase 5 Admin & Monitoring: 🔄 Current Phase**
 - 🔄 Admin dashboard for campaign monitoring
@@ -137,10 +141,11 @@ NEW: /v2/{userId}/brands/{brandId}/logos/...
 - **Documentation Updated**: Both planning documents reflect current live status
 
 ### 🎯 **Current State**
-- **Phases 1-3**: 100% complete and live in production
-- **Phase 4**: Current focus on testing, monitoring, and optimization
+- **Phases 1-4**: 100% complete and live in production
+- **Phase 5**: Current focus on admin dashboard and monitoring
 - **User Experience**: Complete professional campaign creation with AI A/B testing
 - **Payment Processing**: Live Stripe integration with secure authentication
+- **Image Storage**: AI-generated images permanently stored in Firebase Storage
 
 ## Pre-Implementation Setup (Complete First)
 
@@ -319,6 +324,9 @@ UI interface following brandguidelines.txt with exact hex colors
   - **Firestore Data Model**: Resolved FieldValue array issues in creative brief storage
   - **Progressive Loading**: Fixed "quick then full" AI suggestion display
   - **Brand Management**: Streamlined social media input with progressive disclosure
+  - **OpenAI gpt-image-1**: Fixed size to 1536x1024 (3:2 ratio) and quality parameter
+  - **Ideogram v3 API**: Updated to correct endpoint and FormData format
+  - **Firebase Storage**: AI images now permanently stored in user-scoped paths
 
 ### 🎯 **Quality Metrics Achieved**
 - ✅ Perfect brand guideline compliance

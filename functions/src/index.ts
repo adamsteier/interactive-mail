@@ -12,13 +12,16 @@ import { onRequest } from "firebase-functions/v2/https";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 import { initializeApp } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 import OpenAI from "openai";
 import axios from "axios";
+import FormData from "form-data";
 
 // Initialize Firebase Admin
 initializeApp();
 const db = getFirestore();
+const storage = getStorage();
 
 // Import our functions
 import { createCampaignWithLeads } from "./campaign/createCampaignWithLeads";
@@ -128,12 +131,34 @@ export const processAIDesignJob = onDocumentCreated(
 
       // Process OpenAI result
       if (openaiResult.status === "fulfilled") {
-        results.openai = {
-          frontImageUrl: openaiResult.value.imageUrl,
-          prompt: prompt,
-          model: "gpt-image-1",
-          executionTime: openaiResult.value.executionTime,
-        };
+        try {
+          // Download and store the image
+          const storedImageUrl = await downloadAndStoreImage(
+            openaiResult.value.imageUrl,
+            jobData.campaignId,
+            jobData.designId,
+            "openai",
+            jobData.userId
+          );
+          
+          results.openai = {
+            frontImageUrl: storedImageUrl,
+            originalUrl: openaiResult.value.imageUrl, // Keep original for reference
+            prompt: prompt,
+            model: "gpt-image-1",
+            executionTime: openaiResult.value.executionTime,
+          };
+        } catch (storageError) {
+          logger.error("Failed to store OpenAI image:", storageError);
+          // Fall back to original URL if storage fails
+          results.openai = {
+            frontImageUrl: openaiResult.value.imageUrl,
+            prompt: prompt,
+            model: "gpt-image-1",
+            executionTime: openaiResult.value.executionTime,
+            storageError: "Failed to store image permanently",
+          };
+        }
       } else {
         results.openai = {
           frontImageUrl: "",
@@ -146,13 +171,36 @@ export const processAIDesignJob = onDocumentCreated(
 
       // Process Ideogram result
       if (ideogramResult.status === "fulfilled") {
-        results.ideogram = {
-          frontImageUrl: ideogramResult.value.imageUrl,
-          prompt: prompt,
-          styleType: "AUTO",
-          renderingSpeed: "DEFAULT",
-          executionTime: ideogramResult.value.executionTime,
-        };
+        try {
+          // Download and store the image
+          const storedImageUrl = await downloadAndStoreImage(
+            ideogramResult.value.imageUrl,
+            jobData.campaignId,
+            jobData.designId,
+            "ideogram",
+            jobData.userId
+          );
+          
+          results.ideogram = {
+            frontImageUrl: storedImageUrl,
+            originalUrl: ideogramResult.value.imageUrl, // Keep original for reference
+            prompt: prompt,
+            styleType: "AUTO",
+            renderingSpeed: "DEFAULT",
+            executionTime: ideogramResult.value.executionTime,
+          };
+        } catch (storageError) {
+          logger.error("Failed to store Ideogram image:", storageError);
+          // Fall back to original URL if storage fails
+          results.ideogram = {
+            frontImageUrl: ideogramResult.value.imageUrl,
+            prompt: prompt,
+            styleType: "AUTO",
+            renderingSpeed: "DEFAULT",
+            executionTime: ideogramResult.value.executionTime,
+            storageError: "Failed to store image permanently",
+          };
+        }
       } else {
         results.ideogram = {
           frontImageUrl: "",
@@ -168,7 +216,7 @@ export const processAIDesignJob = onDocumentCreated(
       await db.collection("aiJobs").doc(jobId).update({
         status: "complete",
         progress: 100,
-        completedAt: new Date(),
+        completedAt: FieldValue.serverTimestamp(),
         result: results,
       });
 
@@ -177,7 +225,7 @@ export const processAIDesignJob = onDocumentCreated(
         await db.collection("campaigns").doc(jobData.campaignId).update({
           [`designs.${jobData.designId}.status`]: "complete",
           [`designs.${jobData.designId}.result`]: results,
-          updatedAt: new Date(),
+          updatedAt: FieldValue.serverTimestamp(),
         });
       }
 
@@ -190,7 +238,7 @@ export const processAIDesignJob = onDocumentCreated(
       await db.collection("aiJobs").doc(jobId).update({
         status: "failed",
         error: error instanceof Error ? error.message : "Unknown error",
-        completedAt: new Date(),
+        completedAt: FieldValue.serverTimestamp(),
       });
 
       // Update campaign design status
@@ -198,7 +246,7 @@ export const processAIDesignJob = onDocumentCreated(
         await db.collection("campaigns").doc(jobData.campaignId).update({
           [`designs.${jobData.designId}.status`]: "failed",
           [`designs.${jobData.designId}.error`]: error instanceof Error ? error.message : "Unknown error",
-          updatedAt: new Date(),
+          updatedAt: FieldValue.serverTimestamp(),
         });
       }
     }
@@ -488,6 +536,53 @@ export const generatePostcardDesign = onCall(
   }
 );
 
+// Helper function to download and store image in Firebase Storage
+async function downloadAndStoreImage(
+  imageUrl: string, 
+  campaignId: string, 
+  designId: string, 
+  provider: "openai" | "ideogram",
+  userId: string
+): Promise<string> {
+  try {
+    // Download the image
+    const response = await axios.get(imageUrl, {
+      responseType: "arraybuffer",
+    });
+    
+    // Generate a unique filename following V2 structure
+    const timestamp = Date.now();
+    const filename = `v2/${userId}/campaigns/${campaignId}/previews/${provider}_${designId}_${timestamp}.png`;
+    
+    // Get a reference to the file in Firebase Storage
+    const bucket = storage.bucket();
+    const file = bucket.file(filename);
+    
+    // Upload the image
+    await file.save(Buffer.from(response.data), {
+      metadata: {
+        contentType: "image/png",
+        metadata: {
+          campaignId,
+          designId,
+          provider,
+          userId,
+          generatedAt: new Date().toISOString(),
+        },
+      },
+    });
+    
+    // File is already publicly readable according to your rules
+    // No need to make it public explicitly
+    
+    // Return the public URL
+    return `https://storage.googleapis.com/${bucket.name}/${filename}`;
+  } catch (error) {
+    logger.error(`Error downloading/storing image from ${provider}:`, error);
+    throw error;
+  }
+}
+
 // OpenAI Generation Function - Updated for gpt-image-1
 async function generateWithOpenAI(prompt: string): Promise<{
   imageUrl: string;
@@ -507,7 +602,7 @@ async function generateWithOpenAI(prompt: string): Promise<{
     const response = await openai.images.generate({
       model: "gpt-image-1",
       prompt: prompt,
-      size: "1792x1024", // Landscape format supported by TypeScript types
+      size: "1536x1024", // 3:2 aspect ratio, perfect for 6x4 postcards
       quality: "high", // Changed from "hd" to "high" for gpt-image-1
       n: 1,
     });
@@ -551,22 +646,22 @@ async function generateWithIdeogram(prompt: string): Promise<{
       throw new Error("IDEOGRAM_API_KEY is not set in environment variables");
     }
     
+    // Create form data for Ideogram v3 API
+    const formData = new FormData();
+    formData.append("prompt", prompt);
+    formData.append("aspect_ratio", "3x2"); // 6x4 postcard ratio (note: x not colon)
+    formData.append("rendering_speed", "DEFAULT"); // Balance between speed and quality
+    formData.append("negative_prompt", "low quality, blurry, distorted, watermark, text cutoff, poor composition");
+    formData.append("num_images", "1");
+    formData.append("style_type", "GENERAL"); // For professional marketing postcards
+    
     const response = await axios.post(
-      "https://api.ideogram.ai/generate",
-      {
-        image_request: {
-          prompt: prompt,
-          model: "V_3_0", // Ideogram 3.0 latest model
-          aspect_ratio: "ASPECT_3_2", // Closest to 6:4 postcard ratio
-          magic_prompt_option: "AUTO", // Enhanced prompt processing
-          style_type: "AUTO", // Let AI choose appropriate style
-          negative_prompt: "low quality, blurry, distorted, watermark, text cutoff, poor composition"
-        }
-      },
+      "https://api.ideogram.ai/v1/ideogram-v3/generate",
+      formData,
       {
         headers: {
           "Api-Key": process.env.IDEOGRAM_API_KEY,
-          "Content-Type": "application/json",
+          ...formData.getHeaders(),
         },
       }
     ).catch(error => {
