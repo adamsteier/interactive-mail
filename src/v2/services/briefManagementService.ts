@@ -153,8 +153,7 @@ export async function toggleBriefTemplate(
     const briefRef = doc(db, 'users', userId, 'creativeBriefs', briefId);
     
     await updateDoc(briefRef, {
-      isTemplate,
-      updatedAt: serverTimestamp()
+      isTemplate
     });
     
   } catch (error) {
@@ -180,18 +179,23 @@ export async function updateBriefText(
     }
     
     const briefData = briefDoc.data() as CreativeBrief;
-    const updates: Partial<CreativeBrief> = {
+    
+    // Build update object
+    const baseUpdates = {
       briefText: newText,
       edited: true,
       updatedAt: serverTimestamp()
     };
     
     // Store original if this is the first edit
-    if (!briefData.edited) {
-      updates.originalBriefText = briefData.briefText;
+    if (!briefData.edited && briefData.briefText) {
+      await updateDoc(briefRef, {
+        ...baseUpdates,
+        originalBriefText: briefData.briefText
+      });
+    } else {
+      await updateDoc(briefRef, baseUpdates);
     }
-    
-    await updateDoc(briefRef, updates);
     
   } catch (error) {
     console.error('Error updating brief text:', error);
