@@ -122,10 +122,10 @@ export const processAIDesignJob = onDocumentCreated(
       // Process results
       const results: any = {
         logoPosition: {
-          x: jobData.logoSpace.position.x,
-          y: jobData.logoSpace.position.y,
-          width: jobData.logoSpace.width,
-          height: jobData.logoSpace.height,
+          x: jobData.logoSpace?.position?.x || 0,
+          y: jobData.logoSpace?.position?.y || 0,
+          width: jobData.logoSpace?.width || 1.5,
+          height: jobData.logoSpace?.height || 0.8,
         }
       };
 
@@ -165,7 +165,7 @@ export const processAIDesignJob = onDocumentCreated(
           prompt: prompt,
           model: "gpt-image-1",
           executionTime: 0,
-          error: openaiResult.reason?.message || "OpenAI generation failed",
+          error: String(openaiResult.reason?.message || "OpenAI generation failed"),
         };
       }
 
@@ -208,10 +208,13 @@ export const processAIDesignJob = onDocumentCreated(
           styleType: "AUTO", 
           renderingSpeed: "DEFAULT",
           executionTime: 0,
-          error: ideogramResult.reason?.message || "Ideogram generation failed",
+          error: String(ideogramResult.reason?.message || "Ideogram generation failed"),
         };
       }
 
+      // Log the results structure for debugging
+      logger.info("Results structure before save:", JSON.stringify(results, null, 2));
+      
       // Final update - mark as complete
       await db.collection("aiJobs").doc(jobId).update({
         status: "complete",
@@ -237,7 +240,7 @@ export const processAIDesignJob = onDocumentCreated(
       // Update job with error
       await db.collection("aiJobs").doc(jobId).update({
         status: "failed",
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: error instanceof Error ? error.message : String(error || "Unknown error"),
         completedAt: FieldValue.serverTimestamp(),
       });
 
@@ -245,7 +248,9 @@ export const processAIDesignJob = onDocumentCreated(
       if (jobData.campaignId && jobData.designId) {
         await db.collection("campaigns").doc(jobData.campaignId).update({
           [`designs.${jobData.designId}.status`]: "failed",
-          [`designs.${jobData.designId}.error`]: error instanceof Error ? error.message : "Unknown error",
+          [`designs.${jobData.designId}.error`]: error instanceof Error 
+            ? error.message 
+            : String(error || "Unknown error"),
           updatedAt: FieldValue.serverTimestamp(),
         });
       }
