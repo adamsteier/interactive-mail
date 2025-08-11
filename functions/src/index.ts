@@ -102,6 +102,17 @@ export const processAIDesignJob = onDocumentCreated(
         generateWithIdeogram(prompt),
       ]);
 
+      // Log the results for debugging
+      logger.info(`OpenAI result status: ${openaiResult.status}`);
+      if (openaiResult.status === "rejected") {
+        logger.error(`OpenAI error: ${openaiResult.reason}`);
+      }
+      
+      logger.info(`Ideogram result status: ${ideogramResult.status}`);
+      if (ideogramResult.status === "rejected") {
+        logger.error(`Ideogram error: ${ideogramResult.reason}`);
+      }
+
       // Update progress
       await db.collection("aiJobs").doc(jobId).update({ progress: 80 });
 
@@ -485,6 +496,10 @@ async function generateWithOpenAI(prompt: string): Promise<{
   const openaiStartTime = Date.now();
   
   try {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error("OPENAI_API_KEY is not set in environment variables");
+    }
+    
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
@@ -493,7 +508,7 @@ async function generateWithOpenAI(prompt: string): Promise<{
       model: "gpt-image-1",
       prompt: prompt,
       size: "1792x1024", // Landscape format supported by TypeScript types
-      quality: "hd", // High quality setting supported by TypeScript types
+      quality: "high", // Changed from "hd" to "high" for gpt-image-1
       n: 1,
     });
 
@@ -532,6 +547,10 @@ async function generateWithIdeogram(prompt: string): Promise<{
   const ideogramStartTime = Date.now();
   
   try {
+    if (!process.env.IDEOGRAM_API_KEY) {
+      throw new Error("IDEOGRAM_API_KEY is not set in environment variables");
+    }
+    
     const response = await axios.post(
       "https://api.ideogram.ai/generate",
       {
@@ -550,7 +569,13 @@ async function generateWithIdeogram(prompt: string): Promise<{
           "Content-Type": "application/json",
         },
       }
-    );
+    ).catch(error => {
+      // Log more details about the Ideogram error
+      if (error.response) {
+        console.error("Ideogram API error response:", error.response.data);
+      }
+      throw error;
+    });
 
     const imageUrl = response.data?.data?.[0]?.url;
     if (!imageUrl) {
