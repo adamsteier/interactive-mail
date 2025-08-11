@@ -423,10 +423,11 @@ export default function DesignPage({ params }: { params: Params }) {
       const designRequest: SimpleDesignRequest = {
         brandId: brief.brandId,
         voice: brief.context.voice as 'professional' | 'friendly' | 'casual' | 'authoritative' | 'creative',
-        goal: brief.briefText, // Use the entire brief as the goal/prompt
+        goal: `[CREATIVE_BRIEF_ID:${brief.id}]\n\n${brief.briefText}`, // Add marker and use the entire brief as the goal/prompt
         industry: brief.context.industry,
         audience: brief.context.targetAudience,
-        businessDescription: brief.context.businessDescription
+        businessDescription: brief.context.businessDescription,
+        briefId: brief.id // Programmatic identifier
       };
       
       // Queue generation with the creative brief

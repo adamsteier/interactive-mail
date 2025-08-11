@@ -143,7 +143,6 @@ export const processAIDesignJob = onDocumentCreated(
           
           results.openai = {
             frontImageUrl: storedImageUrl,
-            originalUrl: openaiResult.value.imageUrl, // Keep original for reference
             prompt: prompt,
             model: "gpt-image-1",
             executionTime: openaiResult.value.executionTime,
@@ -183,9 +182,8 @@ export const processAIDesignJob = onDocumentCreated(
           
           results.ideogram = {
             frontImageUrl: storedImageUrl,
-            originalUrl: ideogramResult.value.imageUrl, // Keep original for reference
             prompt: prompt,
-            styleType: "AUTO",
+            styleType: "GENERAL",
             renderingSpeed: "DEFAULT",
             executionTime: ideogramResult.value.executionTime,
           };
@@ -195,7 +193,7 @@ export const processAIDesignJob = onDocumentCreated(
           results.ideogram = {
             frontImageUrl: ideogramResult.value.imageUrl,
             prompt: prompt,
-            styleType: "AUTO",
+            styleType: "GENERAL",
             renderingSpeed: "DEFAULT",
             executionTime: ideogramResult.value.executionTime,
             storageError: "Failed to store image permanently",
@@ -205,7 +203,7 @@ export const processAIDesignJob = onDocumentCreated(
         results.ideogram = {
           frontImageUrl: "",
           prompt: prompt,
-          styleType: "AUTO", 
+          styleType: "GENERAL",
           renderingSpeed: "DEFAULT",
           executionTime: 0,
           error: String(ideogramResult.reason?.message || "Ideogram generation failed"),
@@ -298,38 +296,74 @@ function createV2PostcardPrompt(requestData: any, brandData: any, logoSpace: any
   }
 
   prompt += `\nTone: ${voice}
-Target audience: ${audience}
-Campaign goal: ${goal}`;
+Target audience: ${audience}`;
 
-  if (businessDescription) {
-    prompt += `\nBusiness context: ${businessDescription}`;
+  // Check if this is a creative brief using multiple methods for reliability
+  const isFullBrief = 
+    // Method 1: Check for briefId field (most reliable)
+    (requestData.briefId && requestData.briefId.length > 0) ||
+    // Method 2: Check for our marker in the goal text (backup)
+    (goal && goal.includes("[CREATIVE_BRIEF_ID:")) ||
+    // Method 3: Fallback to heuristic detection (for older briefs)
+    (goal && goal.length > 100 && (
+      goal.includes("postcard") || 
+      goal.includes("design") || 
+      goal.includes("headline") || 
+      goal.includes("call-to-action") ||
+      goal.includes("CTA")
+    ));
+
+  if (isFullBrief) {
+    // Log detection method for debugging
+    const detectionMethod = requestData.briefId ? "briefId field" : 
+      (goal && goal.includes("[CREATIVE_BRIEF_ID:")) ? "text marker" : "heuristic";
+    const briefInfo = requestData.briefId ? ` (ID: ${requestData.briefId})` : "";
+    logger.info(`Creative brief detected using: ${detectionMethod}${briefInfo}`);
+    
+    // Use the full creative brief as the primary directive
+    prompt += `\n\nCREATIVE BRIEF:\n${goal}`;
+    
+    if (businessDescription) {
+      prompt += `\n\nBusiness context: ${businessDescription}`;
+    }
+    
+    prompt += "\n\nADDITIONAL TECHNICAL REQUIREMENTS:";
+  } else {
+    // Treat as a simple campaign goal
+    prompt += `\nCampaign goal: ${goal}`;
+    
+    if (businessDescription) {
+      prompt += `\nBusiness context: ${businessDescription}`;
+    }
+    
+    prompt += "\n\nCONTENT REQUIREMENTS:";
   }
 
-  prompt += "\n\nCONTENT REQUIREMENTS:";
-
-  // Handle headline
+  // Handle headline - adjust based on whether we have a full brief
   if (customHeadline) {
     prompt += `\nHeadline: "${customHeadline}"`;
-  } else {
+  } else if (!isFullBrief) {
     prompt += `\nGenerate an attention-grabbing headline that appeals to ${audience} and promotes the ${goal}`;
   }
 
-  // Handle CTA - ALWAYS ensure there's a CTA
+  // Handle CTA - adjust based on whether we have a full brief
   if (customCTA) {
     prompt += `\nCall-to-action: "${customCTA}"`;
-  } else {
+  } else if (!isFullBrief) {
     prompt += "\nGenerate a compelling call-to-action button/text that encourages " +
       "immediate response (examples: \"Call Now\", \"Visit Today\", \"Book Online\", \"Get Started\", \"Save Now\")";
   }
 
-  // Contact information requirement
-  prompt += "\nContact info: Include placeholder areas for phone number, website, " +
-    "and address in an attractive, readable layout";
+  // Contact information requirement - only add if not covered in full brief
+  if (!isFullBrief) {
+    prompt += "\nContact info: Include placeholder areas for phone number, website, " +
+      "and address in an attractive, readable layout";
+  }
 
-  // Image requirements
+  // Image requirements - only add generic ones if not a full brief
   if (imageDescription) {
     prompt += `\nImagery: ${imageDescription}`;
-  } else {
+  } else if (!isFullBrief) {
     prompt += `\nImagery: High-quality, professional images relevant to ${industry} that appeal to ${audience}`;
   }
 

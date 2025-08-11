@@ -23,6 +23,7 @@ export interface SimpleDesignRequest {
   industry: string;
   audience: string;
   businessDescription?: string;
+  briefId?: string; // If provided, indicates this request uses a creative brief
 }
 
 export interface AdvancedDesignRequest extends SimpleDesignRequest {
