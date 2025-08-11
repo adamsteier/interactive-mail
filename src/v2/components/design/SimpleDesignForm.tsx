@@ -137,54 +137,72 @@ const SimpleDesignForm = ({
     if (!formData.industry || formData.industry.length < 2) return;
     
     setLoadingGoalSuggestions(true);
+    setGoalSuggestions([]); // Clear previous suggestions
+    
     try {
-      // 1) Quick suggestions (fast, small)
-      const quickResp = await fetch('/api/v2/smart-goal-suggestions', {
+      // Prepare the request payload
+      const requestPayload = {
+        industry: formData.industry,
+        businessTypes: businessTypes.map(bt => bt.type),
+        brandVoice: formData.voice,
+        businessDescription: businessDescription,
+        targetArea: undefined
+      };
+
+      // Start both requests simultaneously but handle them separately
+      const quickPromise = fetch('/api/v2/smart-goal-suggestions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          industry: formData.industry,
-          businessTypes: businessTypes.map(bt => bt.type),
-          brandVoice: formData.voice,
-          businessDescription: businessDescription,
-          targetArea: undefined,
+          ...requestPayload,
           mode: 'quick',
           limit: 3
         })
+      }).then(async (quickResp) => {
+        if (quickResp.ok) {
+          const quickData = await quickResp.json();
+          const richQuick = (quickData.suggestions || []) as Array<{ headline: string; subcopy?: string; offer?: string; cta?: string; urgency?: string; rationale?: string; category: string; }>;
+          const quickMapped = richQuick.map(s => [s.headline, s.offer, s.subcopy, s.urgency, s.cta].filter(Boolean).join(' • '));
+          
+          // Show quick results immediately
+          setGoalSuggestions(quickMapped);
+          console.log('Quick suggestions loaded:', quickMapped.length);
+        }
+      }).catch(error => {
+        console.error('Error fetching quick suggestions:', error);
       });
-      
-      if (quickResp.ok) {
-        const quickData = await quickResp.json();
-        const richQuick = (quickData.suggestions || []) as Array<{ headline: string; subcopy?: string; offer?: string; cta?: string; urgency?: string; rationale?: string; category: string; }>;
-        const quickMapped = richQuick.map(s => [s.headline, s.offer, s.subcopy, s.urgency, s.cta].filter(Boolean).join(' • '));
-        setGoalSuggestions(quickMapped);
-      }
 
-      // 2) Full suggestions (append when ready)
-      const fullResp = await fetch('/api/v2/smart-goal-suggestions', {
+      const fullPromise = fetch('/api/v2/smart-goal-suggestions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          industry: formData.industry,
-          businessTypes: businessTypes.map(bt => bt.type),
-          brandVoice: formData.voice,
-          businessDescription: businessDescription,
-          targetArea: undefined,
+          ...requestPayload,
           mode: 'full',
           limit: 10
         })
+      }).then(async (fullResp) => {
+        if (fullResp.ok) {
+          const fullData = await fullResp.json();
+          const richFull = (fullData.suggestions || []) as Array<{ headline: string; subcopy?: string; offer?: string; cta?: string; urgency?: string; rationale?: string; category: string; }>;
+          const fullMapped = richFull.map(s => [s.headline, s.offer, s.subcopy, s.urgency, s.cta].filter(Boolean).join(' • '));
+          
+          // Merge with existing suggestions, avoiding duplicates
+          setGoalSuggestions(prev => {
+            const existingSet = new Set(prev || []);
+            const newSuggestions = fullMapped.filter(suggestion => !existingSet.has(suggestion));
+            const combined = [...(prev || []), ...newSuggestions];
+            console.log('Full suggestions loaded. Total:', combined.length);
+            return combined;
+          });
+        }
+      }).catch(error => {
+        console.error('Error fetching full suggestions:', error);
       });
 
-      if (fullResp.ok) {
-        const fullData = await fullResp.json();
-        const richFull = (fullData.suggestions || []) as Array<{ headline: string; subcopy?: string; offer?: string; cta?: string; urgency?: string; rationale?: string; category: string; }>;
-        const fullMapped = richFull.map(s => [s.headline, s.offer, s.subcopy, s.urgency, s.cta].filter(Boolean).join(' • '));
-        // Merge, de-duplicate, and append
-        setGoalSuggestions(prev => {
-          const set = new Set([...(prev || []), ...fullMapped]);
-          return Array.from(set);
-        });
-      }
+      // Wait for quick to finish (should be faster), then stop loading indicator when full is done
+      await quickPromise;
+      await fullPromise;
+      
     } catch (error) {
       console.error('Error fetching goal suggestions:', error);
     } finally {
