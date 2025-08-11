@@ -382,8 +382,8 @@ export async function POST(request: NextRequest) {
       voice: formData.voice,
       campaignGoal: formData.goal,
       targetAudience: formData.audience,
-      businessDescription: formData.businessDescription,
-      imageryInstructions: formData.imageryInstructions
+      ...(formData.businessDescription ? { businessDescription: formData.businessDescription } : {}),
+      ...(formData.imageryInstructions ? { imageryInstructions: formData.imageryInstructions } : {})
     };
 
     // Create generation job

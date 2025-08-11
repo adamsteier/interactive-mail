@@ -199,7 +199,7 @@ const CreativeBriefSelector = ({
             </div>
             
             <p className="text-[#EAEAEA]/60 text-sm">
-              Using GPT-4.1 and GPT-4o with varying creativity levels to generate diverse briefs...
+              Generating your creative briefs to create your postcard imagery...
             </p>
           </div>
         )}
