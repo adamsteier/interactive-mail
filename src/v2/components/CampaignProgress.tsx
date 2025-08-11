@@ -15,9 +15,10 @@ interface CampaignProgressProps {
   currentStep: number;
   campaignId: string;
   steps?: ProgressStep[];
+  currentSubStep?: 'form' | 'briefs'; // For Design step sub-navigation
 }
 
-export default function CampaignProgress({ currentStep, campaignId, steps }: CampaignProgressProps) {
+export default function CampaignProgress({ currentStep, campaignId, steps, currentSubStep }: CampaignProgressProps) {
   const router = useRouter();
   
   const defaultSteps: ProgressStep[] = [
@@ -103,11 +104,19 @@ export default function CampaignProgress({ currentStep, campaignId, steps }: Cam
                     item.step
                   )}
                 </div>
-                <span className={`text-sm font-medium ${
-                  item.active ? 'text-[#00F0FF]' : item.completed ? 'text-[#EAEAEA]' : 'text-[#EAEAEA]/60'
-                }`}>
-                  {item.label}
-                </span>
+                <div className="flex flex-col items-start">
+                  <span className={`text-sm font-medium ${
+                    item.active ? 'text-[#00F0FF]' : item.completed ? 'text-[#EAEAEA]' : 'text-[#EAEAEA]/60'
+                  }`}>
+                    {item.label}
+                  </span>
+                  {/* Show sub-step indicator for Design step */}
+                  {item.step === 3 && item.active && currentSubStep && (
+                    <span className="text-xs text-[#00F0FF]/70 mt-0.5">
+                      {currentSubStep === 'form' ? 'Design Form' : 'Creative Briefs'}
+                    </span>
+                  )}
+                </div>
               </button>
               {index < stepsToShow.length - 1 && (
                 <div className={`w-8 h-px mx-2 transition-all ${

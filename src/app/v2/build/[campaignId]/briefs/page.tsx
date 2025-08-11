@@ -297,6 +297,7 @@ export default function BriefManagementPage({ params }: { params: Params }) {
           <CampaignProgress 
             currentStep={3} 
             campaignId={campaignId}
+            currentSubStep="briefs"
           />
         </div>
       </div>

@@ -3,17 +3,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-// TODO: Import necessary types (e.g., Campaign, CampaignDesignData)
-// import { Campaign } from '@/lib/campaignService';
-// import { CampaignDesignData } from '@/types/firestoreTypes';
-// TODO: Import functions to fetch aggregate data (e.g., campaign counts, design counts)
-// import { getUserCampaigns } from '@/lib/campaignService';
-// import { getUserDesigns } from '@/lib/designService'; // Assuming a function like this might exist
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import CreativeBriefsSummary from './CreativeBriefsSummary';
 
 const DashboardSummary: React.FC = () => {
     const { user } = useAuth();
-    // TODO: Add state for fetched data (campaigns, designs, etc.)
-    const [campaignCount, setCampaignCount] = useState<number>(0);
+    // State for fetched data
+    const [v1CampaignCount, setV1CampaignCount] = useState<number>(0);
+    const [v2CampaignCount, setV2CampaignCount] = useState<number>(0);
     const [processingDesignsCount, setProcessingDesignsCount] = useState<number>(0);
     const [completedDesignsCount, setCompletedDesignsCount] = useState<number>(0);
     const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -30,25 +28,24 @@ const DashboardSummary: React.FC = () => {
             setIsLoading(true);
             setError(null);
             try {
-                // --- TODO: Fetch actual data ---
-                // Example: Fetch campaigns to get count
-                // const campaigns = await getUserCampaigns(user.uid);
-                // setCampaignCount(campaigns.length);
+                // Fetch V1 campaigns (campaigns collection)
+                const v1CampaignsRef = collection(db, 'campaigns');
+                const v1CampaignsQuery = query(v1CampaignsRef, where('ownerUid', '==', user.uid));
+                const v1Snapshot = await getDocs(v1CampaignsQuery);
+                setV1CampaignCount(v1Snapshot.size);
 
-                // Example: Fetch designs and calculate counts by status
-                // const designs = await getUserDesigns(user.uid); // Need this function
-                // const processing = designs.filter(d => d.status === 'processing' || d.status === 'processing_ai').length;
-                // const completed = designs.filter(d => d.status === 'completed').length;
-                // setProcessingDesignsCount(processing);
-                // setCompletedDesignsCount(completed);
+                // Fetch V2 campaigns (have brandId field)
+                const v2CampaignsQuery = query(
+                    v1CampaignsRef, 
+                    where('ownerUid', '==', user.uid),
+                    where('brandId', '!=', null)
+                );
+                const v2Snapshot = await getDocs(v2CampaignsQuery);
+                setV2CampaignCount(v2Snapshot.size);
 
-                // Placeholder counts for now
-                setCampaignCount(5); // Placeholder
-                setProcessingDesignsCount(2); // Placeholder
-                setCompletedDesignsCount(8); // Placeholder
-
-                // Simulate loading
-                await new Promise(resolve => setTimeout(resolve, 500));
+                // TODO: Fetch designs counts when design service is ready
+                setProcessingDesignsCount(0);
+                setCompletedDesignsCount(0);
 
             } catch (err) {
                 console.error("Error fetching dashboard summary data:", err);
@@ -87,11 +84,11 @@ const DashboardSummary: React.FC = () => {
             {/* Quick Stats */}
             <div>
                 <h3 className="text-lg font-semibold text-electric-teal mb-3">Quick Stats</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <StatCard title="Total Campaigns" value={campaignCount} isLoading={isLoading} />
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <StatCard title="V1 Campaigns" value={v1CampaignCount} isLoading={isLoading} />
+                    <StatCard title="V2 Campaigns" value={v2CampaignCount} isLoading={isLoading} />
                     <StatCard title="Designs Processing" value={processingDesignsCount} isLoading={isLoading} />
                     <StatCard title="Designs Completed" value={completedDesignsCount} isLoading={isLoading} />
-                    {/* TODO: Add other relevant stats (Leads selected? Postcards sent?) */}
                 </div>
                  {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
             </div>
@@ -111,6 +108,12 @@ const DashboardSummary: React.FC = () => {
                          View Campaign History
                      </button>
                  </div>
+            </div>
+
+            {/* Creative Briefs Section */}
+            <div>
+                <h3 className="text-lg font-semibold text-electric-teal mb-3">Creative Briefs</h3>
+                <CreativeBriefsSummary />
             </div>
 
             {/* Recent Activity (Placeholder) */}

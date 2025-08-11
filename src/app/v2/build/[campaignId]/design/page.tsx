@@ -23,6 +23,7 @@ import {
   DesignGenerationJob
 } from '@/v2/services/aiDesignService';
 import { CreativeBrief, BriefGenerationRequest } from '@/v2/types/design';
+import { getBriefsLibrary } from '@/v2/services/briefManagementService';
 import {
   DesignAssignment as DesignAssignmentType,
   createDesignAssignments,
@@ -138,6 +139,10 @@ export default function DesignPage({ params }: { params: Params }) {
   // const [selectedBrief] = useState<CreativeBrief | null>(null);
   const [briefGenerationRequest, setBriefGenerationRequest] = useState<BriefGenerationRequest | null>(null);
   
+  // Existing briefs state
+  const [existingBriefs, setExistingBriefs] = useState<CreativeBrief[]>([]);
+  const [hasBriefs, setHasBriefs] = useState(false);
+  
   // UI state
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -198,6 +203,16 @@ export default function DesignPage({ params }: { params: Params }) {
           // Load brand data into state so the page can render
           const loadedBrand = { id: brandSnap.id, ...(brandSnap.data() as V2Brand) } as V2Brand;
           setBrandData(loadedBrand);
+          
+          // Load existing briefs for this campaign
+          try {
+            const briefs = await getBriefsLibrary(user.uid, { campaignId: id });
+            setExistingBriefs(briefs);
+            setHasBriefs(briefs.length > 0);
+          } catch (briefErr) {
+            console.warn('Error loading existing briefs:', briefErr);
+            // Don't fail the whole page if briefs can't be loaded
+          }
         } else {
           // No brand selected, send back to brand selection step
           router.push(`/v2/build/${id}/brand`);
@@ -636,7 +651,7 @@ export default function DesignPage({ params }: { params: Params }) {
 
       {/* Progress indicator */}
       {campaignId && (
-        <CampaignProgress currentStep={3} campaignId={campaignId} />
+        <CampaignProgress currentStep={3} campaignId={campaignId} currentSubStep="form" />
       )}
 
       {/* Main content */}
@@ -685,6 +700,29 @@ export default function DesignPage({ params }: { params: Params }) {
                     />
                   </div>
                 </div>
+
+                {/* Show existing briefs if available */}
+                {hasBriefs && (
+                  <div className="mb-8 p-6 bg-[#1A1A1A] rounded-lg border border-[#2F2F2F]">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-[#EAEAEA]">
+                        Your Creative Briefs
+                      </h3>
+                      <span className="text-sm text-[#EAEAEA]/60">
+                        {existingBriefs.length} brief{existingBriefs.length !== 1 ? 's' : ''} saved
+                      </span>
+                    </div>
+                    <p className="text-[#EAEAEA]/70 mb-4">
+                      You have existing creative briefs for this campaign. You can manage them or create new ones.
+                    </p>
+                    <button
+                      onClick={() => router.push(`/v2/build/${campaignId}/briefs`)}
+                      className="px-6 py-2 bg-[#00F0FF] text-[#0A0A0A] rounded-lg font-medium hover:bg-[#00F0FF]/90 transition-colors"
+                    >
+                      Manage Creative Briefs
+                    </button>
+                  </div>
+                )}
 
                 <SimpleDesignForm
                   brandId={brandData.id!}
