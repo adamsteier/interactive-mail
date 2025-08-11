@@ -458,7 +458,7 @@ export async function POST(request: NextRequest) {
     ).map(result => result.error);
 
     // Update job with results - avoid undefined values
-    const jobUpdate: any = {
+    const jobUpdate: Partial<BriefGenerationJob> = {
       status: 'complete',
       completedAt: FieldValue.serverTimestamp(),
       briefs: successfulBriefs,
