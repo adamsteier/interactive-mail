@@ -419,8 +419,15 @@ export interface BriefGenerationJob {
   startedAt: Timestamp | FieldValue;
   completedAt?: Timestamp | FieldValue;
   
-  // Results
-  briefs: CreativeBrief[];
+  // Results - store brief references, not full objects (to avoid FieldValue in arrays)
+  briefs: Array<{
+    id: string;
+    model: 'gpt-4.1' | 'gpt-4o';
+    temperature: number;
+    order: number;
+    selected: boolean;
+    briefText: string; // Preview only
+  }>;
   totalBriefs: number;
   completedBriefs: number;
   

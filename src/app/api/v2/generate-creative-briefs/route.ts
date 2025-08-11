@@ -457,11 +457,20 @@ export async function POST(request: NextRequest) {
       'error' in result
     ).map(result => result.error);
 
-    // Update job with results - avoid undefined values
+    // Update job with results - store brief references, not full objects with FieldValue
+    const briefReferences = successfulBriefs.map(brief => ({
+      id: brief.id,
+      model: brief.model,
+      temperature: brief.temperature,
+      order: brief.order,
+      selected: brief.selected || false,
+      briefText: brief.briefText.substring(0, 200) + '...' // Store preview only
+    }));
+
     const jobUpdate: Partial<BriefGenerationJob> = {
       status: 'complete',
       completedAt: FieldValue.serverTimestamp(),
-      briefs: successfulBriefs,
+      briefs: briefReferences as any, // Store references instead of full objects
       completedBriefs: successfulBriefs.length
     };
     
