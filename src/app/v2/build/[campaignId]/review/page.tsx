@@ -19,6 +19,13 @@ interface CampaignData {
   status: string;
   ownerUid: string;
   designAssignments?: DesignAssignmentType[];
+  designs?: {
+    [designId: string]: {
+      jobId?: string;
+      status?: string;
+      [key: string]: unknown;
+    };
+  };
   pricing?: {
     totalCost: number;
     pricePerLead: number;
@@ -109,20 +116,29 @@ export default function ReviewPage({ params }: { params: Params }) {
           setBrandData({ id: brandDoc.id, ...brandDoc.data() } as BrandData);
         }
 
-        // Load generation status for each design
+        // Load generation status for each design using the correct aiJobs path
         const designsWithResults = await Promise.all(
           (campaign.designAssignments || []).map(async (assignment) => {
             try {
-              const statusDoc = await getDoc(
-                doc(db, 'campaigns', campaignId, 'generationStatus', assignment.designId)
-              );
+              // Get jobId from campaign designs data
+              const jobId = campaign.designs?.[assignment.designId]?.jobId;
               
-              if (statusDoc.exists()) {
-                const statusData = statusDoc.data();
+              if (!jobId) {
+                console.warn(`No jobId found for design ${assignment.designId}`);
+                return assignment;
+              }
+              
+              // Fetch generation status from aiJobs collection
+              const jobDoc = await getDoc(doc(db, 'aiJobs', jobId));
+              
+              if (jobDoc.exists()) {
+                const jobData = jobDoc.data();
                 return {
                   ...assignment,
-                  generationResult: statusData.result,
-                  selectedOption: statusData.selectedOption || undefined
+                  generationResult: jobData.result,
+                  selectedOption: jobData.selectedOption || undefined,
+                  generationStatus: jobData.status,
+                  progress: jobData.progress
                 };
               }
               return assignment;

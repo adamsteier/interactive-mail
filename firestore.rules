@@ -92,6 +92,26 @@ service cloud.firestore {
           request.resource.data.brandId == resource.data.brandId; // Can't change brand
         allow delete: if isOwner(userId);
       }
+
+      // ========================================
+      // V2: CREATIVE BRIEFS SUBCOLLECTION
+      // ========================================
+      match /creativeBriefs/{briefId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+
+      // ========================================
+      // V2: BRIEF JOBS SUBCOLLECTION
+      // ========================================
+      match /briefJobs/{jobId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
     }
     
     // ========================================
