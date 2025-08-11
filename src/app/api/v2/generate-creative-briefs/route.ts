@@ -409,6 +409,15 @@ export async function POST(request: NextRequest) {
           config.temperature
         );
 
+        // Auto-generate tags from context
+        const autoTags = [
+          context.industry,
+          context.voice,
+          context.targetAudience,
+          `${config.model}`,
+          `temp-${config.temperature}`
+        ].filter(Boolean);
+
         // Create brief document - ensure no undefined values
         const brief: Omit<CreativeBrief, 'id'> = {
           campaignId,
@@ -421,7 +430,10 @@ export async function POST(request: NextRequest) {
           context,
           selected: false,
           designGenerated: false,
-          edited: false
+          edited: false,
+          usageCount: 0,
+          tags: autoTags,
+          isTemplate: false
         };
 
         // Save brief

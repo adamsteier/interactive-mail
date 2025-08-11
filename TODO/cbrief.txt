@@ -1,0 +1,162 @@
+# Creative Brief Storage Strategy - Complete Implementation Guide
+
+## Overview
+A comprehensive creative brief management system that allows users to save, reuse, and manage creative briefs across campaigns. Features include cross-campaign reuse, template system, smart suggestions, and a dedicated management interface.
+
+## Core Features
+1. **Permanent Storage** - All briefs saved in `users/{userId}/creativeBriefs`
+2. **Cross-Campaign Reuse** - Use briefs from any previous campaign
+3. **Template System** - Mark favorites with star for quick access
+4. **Smart Suggestions** - AI recommends similar briefs from other campaigns
+5. **Edit & Version Control** - Modify briefs while preserving originals
+6. **Usage Analytics** - Track which briefs are most effective
+
+## Technical Implementation
+
+### 1. Enhanced Data Model (`src/v2/types/design.ts`)
+Add these fields to `CreativeBrief` interface:
+```typescript
+// Cross-campaign reuse
+isTemplate?: boolean; // Mark as reusable template
+tags?: string[]; // For categorization (auto-generated from context)
+usageCount: number; // Track how many times used across campaigns
+lastUsedAt?: Timestamp | FieldValue; // For sorting recently used
+lastUsedCampaignId?: string; // Track last campaign where used
+```
+
+### 2. Update Generation API (`src/app/api/v2/generate-creative-briefs/route.ts`)
+Add auto-tagging when creating briefs:
+```typescript
+// Auto-generate tags from context
+const autoTags = [
+  context.industry,
+  context.voice,
+  context.targetAudience,
+  `${config.model}`,
+  `temp-${config.temperature}`
+].filter(Boolean);
+
+// Add to brief object
+const brief = {
+  // ... existing fields
+  usageCount: 0,
+  tags: autoTags,
+  isTemplate: false
+};
+```
+
+### 3. Create Brief Management Service (`src/v2/services/briefManagementService.ts`)
+New service file with these functions:
+- `getBriefsLibrary()` - Fetch briefs with filtering (campaign, templates, search)
+- `getRecentBriefs()` - Get recently used briefs
+- `updateBriefUsage()` - Track when brief is selected
+- `toggleBriefTemplate()` - Mark/unmark as template
+- `updateBriefText()` - Edit brief with version control
+- `getSuggestedBriefs()` - Get AI suggestions based on context
+
+Key features:
+- Filter by campaign, template status, industry, voice
+- Order by template status first, then usage count
+- Client-side text search across brief content and tags
+
+### 4. Create Dedicated Briefs Page (`src/app/v2/build/[campaignId]/briefs/page.tsx`)
+New page with:
+- **Tab Navigation**: "This Campaign", "All Campaigns", "Templates"
+- **Search Bar**: Real-time filtering
+- **Generate Button**: Create new briefs
+- **Brief Cards**: Display with template toggle, edit, usage count
+- **Smart Suggestions**: Show relevant briefs from other campaigns
+- **Quick Access**: Button to jump to templates
+
+UI Components:
+- `BriefCard` - Displays brief with actions (use, template, edit)
+- Special styling for templates (pink gradient)
+- Inline editing with save/cancel
+- Tags display for categorization
+
+### 5. Update Firestore Rules (`firestore.rules`)
+Add these subcollections under `users/{userId}`:
+```javascript
+// V2: CREATIVE BRIEFS SUBCOLLECTION
+match /creativeBriefs/{briefId} {
+  allow read: if isOwner(userId);
+  allow create: if isOwner(userId);
+  allow update: if isOwner(userId);
+  allow delete: if isOwner(userId);
+}
+
+// V2: BRIEF JOBS SUBCOLLECTION
+match /briefJobs/{jobId} {
+  allow read: if isOwner(userId);
+  allow create: if isOwner(userId);
+  allow update: if isOwner(userId);
+  allow delete: if isOwner(userId);
+}
+```
+
+### 6. Update Campaign Flow (`src/app/v2/build/[campaignId]/design/page.tsx`)
+Change form submission to navigate to briefs page:
+```typescript
+const handleDesignSubmit = async (request) => {
+  // Save form data to campaign
+  await updateDoc(doc(db, 'campaigns', campaignId), {
+    designFormData: request,
+    businessTypeData: businessTypeData,
+    updatedAt: serverTimestamp()
+  });
+
+  // Navigate to briefs page
+  router.push(`/v2/build/${campaignId}/briefs`);
+};
+```
+
+## User Experience Flow
+1. User fills out design form → Submits
+2. Navigates to `/v2/build/[campaignId]/briefs`
+3. Sees tabs: Current Campaign | All Campaigns | Templates
+4. Can generate new briefs or select existing ones
+5. Templates (starred briefs) appear prominently
+6. Smart suggestions show relevant briefs from other campaigns
+7. Can edit any brief inline
+8. Selecting a brief updates usage tracking and continues flow
+
+## Key Implementation Details
+
+### Template Visibility
+- Templates sorted first in all lists via `orderBy('isTemplate', 'desc')`
+- Pink/magenta visual styling for templates
+- Quick access button on non-template tabs
+- Star toggle (⭐) to mark/unmark templates
+
+### Cross-Campaign Discovery
+- "All Campaigns" tab shows entire library
+- Suggestions based on matching industry/voice
+- Usage count shows popularity
+- Search works across all brief text and tags
+
+### Data Persistence
+- All briefs saved permanently
+- Edit creates new version, preserves original
+- Usage analytics track effectiveness
+- Tags enable better discovery
+
+### Performance Optimizations
+- Client-side search after initial query
+- Pagination ready (limit parameter in queries)
+- Compound Firestore indexes for sorting
+
+## Benefits
+1. **Never Lose Work** - All creative briefs saved permanently
+2. **Build Knowledge Base** - Library grows with each campaign
+3. **Save Time** - Reuse proven briefs across campaigns
+4. **Track Success** - See which briefs work best
+5. **Team Collaboration** - Share successful templates
+
+## Testing Checklist
+- [ ] Generate briefs in one campaign
+- [ ] Navigate to different campaign, see suggestions
+- [ ] Mark brief as template, verify appears first
+- [ ] Edit brief, verify original preserved
+- [ ] Search across briefs
+- [ ] Check usage count updates
+- [ ] Verify Firestore rules deployed

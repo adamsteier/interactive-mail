@@ -401,6 +401,13 @@ export interface CreativeBrief {
   edited?: boolean;
   originalBriefText?: string; // If edited, keep original
   
+  // Cross-campaign reuse
+  isTemplate?: boolean; // Mark as reusable template
+  tags?: string[]; // For categorization (auto-generated from context)
+  usageCount: number; // Track how many times used across campaigns
+  lastUsedAt?: Timestamp | FieldValue; // For sorting recently used
+  lastUsedCampaignId?: string; // Track last campaign where used
+  
   // Performance (if used)
   designPerformance?: {
     campaignSuccess?: boolean;
