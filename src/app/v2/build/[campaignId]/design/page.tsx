@@ -32,6 +32,7 @@ import {
 import SimpleDesignForm from '@/v2/components/design/SimpleDesignForm';
 import DesignAssignment from '@/v2/components/design/DesignAssignment';
 import CampaignProgress from '@/v2/components/CampaignProgress';
+import EnhancedGenerationLoader from '@/v2/components/design/EnhancedGenerationLoader';
 
 type Params = Promise<{ campaignId: string }>;
 
@@ -764,123 +765,29 @@ export default function DesignPage({ params }: { params: Params }) {
           {currentStep === 'generating' && (
             <motion.div
               key="generating"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="text-center py-16"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50"
             >
-              <div className="max-w-4xl mx-auto">
-                <h2 className="text-3xl font-bold text-[#EAEAEA] mb-4">
-                  Generating Your Designs
-                </h2>
-                <p className="text-[#EAEAEA]/60 mb-4">
-                  AI is creating {assignments.length} unique postcard design{assignments.length > 1 ? 's' : ''} using two different providers for comparison
-                </p>
-                <div className="bg-[#00F0FF]/10 border border-[#00F0FF]/30 rounded-lg p-4 mb-8 max-w-2xl mx-auto">
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    <svg className="w-5 h-5 text-[#00F0FF]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span className="text-[#00F0FF] font-medium">Estimated Generation Time</span>
-                  </div>
-                  <p className="text-[#EAEAEA]/80 text-sm">
-                    This process typically takes <strong>10-60 seconds</strong> depending on complexity.
-                    <br />We&apos;re generating two options simultaneously for quality comparison.
-                  </p>
-                </div>
-
-                {/* Generation progress */}
-                <div className="space-y-6">
-                  {assignments.map((assignment) => {
-                    const status = generationStatus[assignment.designId];
-                    const isComplete = status?.status === 'complete';
-                    const isFailed = status?.status === 'failed';
-                    const isGenerating = status?.status === 'generating';
-                    const progress = status?.progress || 0;
-
-                    return (
-                      <div key={assignment.designId} className="bg-[#2F2F2F]/50 rounded-lg p-6 border border-[#00F0FF]/20">
-                        <div className="flex items-center justify-between mb-4">
-                          <span className="text-[#EAEAEA] font-medium text-lg">
-                            {assignment.designName}
-                          </span>
-                          <div className="flex items-center gap-3">
-                            {isGenerating && (
-                              <motion.div
-                                animate={{ rotate: 360 }}
-                                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                                className="w-5 h-5 border-2 border-[#00F0FF] border-t-transparent rounded-full"
-                              />
-                            )}
-                            <span className={`text-sm font-semibold ${
-                              isComplete ? 'text-green-400' : 
-                              isFailed ? 'text-[#FF00B8]' : 
-                              'text-[#00F0FF]'
-                            }`}>
-                              {isComplete ? 'Complete' : 
-                               isFailed ? 'Failed' : 
-                               isGenerating ? `Generating... ${progress}%` :
-                               'Queued'}
-                            </span>
-                          </div>
-                        </div>
-                        
-                        {/* Progress Bar */}
-                        <div className="w-full h-3 bg-[#1A1A1A] rounded-full mb-6 relative overflow-hidden">
-                          <motion.div
-                            className={`h-full rounded-full ${
-                              isComplete ? 'bg-green-400' :
-                              isFailed ? 'bg-[#FF00B8]' :
-                              'bg-[#00F0FF]'
-                            }`}
-                            initial={{ width: 0 }}
-                            animate={{ 
-                              width: isComplete ? '100%' : 
-                                     isFailed ? '100%' : 
-                                     `${progress}%` 
-                            }}
-                            transition={{ duration: 0.5 }}
-                          />
-                          
-                          {/* Shimmer effect during generation */}
-                          {isGenerating && (
-                            <motion.div
-                              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-                              animate={{ x: ['-100%', '100%'] }}
-                              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                            />
-                          )}
-                        </div>
-
-                        {/* Status message */}
-                        <p className="text-[#EAEAEA]/60 text-sm text-center">
-                          {isComplete ? '✨ Ready for review' :
-                           isFailed ? '❌ Generation failed - please try again' :
-                           isGenerating ? '🎨 Creating your unique design...' :
-                           '⏳ Waiting in queue...'}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Complete button - only show when all done */}
-                {Object.keys(generationStatus).length === assignments.length && 
-                 Object.values(generationStatus).every(status => status.status === 'complete' || status.status === 'failed') && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mt-8"
+              <EnhancedGenerationLoader assignments={assignments} />
+              
+              {/* Complete button overlay - only show when all done */}
+              {Object.keys(generationStatus).length === assignments.length && 
+               Object.values(generationStatus).every(status => status.status === 'complete' || status.status === 'failed') && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-60"
+                >
+                  <button
+                    onClick={handleComplete}
+                    className="bg-[#00F0FF] text-[#1A1A1A] px-8 py-4 rounded-lg font-semibold hover:bg-[#FF00B8] transition-all duration-200 hover:shadow-[0_0_20px_rgba(255,0,184,0.4)] shadow-2xl"
                   >
-                    <button
-                      onClick={handleComplete}
-                      className="bg-[#00F0FF] text-[#1A1A1A] px-8 py-4 rounded-lg font-semibold hover:bg-[#FF00B8] transition-all duration-200 hover:shadow-[0_0_20px_rgba(255,0,184,0.4)]"
-                    >
-                      Continue to Review & Payment
-                    </button>
-                  </motion.div>
-                )}
-              </div>
+                    Continue to Review & Payment
+                  </button>
+                </motion.div>
+              )}
             </motion.div>
           )}
 
