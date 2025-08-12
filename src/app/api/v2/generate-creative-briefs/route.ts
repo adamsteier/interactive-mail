@@ -338,7 +338,7 @@ async function generateBriefWithGPT4(
 async function generateBriefWithGPT5(
   context: BriefGenerationContext,
   model: 'gpt-5',                     // or 'gpt-5-mini'/'gpt-5-nano' if you ever want
-  temperature: number,
+  _temperature: number,               // unused for GPT-5
   reasoning: 'minimal' | 'low' | 'medium' | 'high' = 'minimal'
 ): Promise<string> {
   const openaiApiKey = process.env.OPENAI_API_KEY;
@@ -351,15 +351,15 @@ async function generateBriefWithGPT5(
     'You are an expert creative director specializing in postcard marketing design. ' +
     'Create detailed, actionable creative briefs that image generators can follow precisely.';
 
+  // Build a body WITHOUT temperature (unsupported on GPT-5)
   const body = {
     model,                              // 'gpt-5'
     instructions,                       // replaces chat 'system' message
     input: prompt,                      // replaces chat 'user' message
-    temperature,
     reasoning: { effort: reasoning },   // GPT-5 control
-    // Verbosity is available for GPT-5; use medium as a sensible default
-    text: { verbosity: 'medium' },      // 'low' | 'medium' | 'high'
-    max_output_tokens: 1200             // Responses API name (not max_tokens)
+    text: { verbosity: 'medium' },      // GPT-5 control
+    max_output_tokens: 1200,            // Responses API name (not max_tokens)
+    // seed: 42,                        // optional: determinism across runs
   };
 
   console.log('GPT-5 Responses API Request body:', JSON.stringify(body, null, 2));
@@ -536,7 +536,8 @@ export async function POST(request: NextRequest) {
           context.voice,
           context.targetAudience,
           `${config.model}`,
-          `temp-${config.temperature}`
+          // Only include temperature for non-GPT-5 models
+          config.model === 'gpt-5' ? 'temp-NA' : `temp-${config.temperature}`
         ].filter(Boolean);
 
         // Create brief document - ensure no undefined values
