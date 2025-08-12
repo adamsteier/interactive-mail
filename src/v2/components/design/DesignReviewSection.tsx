@@ -22,6 +22,8 @@ interface DesignAssignment {
   creativeBrief?: {
     briefText: string;
   };
+  prompt?: string;
+  campaignId?: string;
 }
 
 interface DesignReviewSectionProps {
@@ -120,9 +122,16 @@ const DesignReviewSection = ({
             executionTime={assignment.generationResult.openai.executionTime}
             brand={brand}
             logoPosition={logoPosition}
+            creativeBrief={assignment.creativeBrief?.briefText}
+            prompt={assignment.prompt}
+            campaignId={assignment.campaignId}
+            designId={assignment.designId}
+            aiProvider="openai"
+            userId={brand.ownerUid}
             onSelect={() => onOptionSelect(assignment.designId, 'A')}
             onLogoPositionChange={(position) => handleLogoPositionChange('A', position)}
             onLogoSizeChange={(dimensions) => handleLogoSizeChange('A', dimensions)}
+            onTemplateSaved={(templateId) => console.log('Template A saved:', templateId)}
             disabled={savingChanges}
           />
         )}
@@ -136,9 +145,16 @@ const DesignReviewSection = ({
             executionTime={assignment.generationResult.ideogram.executionTime}
             brand={brand}
             logoPosition={logoPosition}
+            creativeBrief={assignment.creativeBrief?.briefText}
+            prompt={assignment.prompt}
+            campaignId={assignment.campaignId}
+            designId={assignment.designId}
+            aiProvider="ideogram"
+            userId={brand.ownerUid}
             onSelect={() => onOptionSelect(assignment.designId, 'B')}
             onLogoPositionChange={(position) => handleLogoPositionChange('B', position)}
             onLogoSizeChange={(dimensions) => handleLogoSizeChange('B', dimensions)}
+            onTemplateSaved={(templateId) => console.log('Template B saved:', templateId)}
             disabled={savingChanges}
           />
         )}

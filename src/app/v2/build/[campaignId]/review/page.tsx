@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import Image from 'next/image';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
+import { getUserBrand } from '@/v2/services/brandService';
+import { V2Brand } from '@/v2/types/brand';
+import DesignReviewSection from '@/v2/components/design/DesignReviewSection';
 
 // Types
 type Params = Promise<{ campaignId: string }>;
@@ -34,19 +36,7 @@ interface CampaignData {
   };
 }
 
-interface BrandData {
-  id: string;
-  name: string;
-  logo?: {
-    url: string;
-    aspectRatio: number;
-  };
-  colors: {
-    primary: string;
-    secondary: string;
-    accent: string;
-  };
-}
+// Using V2Brand interface imported above
 
 interface DesignAssignmentType {
   designId: string;
@@ -64,6 +54,10 @@ interface DesignAssignmentType {
       executionTime?: number;
     };
   };
+  creativeBrief?: {
+    briefText: string;
+  };
+  prompt?: string;
 }
 
 export default function ReviewPage({ params }: { params: Params }) {
@@ -71,7 +65,7 @@ export default function ReviewPage({ params }: { params: Params }) {
   const [user] = useAuthState(auth);
   const [campaignId, setCampaignId] = useState<string>('');
   const [campaignData, setCampaignData] = useState<CampaignData | null>(null);
-  const [brandData, setBrandData] = useState<BrandData | null>(null);
+  const [brandData, setBrandData] = useState<V2Brand | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savingChanges, setSavingChanges] = useState(false);
@@ -108,13 +102,10 @@ export default function ReviewPage({ params }: { params: Params }) {
 
         setCampaignData(campaign);
 
-        // Load brand data
-        const brandDoc = await getDoc(
-          doc(db, 'users', user.uid, 'brands', campaign.brandId)
-        );
-        
-        if (brandDoc.exists()) {
-          setBrandData({ id: brandDoc.id, ...brandDoc.data() } as BrandData);
+        // Load brand data using V2 service
+        const brand = await getUserBrand(user.uid, campaign.brandId);
+        if (brand) {
+          setBrandData(brand);
         }
 
         // Load generation status for each design using the correct aiJobs path
@@ -139,7 +130,9 @@ export default function ReviewPage({ params }: { params: Params }) {
                   generationResult: jobData.result,
                   selectedOption: jobData.selectedOption || undefined,
                   generationStatus: jobData.status,
-                  progress: jobData.progress
+                  progress: jobData.progress,
+                  creativeBrief: jobData.creativeBrief ? { briefText: jobData.creativeBrief } : undefined,
+                  prompt: jobData.prompt
                 };
               }
               return assignment;
@@ -197,6 +190,11 @@ export default function ReviewPage({ params }: { params: Params }) {
     } finally {
       setSavingChanges(false);
     }
+  };
+
+  const handleTemplateSaved = (templateId: string) => {
+    console.log('Template saved with ID:', templateId);
+    // Could show a success message or update UI
   };
 
   const handleProceedToPayment = () => {
@@ -419,180 +417,22 @@ export default function ReviewPage({ params }: { params: Params }) {
           {/* Design Reviews */}
           <div className="space-y-8">
             {campaignData.designAssignments?.map((assignment) => (
-              <div key={assignment.designId} className="bg-[#2F2F2F]/50 rounded-lg border border-[#00F0FF]/20 overflow-hidden">
-                <div className="p-6 border-b border-[#2F2F2F]">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-bold text-[#EAEAEA]">{assignment.designName}</h3>
-                    <div className="flex items-center space-x-4">
-                      <span className="text-[#EAEAEA]/60 text-sm">
-                        {assignment.leadCount} recipients
-                      </span>
-                      {assignment.selectedOption && (
-                        <div className="flex items-center space-x-2">
-                          <div className={`w-3 h-3 rounded-full ${
-                            assignment.selectedOption === 'A' ? 'bg-[#00F0FF]' : 'bg-[#FF00B8]'
-                          }`} />
-                          <span className="text-[#EAEAEA] font-medium">
-                            Option {assignment.selectedOption} Selected
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {assignment.businessTypes.map((type) => (
-                      <span
-                        key={type}
-                        className="px-3 py-1 bg-[#00F0FF]/10 text-[#00F0FF] rounded-full text-sm border border-[#00F0FF]/20"
-                      >
-                        {type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* A/B Comparison */}
-                {assignment.generationResult && (
-                  <div className="p-6">
-                    <h4 className="text-lg font-semibold text-[#EAEAEA] mb-6 text-center">
-                      Select Your Preferred Design
-                    </h4>
-                    
-                    <div className="grid md:grid-cols-2 gap-6">
-                      {/* Option A */}
-                      <div className={`relative rounded-lg border-2 transition-all duration-200 ${
-                        assignment.selectedOption === 'A' 
-                          ? 'border-[#00F0FF] bg-[#00F0FF]/5' 
-                          : 'border-[#2F2F2F] hover:border-[#00F0FF]/50'
-                      }`}>
-                        <div className="p-4">
-                          <div className="flex items-center justify-between mb-3">
-                            <h5 className="text-[#EAEAEA] font-medium flex items-center gap-2">
-                              <div className="w-6 h-6 bg-[#00F0FF] text-[#1A1A1A] rounded-full flex items-center justify-center text-sm font-bold">
-                                A
-                              </div>
-                              Option A
-                            </h5>
-                            <span className="text-xs text-[#EAEAEA]/60">
-                              {assignment.generationResult.openai?.executionTime}ms
-                            </span>
-                          </div>
-                          
-                          {assignment.generationResult?.openai?.frontImageUrl ? (
-                            <div className="relative group mb-4 cursor-pointer" onClick={() => window.open(assignment.generationResult?.openai?.frontImageUrl, '_blank')}>
-                              <div className="relative w-full" style={{ paddingBottom: '66.67%' /* 2:3 ratio = 66.67% */ }}>
-                                <Image
-                                  src={assignment.generationResult?.openai?.frontImageUrl || ''}
-                                  alt="Option A Design"
-                                  fill
-                                  className="object-contain bg-[#2F2F2F] rounded-lg"
-                                />
-                                {assignment.selectedOption === 'A' && (
-                                  <div className="absolute inset-0 bg-[#00F0FF]/10 rounded-lg flex items-center justify-center">
-                                    <div className="w-8 h-8 bg-[#00F0FF] rounded-full flex items-center justify-center">
-                                      <svg className="w-5 h-5 text-[#1A1A1A]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                      </svg>
-                                    </div>
-                                  </div>
-                                )}
-                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <div className="bg-black/80 text-white px-2 py-1 rounded text-xs">
-                                    Click to view full size
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="w-full" style={{ paddingBottom: '66.67%' }}>
-                              <div className="absolute inset-0 bg-[#2F2F2F] rounded-lg border border-[#FF00B8]/40 flex items-center justify-center">
-                                <span className="text-[#FF00B8] text-sm">Generation Failed</span>
-                              </div>
-                            </div>
-                          )}
-
-                          <button
-                            onClick={() => handleOptionSelect(assignment.designId, 'A')}
-                            disabled={!assignment.generationResult.openai?.frontImageUrl || savingChanges}
-                            className={`w-full py-3 px-4 rounded-lg font-medium transition-all duration-200 ${
-                              assignment.selectedOption === 'A'
-                                ? 'bg-[#00F0FF] text-[#1A1A1A]'
-                                : 'bg-[#00F0FF]/20 border border-[#00F0FF]/40 text-[#00F0FF] hover:bg-[#00F0FF]/30'
-                            } disabled:opacity-50 disabled:cursor-not-allowed`}
-                          >
-                            {assignment.selectedOption === 'A' ? 'Selected' : 'Select Option A'}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Option B */}
-                      <div className={`relative rounded-lg border-2 transition-all duration-200 ${
-                        assignment.selectedOption === 'B' 
-                          ? 'border-[#FF00B8] bg-[#FF00B8]/5' 
-                          : 'border-[#2F2F2F] hover:border-[#FF00B8]/50'
-                      }`}>
-                        <div className="p-4">
-                          <div className="flex items-center justify-between mb-3">
-                            <h5 className="text-[#EAEAEA] font-medium flex items-center gap-2">
-                              <div className="w-6 h-6 bg-[#FF00B8] text-white rounded-full flex items-center justify-center text-sm font-bold">
-                                B
-                              </div>
-                              Option B
-                            </h5>
-                            <span className="text-xs text-[#EAEAEA]/60">
-                              {assignment.generationResult.ideogram?.executionTime}ms
-                            </span>
-                          </div>
-                          
-                          {assignment.generationResult?.ideogram?.frontImageUrl ? (
-                            <div className="relative group mb-4 cursor-pointer" onClick={() => window.open(assignment.generationResult?.ideogram?.frontImageUrl, '_blank')}>
-                              <div className="relative w-full" style={{ paddingBottom: '66.67%' /* 2:3 ratio = 66.67% */ }}>
-                                <Image
-                                  src={assignment.generationResult?.ideogram?.frontImageUrl || ''}
-                                  alt="Option B Design"
-                                  fill
-                                  className="object-contain bg-[#2F2F2F] rounded-lg"
-                                />
-                                {assignment.selectedOption === 'B' && (
-                                  <div className="absolute inset-0 bg-[#FF00B8]/10 rounded-lg flex items-center justify-center">
-                                    <div className="w-8 h-8 bg-[#FF00B8] rounded-full flex items-center justify-center">
-                                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                      </svg>
-                                    </div>
-                                  </div>
-                                )}
-                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <div className="bg-black/80 text-white px-2 py-1 rounded text-xs">
-                                    Click to view full size
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="w-full" style={{ paddingBottom: '66.67%' }}>
-                              <div className="absolute inset-0 bg-[#2F2F2F] rounded-lg border border-[#FF00B8]/40 flex items-center justify-center">
-                                <span className="text-[#FF00B8] text-sm">Generation Failed</span>
-                              </div>
-                            </div>
-                          )}
-
-                          <button
-                            onClick={() => handleOptionSelect(assignment.designId, 'B')}
-                            disabled={!assignment.generationResult.ideogram?.frontImageUrl || savingChanges}
-                            className={`w-full py-3 px-4 rounded-lg font-medium transition-all duration-200 ${
-                              assignment.selectedOption === 'B'
-                                ? 'bg-[#FF00B8] text-white'
-                                : 'bg-[#FF00B8]/20 border border-[#FF00B8]/40 text-[#FF00B8] hover:bg-[#FF00B8]/30'
-                            } disabled:opacity-50 disabled:cursor-not-allowed`}
-                          >
-                            {assignment.selectedOption === 'B' ? 'Selected' : 'Select Option B'}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+              <div key={assignment.designId}>
+                {brandData && (
+                  <DesignReviewSection
+                    assignment={{
+                      designId: assignment.designId,
+                      businessTypes: assignment.businessTypes,
+                      selectedOption: assignment.selectedOption,
+                      generationResult: assignment.generationResult || {},
+                      creativeBrief: assignment.creativeBrief,
+                      prompt: assignment.prompt,
+                      campaignId: campaignId
+                    }}
+                    brand={brandData}
+                    onOptionSelect={handleOptionSelect}
+                    savingChanges={savingChanges}
+                  />
                 )}
               </div>
             ))}
