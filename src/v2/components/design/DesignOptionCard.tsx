@@ -318,11 +318,11 @@ const DesignOptionCard = ({
               </div>
               
               {/* Full Size Preview with Interactive Logo */}
-              <div className="relative bg-white rounded-lg" style={{ aspectRatio: '3/2' }}>
+              <div className="relative bg-white rounded-lg overflow-hidden" style={{ aspectRatio: '3/2' }}>
                 <img 
                   src={imageUrl} 
                   alt={`Design Option ${optionLabel}`}
-                  className="w-full h-full object-cover rounded-lg"
+                  className="w-full h-full object-cover rounded-lg pointer-events-none"
                 />
                 
                 {/* Interactive Logo Overlay */}

@@ -375,7 +375,7 @@ const LogoOverlay = ({
   if (!isVisible) return null;
   
   return (
-    <div className={`absolute inset-0 pointer-events-none ${className}`}>
+    <div className={`absolute inset-0 pointer-events-none z-[50] ${className}`}>
       {/* Safe zone visualization (optional) */}
       {showControls && (
         <div
@@ -393,7 +393,7 @@ const LogoOverlay = ({
       <motion.div
         ref={logoRef}
         className={`absolute pointer-events-auto ${isDraggable ? 'cursor-move' : ''} ${
-          dragState.isDragging ? 'z-50' : 'z-10'
+          dragState.isDragging ? 'z-[9999]' : 'z-[100]'
         } ${isKeyboardFocused ? 'outline-none' : ''}`}
         style={{
           left: displayPosition.x,
@@ -456,7 +456,7 @@ const LogoOverlay = ({
       
       {/* Controls panel */}
       {showControls && (
-        <div className="absolute top-2 right-2 bg-black/80 backdrop-blur-sm rounded-lg p-2 space-y-2 pointer-events-auto">
+        <div className="absolute bottom-2 right-2 bg-black/80 backdrop-blur-sm rounded-lg p-2 space-y-2 pointer-events-auto z-[200]">
           <button
             onClick={() => onVisibilityToggle?.(false)}
             className="w-full px-3 py-1 text-xs text-white bg-red-600 hover:bg-red-700 rounded transition-colors"
