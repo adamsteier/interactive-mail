@@ -562,9 +562,7 @@ const SimpleDesignForm = ({
                         </svg>
                         ✨ Get AI-Powered Campaign Ideas
                       </h4>
-                      <span className="px-2 py-1 bg-[#FF00B8]/20 text-[#FF00B8] text-xs font-medium rounded-full border border-[#FF00B8]/30">
-                        Most Popular
-                      </span>
+
                     </div>
                     <p className="text-[#EAEAEA]/70 text-sm mb-2">
                       {formData.industry 
@@ -585,6 +583,17 @@ const SimpleDesignForm = ({
                         </svg>
                         Saves 10+ minutes
                       </span>
+                    </div>
+                    <div className="mt-3 p-3 bg-[#00F0FF]/5 rounded-lg border border-[#00F0FF]/20">
+                      <div className="text-xs text-[#EAEAEA]/80 font-medium mb-2 flex items-center gap-1">
+                        <span>✅</span>
+                        Make your campaign effective:
+                      </div>
+                      <div className="text-xs text-[#EAEAEA]/70 space-y-1">
+                        <div>• Clear call-to-action (what should they do?)</div>
+                        <div>• Specific value (why should they care?)</div>
+                        <div>• Local relevance (mention their area)</div>
+                      </div>
                     </div>
                   </div>
                   <motion.button
