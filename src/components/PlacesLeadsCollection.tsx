@@ -10,7 +10,6 @@ import { collection, query, onSnapshot, Timestamp, doc, updateDoc, serverTimesta
 import { db } from '@/lib/firebase';
 
 import AnonymousUserPrompt from './AnonymousUserPrompt';
-import EmailCaptureModal from './EmailCaptureModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { showAuthOverlay } from '@/lib/auth';
 
@@ -45,10 +44,8 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
   const [isUpdatingSelection, setIsUpdatingSelection] = useState<boolean>(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
   
-  // New state for account prompts
+  // State for required sign-up prompt
   const [showAccountPrompt, setShowAccountPrompt] = useState(false);
-  const [showEmailCapture, setShowEmailCapture] = useState(false);
-  const [hasSeenSoftPrompt, setHasSeenSoftPrompt] = useState(false);
 
   useEffect(() => {
     if (!campaignId) {
@@ -278,17 +275,7 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
       }
   };
 
-  // Show soft prompt after leads are loaded (once per session)
-  useEffect(() => {
-    if (!isLoadingLeads && leads.length > 0 && isAnonymous && !hasSeenSoftPrompt && !showAccountPrompt) {
-      const timer = setTimeout(() => {
-        setShowAccountPrompt(true);
-        setHasSeenSoftPrompt(true);
-      }, 3000); // Show after 3 seconds
-      
-      return () => clearTimeout(timer);
-    }
-  }, [isLoadingLeads, leads.length, isAnonymous, hasSeenSoftPrompt, showAccountPrompt]);
+  // Removed soft prompt timer - authentication is now required
 
   const handleConfirmSelection = async () => {
       // Block campaign creation if search is still ongoing
@@ -297,9 +284,9 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
           return;
       }
 
-      // Ensure user is authenticated (including anonymous users)
-      if (!user) {
-          alert("Authentication in progress. Please wait a moment and try again.");
+      // Require full authentication - no more guest mode
+      if (!user || isAnonymous) {
+          setShowAccountPrompt(true);
           return;
       }
 
@@ -307,12 +294,6 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
           if (!confirm("You haven't selected any leads. Do you still want to proceed?")) {
               return;
           }
-      }
-
-      // Check if user is anonymous and show medium prompt
-      if (isAnonymous) {
-          setShowAccountPrompt(true);
-          return;
       }
 
       // Call the internal handler
@@ -329,17 +310,7 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
       }, 100);
   };
 
-  const handleContinueAsGuest = () => {
-      setShowAccountPrompt(false);
-      if (hasSeenSoftPrompt) {
-          // This is the medium prompt (when confirming selection) - show email capture
-          setShowEmailCapture(true);
-      } else {
-          // This is the soft prompt - just dismiss it and let user continue selecting leads
-          setHasSeenSoftPrompt(true);
-          // Don't navigate away - let them continue selecting leads
-      }
-  };
+  // Removed handleRequiredSignUp - not needed
 
   const handleConfirmSelectionInternal = async () => {
       setIsUpdatingSelection(true);
@@ -424,31 +395,9 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
 
   return (
     <div className="min-h-screen bg-charcoal p-2 sm:p-4 lg:pr-80 pb-28 lg:pb-4">
-      {/* Anonymous user prompt banner (soft ask) */}
-      {isAnonymous && leads.length > 0 && !hasSeenSoftPrompt && (
-        <div className="mb-4">
-          <AnonymousUserPrompt
-            stage="soft"
-            onCreateAccount={handleCreateAccount}
-            onContinueAnonymous={() => setHasSeenSoftPrompt(true)}
-          />
-        </div>
-      )}
+      {/* Soft prompt banner removed - authentication is now required */}
 
-      {/* Debug button for testing auth overlay */}
-      {isAnonymous && (
-        <div className="mb-2 text-center">
-          <button
-            onClick={() => {
-              console.log('[PlacesLeadsCollection] Debug button clicked');
-              showAuthOverlay();
-            }}
-            className="text-xs text-electric-teal underline"
-          >
-            [Debug] Test Auth Overlay
-          </button>
-        </div>
-      )}
+      {/* Debug button removed */}
 
       <div className="rounded-lg border-2 border-electric-teal bg-charcoal shadow-glow flex flex-col h-[calc(100vh-12rem)] sm:h-[calc(100vh-10rem)] lg:h-[calc(100vh-3rem)] lg:mr-4">
         <div className="border-b border-electric-teal/20 p-3 sm:p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 flex-shrink-0">
@@ -641,8 +590,8 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
         onSaveProgress={handleSaveProgress}
       />
 
-      {/* Medium prompt modal when confirming selection */}
-      {showAccountPrompt && hasSeenSoftPrompt && (
+      {/* Required sign-up modal */}
+      {showAccountPrompt && (
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
           onClick={() => setShowAccountPrompt(false)}
@@ -662,28 +611,13 @@ const PlacesLeadsCollection: React.FC<PlacesLeadsCollectionProps> = ({ onClose }
               </svg>
             </button>
             <AnonymousUserPrompt
-              stage="medium"
+              stage="hard"
               onCreateAccount={handleCreateAccount}
-              onContinueAnonymous={handleContinueAsGuest}
+              customMessage="To continue with your campaign, please create a free account. This ensures your leads and campaign data are saved securely."
             />
           </div>
         </div>
       )}
-
-      {/* Email capture modal */}
-      <EmailCaptureModal
-        isOpen={showEmailCapture}
-        onClose={() => {
-          // User closed modal without providing email - just close it, don't proceed
-          setShowEmailCapture(false);
-        }}
-        onComplete={() => {
-          // User provided email - now proceed to next step
-          setShowEmailCapture(false);
-          handleConfirmSelectionInternal();
-        }}
-        campaignId={campaignId || undefined}
-      />
     </div>
   );
 };

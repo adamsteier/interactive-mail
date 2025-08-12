@@ -438,7 +438,7 @@ export async function POST(request: NextRequest) {
     // Use Admin Firestore
     const adminDb = getFirestore();
 
-    // Fetch brand data (stored under users/{uid}/brands)
+    // Fetch brand data from V2 brands collection (all users are now authenticated)
     const brandSnap = await adminDb.collection('users').doc(userId).collection('brands').doc(brandId).get();
     if (!brandSnap.exists) {
       return NextResponse.json({ error: 'Brand not found' }, { status: 404 });
@@ -474,6 +474,16 @@ export async function POST(request: NextRequest) {
       socialMedia,
       contactInfoKeys: Object.keys(contactInfo),
       socialMediaKeys: Object.keys(socialMedia)
+    });
+    
+    // Debug: Log what will be in the prompt sections
+    const contacts = Object.entries(contactInfo).filter(([, info]) => info?.value);
+    const socials = Object.entries(socialMedia).filter(([, info]) => info?.value);
+    console.log('Prompt sections debug:', {
+      contactsCount: contacts.length,
+      socialsCount: socials.length,
+      contactsFiltered: contacts,
+      socialsFiltered: socials
     });
     
     // Create generation context - explicitly handle all optional fields

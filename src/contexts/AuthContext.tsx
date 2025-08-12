@@ -18,7 +18,7 @@ import {
   AuthCredential
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { getSessionId, updateSessionStatus } from '@/lib/sessionService';
+import { getSessionId, updateSessionStatus, updateSessionAnonymousUserId } from '@/lib/sessionService';
 import { createOrUpdateUser, UserData } from '@/lib/userService';
 import { useMarketingStore } from '@/store/marketingStore';
 
@@ -207,6 +207,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const credential = await signInAnonymously(auth);
       setIsAnonymous(true);
       console.log('Signed in anonymously with UID:', credential.user.uid);
+      
+      // Track anonymous user ID in session for campaign transfer
+      try {
+        await updateSessionAnonymousUserId(credential.user.uid);
+        console.log('Session updated with anonymous user ID:', credential.user.uid);
+      } catch (sessionError) {
+        console.error('Failed to update session with anonymous user ID:', sessionError);
+        // Don't fail the auth process if session update fails
+      }
+      
       return credential;
     } catch (error) {
       console.error('Failed to sign in anonymously:', error);

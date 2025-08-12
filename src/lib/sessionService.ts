@@ -37,6 +37,7 @@ export interface SessionData {
   lastActive: Timestamp | FieldValue;
   status: SessionStatus;
   convertedToUserId?: string;
+  anonymousUserId?: string; // Track anonymous user ID for campaign transfer
   businessData?: BusinessData;
   marketingStrategy?: Record<string, unknown>;
   selectedBusinessTypes?: string[];
@@ -243,6 +244,31 @@ export const updateSessionStatus = async (
     await updateDoc(sessionRef, updateData);
   } catch (error) {
     console.error('Error updating session status:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update session with anonymous user ID for campaign transfer
+ * @param anonymousUserId The anonymous user ID to track
+ */
+export const updateSessionAnonymousUserId = async (
+  anonymousUserId: string
+): Promise<void> => {
+  const sessionId = getSessionId();
+  
+  if (!sessionId) {
+    throw new Error('No session ID available');
+  }
+  
+  try {
+    const sessionRef = doc(db, 'sessions', sessionId);
+    await updateDoc(sessionRef, {
+      anonymousUserId: anonymousUserId,
+      lastActive: serverTimestamp()
+    });
+  } catch (error) {
+    console.error('Error updating session with anonymous user ID:', error);
     throw error;
   }
 };

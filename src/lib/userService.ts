@@ -6,12 +6,17 @@ import {
   arrayUnion,
   serverTimestamp,
   Timestamp,
-  FieldValue
+  FieldValue,
+  collection,
+  query,
+  where,
+  getDocs,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { User } from 'firebase/auth';
 import { convertSessionToBusiness } from './businessService';
-import { getSessionId } from './sessionService';
+import { getSessionId, getSession } from './sessionService';
 
 // User data interface
 export interface UserData {
@@ -56,6 +61,23 @@ export const createOrUpdateUser = async (
       
       await updateDoc(userRef, updateData);
       
+      // Transfer anonymous data if logging into existing account
+      try {
+        const sessionId = getSessionId();
+        if (sessionId) {
+          const sessionData = await getSession();
+          
+          // Transfer campaigns and brands if we have an anonymous user ID
+          if (sessionData?.anonymousUserId && sessionData.anonymousUserId !== user.uid) {
+            console.log('Transferring data from anonymous user to existing account:', sessionData.anonymousUserId);
+            await transferAnonymousData(sessionData.anonymousUserId, user.uid);
+          }
+        }
+      } catch (transferError) {
+        // Don't fail the login if transfer fails
+        console.error('Failed to transfer anonymous data on login:', transferError);
+      }
+      
       const existingData = userSnap.data() as Partial<UserData>; 
       return {
         id: user.uid,
@@ -87,22 +109,33 @@ export const createOrUpdateUser = async (
       
       await setDoc(userRef, userData);
       
-      // Convert any anonymous session data to a business for this user
+      // Convert any anonymous session data and transfer campaigns/brands
       try {
         const sessionId = getSessionId();
         if (sessionId) {
-          const business = await convertSessionToBusiness(user.uid, sessionId);
+          const sessionData = await getSession();
           
-          // Add the business to the user's businesses array
-          await updateDoc(userRef, {
-            businesses: arrayUnion(business.id)
-          });
+          // Transfer campaigns and brands if we have an anonymous user ID
+          if (sessionData?.anonymousUserId && sessionData.anonymousUserId !== user.uid) {
+            console.log('Transferring data from anonymous user:', sessionData.anonymousUserId);
+            await transferAnonymousData(sessionData.anonymousUserId, user.uid);
+          }
           
-          console.log('Converted anonymous session to business for new user:', business.id);
+          // Convert session business data (legacy support)
+          if (sessionData?.businessData) {
+            const business = await convertSessionToBusiness(user.uid, sessionId);
+            
+            // Add the business to the user's businesses array
+            await updateDoc(userRef, {
+              businesses: arrayUnion(business.id)
+            });
+            
+            console.log('Converted anonymous session to business for new user:', business.id);
+          }
         }
       } catch (conversionError) {
         // Don't fail the user creation if conversion fails
-        console.error('Failed to convert session to business:', conversionError);
+        console.error('Failed to convert session data or transfer anonymous data:', conversionError);
       }
       
       return userData;
@@ -187,6 +220,150 @@ export const updateUserMetadata = async (
     });
   } catch (error) {
     console.error('Error updating user metadata:', error);
+    throw error;
+  }
+};
+
+/**
+ * Transfer campaigns and brands from anonymous user to authenticated user
+ * This handles both sign-up and log-in scenarios
+ * @param anonymousUserId The anonymous user ID 
+ * @param authenticatedUserId The authenticated user ID
+ */
+export const transferAnonymousData = async (
+  anonymousUserId: string,
+  authenticatedUserId: string
+): Promise<{ transferredCampaigns: number; transferredBrands: number }> => {
+  let transferredCampaigns = 0;
+  let transferredBrands = 0;
+  
+  try {
+    console.log(`Starting data transfer from ${anonymousUserId} to ${authenticatedUserId}`);
+    
+    // Create a batch for atomic operations
+    const batch = writeBatch(db);
+    
+    // 1. Find and transfer campaigns owned by anonymous user
+    // Check both V1 (userId) and V2 (ownerUid) campaign structures
+    const v1CampaignsQuery = query(
+      collection(db, 'campaigns'),
+      where('userId', '==', anonymousUserId)
+    );
+    
+    const v2CampaignsQuery = query(
+      collection(db, 'campaigns'),
+      where('ownerUid', '==', anonymousUserId)
+    );
+    
+    const [v1CampaignSnap, v2CampaignSnap] = await Promise.all([
+      getDocs(v1CampaignsQuery),
+      getDocs(v2CampaignsQuery)
+    ]);
+    
+    const campaignIds: string[] = [];
+    
+    // Handle V1 campaigns
+    v1CampaignSnap.forEach((doc) => {
+      const campaignId = doc.id;
+      campaignIds.push(campaignId);
+      
+      // Update campaign ownership (V1 structure)
+      const campaignRef = doc.ref;
+      batch.update(campaignRef, {
+        userId: authenticatedUserId,
+        updatedAt: serverTimestamp(),
+        transferredFrom: anonymousUserId,
+        transferredAt: serverTimestamp()
+      });
+      
+      transferredCampaigns++;
+    });
+    
+    // Handle V2 campaigns
+    v2CampaignSnap.forEach((doc) => {
+      const campaignId = doc.id;
+      campaignIds.push(campaignId);
+      
+      // Update campaign ownership (V2 structure)
+      const campaignRef = doc.ref;
+      batch.update(campaignRef, {
+        ownerUid: authenticatedUserId,
+        updatedAt: serverTimestamp(),
+        transferredFrom: anonymousUserId,
+        transferredAt: serverTimestamp()
+      });
+      
+      transferredCampaigns++;
+    });
+    
+    // 2. Find and transfer brands owned by anonymous user
+    // Check both V2 brands and old brandingData collections
+    const v2BrandsQuery = query(
+      collection(db, 'users', anonymousUserId, 'brands')
+    );
+    
+    const oldBrandingQuery = query(
+      collection(db, 'users', anonymousUserId, 'brandingData')
+    );
+    
+    const [v2BrandsSnap, oldBrandingSnap] = await Promise.all([
+      getDocs(v2BrandsQuery),
+      getDocs(oldBrandingQuery)
+    ]);
+    
+    // Transfer V2 brands
+    v2BrandsSnap.forEach((doc) => {
+      const brandData = doc.data();
+      const brandId = doc.id;
+      
+      // Create brand in authenticated user's collection
+      const newBrandRef = doc(db, 'users', authenticatedUserId, 'brands', brandId);
+      batch.set(newBrandRef, {
+        ...brandData,
+        ownerUid: authenticatedUserId,
+        updatedAt: serverTimestamp(),
+        transferredFrom: anonymousUserId,
+        transferredAt: serverTimestamp()
+      });
+      
+      transferredBrands++;
+    });
+    
+    // Transfer old branding data
+    oldBrandingSnap.forEach((doc) => {
+      const oldBrandData = doc.data();
+      const brandId = doc.id;
+      
+      // Create brand in authenticated user's brandingData collection (keep structure)
+      const newBrandingRef = doc(db, 'users', authenticatedUserId, 'brandingData', brandId);
+      batch.set(newBrandingRef, {
+        ...oldBrandData,
+        updatedAt: serverTimestamp(),
+        transferredFrom: anonymousUserId,
+        transferredAt: serverTimestamp()
+      });
+      
+      transferredBrands++;
+    });
+    
+    // 3. Update authenticated user's activeCampaigns array
+    if (campaignIds.length > 0) {
+      const userRef = doc(db, 'users', authenticatedUserId);
+      batch.update(userRef, {
+        activeCampaigns: arrayUnion(...campaignIds),
+        lastLogin: serverTimestamp()
+      });
+    }
+    
+    // 4. Commit all changes atomically
+    await batch.commit();
+    
+    console.log(`Transfer completed: ${transferredCampaigns} campaigns, ${transferredBrands} brands`);
+    
+    return { transferredCampaigns, transferredBrands };
+    
+  } catch (error) {
+    console.error('Error transferring anonymous data:', error);
     throw error;
   }
 }; 
