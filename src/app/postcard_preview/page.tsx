@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { collection, getDocs, orderBy, query, Timestamp, limit, startAfter, DocumentData, QueryDocumentSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { motion } from 'framer-motion';
@@ -259,7 +259,7 @@ export default function PostcardPreviewPage() {
   const [pageHistory, setPageHistory] = useState<Array<QueryDocumentSnapshot<DocumentData> | null>>([null]);
 
   // Function to fetch postcards with pagination
-  const fetchPostcards = async (pageAction: 'first' | 'next' | 'prev' = 'first') => {
+  const fetchPostcards = useCallback(async (pageAction: 'first' | 'next' | 'prev' = 'first') => {
     setLoading(true);
     try {
       let postcardQuery;
@@ -356,7 +356,7 @@ export default function PostcardPreviewPage() {
       setError('Failed to load postcards. Please try again later.');
       setLoading(false);
     }
-  };
+  }, [pageSize, pageHistory, firstVisible, lastVisible, currentPage]);
 
   // Handle pagination
   const handleNextPage = () => {

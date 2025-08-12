@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
+import Image from 'next/image';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
@@ -478,13 +479,14 @@ export default function ReviewPage({ params }: { params: Params }) {
                             </span>
                           </div>
                           
-                          {assignment.generationResult.openai?.frontImageUrl ? (
-                            <div className="relative group mb-4 cursor-pointer" onClick={() => window.open(assignment.generationResult.openai.frontImageUrl, '_blank')}>
+                          {assignment.generationResult?.openai?.frontImageUrl ? (
+                            <div className="relative group mb-4 cursor-pointer" onClick={() => window.open(assignment.generationResult?.openai?.frontImageUrl, '_blank')}>
                               <div className="relative w-full" style={{ paddingBottom: '66.67%' /* 2:3 ratio = 66.67% */ }}>
-                                <img
-                                  src={assignment.generationResult.openai.frontImageUrl}
+                                <Image
+                                  src={assignment.generationResult?.openai?.frontImageUrl || ''}
                                   alt="Option A Design"
-                                  className="absolute inset-0 w-full h-full object-contain bg-[#2F2F2F] rounded-lg"
+                                  fill
+                                  className="object-contain bg-[#2F2F2F] rounded-lg"
                                 />
                                 {assignment.selectedOption === 'A' && (
                                   <div className="absolute inset-0 bg-[#00F0FF]/10 rounded-lg flex items-center justify-center">
@@ -543,13 +545,14 @@ export default function ReviewPage({ params }: { params: Params }) {
                             </span>
                           </div>
                           
-                          {assignment.generationResult.ideogram?.frontImageUrl ? (
-                            <div className="relative group mb-4 cursor-pointer" onClick={() => window.open(assignment.generationResult.ideogram.frontImageUrl, '_blank')}>
+                          {assignment.generationResult?.ideogram?.frontImageUrl ? (
+                            <div className="relative group mb-4 cursor-pointer" onClick={() => window.open(assignment.generationResult?.ideogram?.frontImageUrl, '_blank')}>
                               <div className="relative w-full" style={{ paddingBottom: '66.67%' /* 2:3 ratio = 66.67% */ }}>
-                                <img
-                                  src={assignment.generationResult.ideogram.frontImageUrl}
+                                <Image
+                                  src={assignment.generationResult?.ideogram?.frontImageUrl || ''}
                                   alt="Option B Design"
-                                  className="absolute inset-0 w-full h-full object-contain bg-[#2F2F2F] rounded-lg"
+                                  fill
+                                  className="object-contain bg-[#2F2F2F] rounded-lg"
                                 />
                                 {assignment.selectedOption === 'B' && (
                                   <div className="absolute inset-0 bg-[#FF00B8]/10 rounded-lg flex items-center justify-center">
