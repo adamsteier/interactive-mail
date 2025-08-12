@@ -99,21 +99,21 @@ export const processAIDesignJob = onDocumentCreated(
         prompt: prompt 
       });
 
-      // Generate with both providers in parallel
-      const [openaiResult, ideogramResult] = await Promise.allSettled([
-        generateWithOpenAI(prompt),
-        generateWithIdeogram(prompt),
+      // Generate two OpenAI variants with slightly different approaches
+      const [openaiResult1, openaiResult2] = await Promise.allSettled([
+        generateWithOpenAI(prompt + "\n\nApproach: Create a modern, bold design with strong visual impact."),
+        generateWithOpenAI(prompt + "\n\nApproach: Create a clean, professional design with classic appeal."),
       ]);
 
       // Log the results for debugging
-      logger.info(`OpenAI result status: ${openaiResult.status}`);
-      if (openaiResult.status === "rejected") {
-        logger.error(`OpenAI error: ${openaiResult.reason}`);
+      logger.info(`OpenAI result 1 status: ${openaiResult1.status}`);
+      if (openaiResult1.status === "rejected") {
+        logger.error(`OpenAI error 1: ${openaiResult1.reason}`);
       }
       
-      logger.info(`Ideogram result status: ${ideogramResult.status}`);
-      if (ideogramResult.status === "rejected") {
-        logger.error(`Ideogram error: ${ideogramResult.reason}`);
+      logger.info(`OpenAI result 2 status: ${openaiResult2.status}`);
+      if (openaiResult2.status === "rejected") {
+        logger.error(`OpenAI error 2: ${openaiResult2.reason}`);
       }
 
       // Update progress
@@ -129,84 +129,86 @@ export const processAIDesignJob = onDocumentCreated(
         }
       };
 
-      // Process OpenAI result
-      if (openaiResult.status === "fulfilled") {
+      // Process OpenAI result 1 (Modern/Bold)
+      if (openaiResult1.status === "fulfilled") {
         try {
           // Download and store the image
           const storedImageUrl = await downloadAndStoreImage(
-            openaiResult.value.imageUrl,
+            openaiResult1.value.imageUrl,
             jobData.campaignId,
             jobData.designId,
             "openai",
-            jobData.userId
+            jobData.userId,
+            jobData.requestData?.briefId
           );
           
           results.openai = {
             frontImageUrl: storedImageUrl,
-            prompt: prompt,
+            prompt: prompt + "\n\nApproach: Create a modern, bold design with strong visual impact.",
             model: "gpt-image-1",
-            executionTime: openaiResult.value.executionTime,
+            executionTime: openaiResult1.value.executionTime,
           };
         } catch (storageError) {
-          logger.error("Failed to store OpenAI image:", storageError);
+          logger.error("Failed to store OpenAI image 1:", storageError);
           // Fall back to original URL if storage fails
           results.openai = {
-            frontImageUrl: openaiResult.value.imageUrl,
-            prompt: prompt,
+            frontImageUrl: openaiResult1.value.imageUrl,
+            prompt: prompt + "\n\nApproach: Create a modern, bold design with strong visual impact.",
             model: "gpt-image-1",
-            executionTime: openaiResult.value.executionTime,
+            executionTime: openaiResult1.value.executionTime,
             storageError: "Failed to store image permanently",
           };
         }
       } else {
         results.openai = {
           frontImageUrl: "",
-          prompt: prompt,
+          prompt: prompt + "\n\nApproach: Create a modern, bold design with strong visual impact.",
           model: "gpt-image-1",
           executionTime: 0,
-          error: String(openaiResult.reason?.message || "OpenAI generation failed"),
+          error: String(openaiResult1.reason?.message || "OpenAI generation failed"),
         };
       }
 
-      // Process Ideogram result
-      if (ideogramResult.status === "fulfilled") {
+      // Process OpenAI result 2 (Clean/Professional) - store as ideogram for compatibility
+      if (openaiResult2.status === "fulfilled") {
         try {
           // Download and store the image
           const storedImageUrl = await downloadAndStoreImage(
-            ideogramResult.value.imageUrl,
+            openaiResult2.value.imageUrl,
             jobData.campaignId,
             jobData.designId,
-            "ideogram",
-            jobData.userId
+            "openai2",
+            jobData.userId,
+            jobData.requestData?.briefId
           );
           
           results.ideogram = {
             frontImageUrl: storedImageUrl,
-            prompt: prompt,
+            prompt: prompt + "\n\nApproach: Create a clean, professional design with classic appeal.",
             styleType: "GENERAL",
             renderingSpeed: "DEFAULT",
-            executionTime: ideogramResult.value.executionTime,
+            executionTime: openaiResult2.value.executionTime,
           };
         } catch (storageError) {
-          logger.error("Failed to store Ideogram image:", storageError);
+          logger.error("Failed to store OpenAI image 2:", storageError);
           // Fall back to original URL if storage fails
           results.ideogram = {
-            frontImageUrl: ideogramResult.value.imageUrl,
-            prompt: prompt,
+            frontImageUrl: openaiResult2.value.imageUrl,
+            prompt: prompt + "\n\nApproach: Create a clean, professional design with classic appeal.",
             styleType: "GENERAL",
             renderingSpeed: "DEFAULT",
-            executionTime: ideogramResult.value.executionTime,
+            executionTime: openaiResult2.value.executionTime,
             storageError: "Failed to store image permanently",
           };
         }
       } else {
         results.ideogram = {
           frontImageUrl: "",
-          prompt: prompt,
+          prompt: prompt + "\n\nApproach: Create a clean, professional design with classic appeal.",
           styleType: "GENERAL",
           renderingSpeed: "DEFAULT",
           executionTime: 0,
-          error: String(ideogramResult.reason?.message || "Ideogram generation failed"),
+          error: String(openaiResult2.reason?.message || "OpenAI generation 2 failed"),
         };
       }
 
@@ -580,8 +582,9 @@ async function downloadAndStoreImage(
   imageUrl: string, 
   campaignId: string, 
   designId: string, 
-  provider: "openai" | "ideogram",
-  userId: string
+  provider: "openai" | "ideogram" | "openai2",
+  userId: string,
+  briefId?: string | null
 ): Promise<string> {
   try {
     // Download the image
@@ -595,6 +598,7 @@ async function downloadAndStoreImage(
     
     // Get a reference to the file in Firebase Storage
     const bucket = storage.bucket();
+    logger.info(`Storage bucket name: ${bucket.name}`);
     const file = bucket.file(filename);
     
     // Upload the image
@@ -607,6 +611,8 @@ async function downloadAndStoreImage(
           provider,
           userId,
           generatedAt: new Date().toISOString(),
+          briefId: briefId || "none",
+          hasBrief: !!briefId,
         },
       },
     });
@@ -614,8 +620,11 @@ async function downloadAndStoreImage(
     // File is already publicly readable according to your rules
     // No need to make it public explicitly
     
-    // Return the public URL
-    return `https://storage.googleapis.com/${bucket.name}/${filename}`;
+    // Return the public URL using Firebase Storage URL format
+    const encodedFilename = encodeURIComponent(filename);
+    // Get the default bucket name which should be {projectId}.appspot.com
+    const bucketName = bucket.name || `${process.env.GCLOUD_PROJECT || "post-timely-94681"}.appspot.com`;
+    return `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodedFilename}?alt=media`;
   } catch (error) {
     logger.error(`Error downloading/storing image from ${provider}:`, error);
     throw error;
@@ -706,7 +715,12 @@ async function generateWithIdeogram(prompt: string): Promise<{
     ).catch(error => {
       // Log more details about the Ideogram error
       if (error.response) {
-        console.error("Ideogram API error response:", error.response.data);
+        logger.error("Ideogram API error response:", {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data,
+          headers: error.response.headers
+        });
       }
       throw error;
     });
