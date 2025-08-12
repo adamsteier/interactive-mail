@@ -56,6 +56,7 @@ export interface BrandUsageStats {
   totalCampaigns: number;
   totalLeads: number;
   totalSpent: number;
+  totalTemplates?: number; // Number of templates created from this brand
   avgResponseRate?: number;
   lastUsed?: Timestamp;
   performanceScore?: number; // 0-100 based on response rates
