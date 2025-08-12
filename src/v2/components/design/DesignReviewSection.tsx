@@ -87,6 +87,9 @@ const DesignReviewSection = ({
     }
   };
   
+  // Check if brand has logo
+  const hasLogo = brand.logo?.variants?.length > 0;
+  
   // Use parsed position or default if brand has logo
   const effectiveLogoPosition = logoPosition || (hasLogo ? defaultLogoPosition : null);
   
@@ -110,8 +113,6 @@ const DesignReviewSection = ({
     // TODO: Save to database or parent component
     console.log(`Logo size changed for Option ${option}:`, dimensions);
   };
-  
-  const hasLogo = brand.logo?.variants?.length > 0;
   
   return (
     <div className="bg-[#1A1A1A] rounded-lg p-6 border border-[#2F2F2F]">
