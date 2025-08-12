@@ -241,8 +241,8 @@ CRITICAL DESIGN REQUIREMENTS:
 - The design must FILL THE ENTIRE FRAME with no visible borders or edges
 - Create the actual postcard CONTENT for direct mail printing, not a picture of a postcard
 - Logo space: ${context.logoAnalysis.promptInstructions}
-- Include relevant contact information with appropriate, well-designed icons
-- Include relevant social media handles with recognizable platform icons
+- CONTACT INFORMATION RESTRICTION: Use ONLY the contact information explicitly provided above${contactSection ? '' : ' (NO contact information available - do not include any phone, email, address, or website)'}
+- SOCIAL MEDIA RESTRICTION: Use ONLY the social media handles explicitly provided above${socialSection ? '' : ' (NO social media available - do not include any social media handles or icons)'}
 - Design icons that complement the overall aesthetic and color scheme
 
 Create a detailed creative brief that an AI can follow to generate this postcard design. Include:

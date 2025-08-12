@@ -7,7 +7,7 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth } from '@/lib/firebase';
-import { getUserBrand } from '@/v2/services/brandService';
+import { getBrand } from '@/v2/services/brandService';
 import { V2Brand } from '@/v2/types/brand';
 import DesignReviewSection from '@/v2/components/design/DesignReviewSection';
 
@@ -103,7 +103,7 @@ export default function ReviewPage({ params }: { params: Params }) {
         setCampaignData(campaign);
 
         // Load brand data using V2 service
-        const brand = await getUserBrand(user.uid, campaign.brandId);
+        const brand = await getBrand(user.uid, campaign.brandId);
         if (brand) {
           setBrandData(brand);
         }
