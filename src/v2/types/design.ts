@@ -472,7 +472,7 @@ export const BRIEF_GENERATION_CONFIG = {
   models: [
     { model: 'gpt-4o' as const, temperature: 0.2, order: 1 as number }, // 4o Low temp
     { model: 'gpt-4o' as const, temperature: 0.8, order: 2 as number }, // 4o High temp
-    { model: 'gpt-5' as const, temperature: 0.2, reasoning: 'low' as const, order: 3 as number }, // GPT-5 Low reasoning
+    { model: 'gpt-5' as const, temperature: 0.2, reasoning: 'minimal' as const, order: 3 as number }, // GPT-5 Minimal reasoning (fastest)
     { model: 'gpt-5' as const, temperature: 0.8, reasoning: 'medium' as const, order: 4 as number }  // GPT-5 Medium reasoning
   ]
 } as const;
