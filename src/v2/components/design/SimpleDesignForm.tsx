@@ -18,7 +18,6 @@ interface SimpleDesignFormProps {
   availableBusinessTypes: BusinessTypeWithCount[]; // All business types from campaign
   campaignId: string;
   onSubmit: (request: SimpleDesignRequest) => void;
-  onToggleAdvanced: () => void;
   loading?: boolean;
   initialData?: Partial<SimpleDesignRequest>;
   initialIndustry?: string;
@@ -777,11 +776,11 @@ const SimpleDesignForm = ({
           </div>
 
           {/* Submit Button */}
-          <div className="flex gap-4">
+          <div className="flex">
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 bg-[#00F0FF] text-[#1A1A1A] py-4 px-6 rounded-lg font-semibold hover:bg-[#FF00B8] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-[#00F0FF] text-[#1A1A1A] py-4 px-6 rounded-lg font-semibold hover:bg-[#FF00B8] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <div className="flex items-center justify-center gap-2">
@@ -795,14 +794,6 @@ const SimpleDesignForm = ({
               ) : (
                 'Generate Creative Briefs'
               )}
-            </button>
-            
-            <button
-              type="button"
-              onClick={onToggleAdvanced}
-              className="px-6 py-4 bg-[#2F2F2F] text-[#EAEAEA] rounded-lg font-semibold hover:bg-[#2F2F2F]/80 transition-all duration-200 border border-[#00F0FF]/20"
-            >
-              Advanced Mode
             </button>
           </div>
         </form>
