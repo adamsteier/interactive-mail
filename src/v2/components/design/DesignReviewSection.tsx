@@ -114,7 +114,7 @@ const DesignReviewSection = ({
       {/* Design Options */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Option A */}
-        {assignment.generationResult.openai?.frontImageUrl && logoPosition && (
+        {assignment.generationResult.openai?.frontImageUrl && (
           <DesignOptionCard
             imageUrl={assignment.generationResult.openai.frontImageUrl}
             optionLabel="A"
@@ -137,7 +137,7 @@ const DesignReviewSection = ({
         )}
         
         {/* Option B */}
-        {assignment.generationResult.ideogram?.frontImageUrl && logoPosition && (
+        {assignment.generationResult.ideogram?.frontImageUrl && (
           <DesignOptionCard
             imageUrl={assignment.generationResult.ideogram.frontImageUrl}
             optionLabel="B"

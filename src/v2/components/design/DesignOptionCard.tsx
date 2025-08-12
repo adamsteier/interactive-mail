@@ -18,7 +18,7 @@ interface DesignOptionCardProps {
   
   // Brand data for logo
   brand: V2Brand;
-  logoPosition: LogoPositionData;
+  logoPosition: LogoPositionData | null;
   
   // Template saving data
   creativeBrief?: string;
@@ -74,13 +74,13 @@ const DesignOptionCard = ({
     resetToDefault,
     hasChanges
   } = useLogoPosition({
-    logoAnalysis: {
+    logoAnalysis: logoPosition ? {
       width: logoPosition.dimensions.width,
       height: logoPosition.dimensions.height,
       position: logoPosition.position,
       backgroundRequirement: logoPosition.backgroundRequirement,
       promptInstructions: '' // Not needed for this use case
-    },
+    } : undefined,
     onPositionChange: onLogoPositionChange,
     onSizeChange: onLogoSizeChange
   });
