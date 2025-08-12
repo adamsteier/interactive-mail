@@ -87,25 +87,7 @@ interface OpenAIResponse {
   }>;
 }
 
-// GPT-5 Responses API interface  
-// Based on official OpenAI documentation
-interface GPT5Response {
-  response?: {
-    text?: {
-      content?: string;
-    };
-    body?: {
-      content?: string;
-    };
-  };
-  // Alternative structure based on docs
-  output_text?: string;
-  choices?: Array<{
-    message: {
-      content: string;
-    };
-  }>;
-}
+
 
 async function verifyAuth(request: NextRequest) {
   // Initialize Firebase Admin before using it
@@ -354,86 +336,77 @@ async function generateBriefWithGPT4(
 }
 
 async function generateBriefWithGPT5(
-  context: BriefGenerationContext, 
-  model: 'gpt-5', 
+  context: BriefGenerationContext,
+  model: 'gpt-5',                     // or 'gpt-5-mini'/'gpt-5-nano' if you ever want
   temperature: number,
-  reasoning: 'minimal' | 'low' | 'medium' | 'high'
+  reasoning: 'minimal' | 'low' | 'medium' | 'high' = 'minimal'
 ): Promise<string> {
   const openaiApiKey = process.env.OPENAI_API_KEY;
-  if (!openaiApiKey) {
-    throw new Error('OpenAI API key not configured');
-  }
+  if (!openaiApiKey) throw new Error('OpenAI API key not configured');
 
   const prompt = generatePrompt(context);
-  
-  // Configure request body following OpenAI best practices
-  const requestBody: {
-    model: string;
-    instructions: string;
-    input: string;
-    text: { verbosity: string };
-    reasoning: { effort: string };
-    max_output_tokens?: number;
-  } = {
-    model: model,
-    instructions: 'You are an expert creative director specializing in postcard marketing design. Create detailed, actionable creative briefs that image generators can follow precisely.',
-    input: prompt,
-    text: {
-      verbosity: "medium"
-    },
-    reasoning: {
-      effort: reasoning
-    },
-    max_output_tokens: 1200  // Helps avoid truncation
+
+  // System-level instructions go in `instructions` on Responses API
+  const instructions =
+    'You are an expert creative director specializing in postcard marketing design. ' +
+    'Create detailed, actionable creative briefs that image generators can follow precisely.';
+
+  const body = {
+    model,                              // 'gpt-5'
+    instructions,                       // replaces chat 'system' message
+    input: prompt,                      // replaces chat 'user' message
+    temperature,
+    reasoning: { effort: reasoning },   // GPT-5 control
+    // Verbosity is available for GPT-5; use medium as a sensible default
+    text: { verbosity: 'medium' },      // 'low' | 'medium' | 'high'
+    max_output_tokens: 1200             // Responses API name (not max_tokens)
   };
-  
-  // Note: GPT-5 doesn't use temperature in the same way as Chat Completions
-  // The temperature is controlled through reasoning effort and verbosity
-  
-  console.log('GPT-5 Request body:', JSON.stringify(requestBody, null, 2));
-  
-  const response = await fetch('https://api.openai.com/v1/responses', {
+
+  console.log('GPT-5 Responses API Request body:', JSON.stringify(body, null, 2));
+
+  const resp = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${openaiApiKey}`,
-      'Content-Type': 'application/json',
+      Authorization: `Bearer ${openaiApiKey}`,
+      'Content-Type': 'application/json'
     },
-    body: JSON.stringify(requestBody),
+    body: JSON.stringify(body)
   });
-  
-  console.log('GPT-5 Response status:', response.status, response.statusText);
 
-  if (!response.ok) {
-    const errorData = await response.text();
-    throw new Error(`OpenAI GPT-5 API error: ${response.status} - ${errorData}`);
+  console.log('GPT-5 Response status:', resp.status, resp.statusText);
+
+  if (!resp.ok) {
+    const err = await resp.text();
+    throw new Error(`OpenAI GPT-5 API error: ${resp.status} - ${err}`);
   }
 
-  const result: GPT5Response = await response.json();
+  const data = await resp.json();
   
   // Add detailed logging for debugging
-  console.log('GPT-5 Response structure:', JSON.stringify(result, null, 2));
-  
-  // Try multiple possible response formats
-  let content: string | undefined;
-  
-  if (result.response?.text?.content) {
-    content = result.response.text.content;
-  } else if (result.response?.body?.content) {
-    content = result.response.body.content;
-  } else if (result.output_text) {
-    content = result.output_text;
-  } else if (result.choices?.[0]?.message?.content) {
-    content = result.choices[0].message.content;
-  }
-  
-  if (!content) {
-    console.error('GPT-5 Response missing content. Full response:', result);
-    console.error('Available properties:', Object.keys(result));
-    throw new Error('No response content from GPT-5');
+  console.log('GPT-5 Response structure:', JSON.stringify(data, null, 2));
+
+  // Prefer the convenience aggregator when available
+  if (typeof data.output_text === 'string' && data.output_text.length > 0) {
+    console.log('GPT-5 content extracted from output_text, length:', data.output_text.length);
+    return data.output_text;
   }
 
-  console.log('GPT-5 content extracted successfully, length:', content.length);
-  return content;
+  // Fallback: stitch text from blocks (covers tool-calls or SDK-less raw responses)
+  const text = Array.isArray(data.output)
+    ? data.output
+        .flatMap((item: { content?: { text?: string }[] }) => item?.content ?? [])
+        .map((c: { text?: string }) => c?.text ?? '')
+        .join('')
+    : '';
+
+  if (!text) {
+    console.error('GPT-5 Response missing content. Full response:', data);
+    console.error('Available properties:', Object.keys(data));
+    throw new Error('No response content from GPT-5');
+  }
+  
+  console.log('GPT-5 content extracted from fallback method, length:', text.length);
+  return text;
 }
 
 export async function POST(request: NextRequest) {

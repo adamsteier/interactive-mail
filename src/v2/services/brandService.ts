@@ -639,7 +639,7 @@ function validateBrandData(data: CreateBrandRequest): { isValid: boolean; errors
   
   // Website validation
   if (data.businessInfo?.website && !BRAND_VALIDATION_RULES.businessInfo.website.pattern.test(data.businessInfo.website)) {
-    errors.push('Please enter a valid website URL (starting with http:// or https://)');
+    errors.push('Please enter a valid website URL (e.g., example.com)');
   }
   
   // Logo validation

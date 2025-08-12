@@ -157,8 +157,8 @@ const BrandCreator = ({
         if (formData.businessInfo.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.businessInfo.email)) {
           newErrors.email = 'Please enter a valid email address';
         }
-        if (formData.businessInfo.website && !/^https?:\/\/.+/.test(formData.businessInfo.website)) {
-          newErrors.website = 'Website must start with http:// or https://';
+        if (formData.businessInfo.website && !/^.+\..+/.test(formData.businessInfo.website)) {
+          newErrors.website = 'Please enter a valid website URL (e.g., example.com)';
         }
         break;
 
@@ -489,7 +489,7 @@ const BrandCreator = ({
                       className={`w-full px-4 py-3 bg-[#2F2F2F] border rounded-lg text-[#EAEAEA] placeholder-[#EAEAEA]/60 focus:outline-none focus:ring-2 focus:ring-[#00F0FF] transition-all ${
                         errors.website ? 'border-[#FF00B8]' : 'border-[#2F2F2F]'
                       }`}
-                      placeholder="https://www.mybusiness.com"
+                      placeholder="www.mybusiness.com"
                     />
                     {errors.website && (
                       <p className="text-[#FF00B8] text-sm mt-1">{errors.website}</p>

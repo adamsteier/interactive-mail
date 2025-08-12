@@ -217,7 +217,7 @@ export const BRAND_VALIDATION_RULES = {
       pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     },
     website: {
-      pattern: /^https?:\/\/.+/
+      pattern: /^.+\..+/
     }
   }
 } as const; 
