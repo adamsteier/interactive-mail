@@ -15,7 +15,8 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { V2Campaign } from '@/v2/types/campaign';
-import { getUserBrands, BrandSummary } from '@/v2/services/brandService';
+import { getUserBrands } from '@/v2/services/brandService';
+import { BrandSummary } from '@/v2/types/brand';
 
 interface DashboardStats {
   totalCampaigns: number;
@@ -82,7 +83,7 @@ const V2Overview: React.FC = () => {
       );
 
       const activeCampaigns = allCampaigns.filter(campaign => 
-        ['setup', 'brand_selected', 'design_in_progress', 'review', 'payment_pending', 'processing'].includes(campaign.status)
+        ['draft', 'brand_selected', 'designing', 'review', 'payment_pending', 'paid', 'pending_review', 'approved', 'scheduled', 'printing'].includes(campaign.status)
       ).length;
 
       const campaignsWithAnalytics = allCampaigns.filter(c => c.analytics?.responseRate);

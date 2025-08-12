@@ -60,11 +60,11 @@ const V2Campaigns: React.FC = () => {
   const filteredCampaigns = campaigns.filter(campaign => {
     switch (filter) {
       case 'active':
-        return ['setup', 'brand_selected', 'design_in_progress', 'review', 'payment_pending', 'processing', 'sending'].includes(campaign.status);
+        return ['draft', 'brand_selected', 'designing', 'review', 'payment_pending', 'paid', 'pending_review', 'approved', 'scheduled', 'printing'].includes(campaign.status);
       case 'completed':
-        return ['sent', 'complete'].includes(campaign.status);
+        return ['sent', 'delivered', 'completed'].includes(campaign.status);
       case 'failed':
-        return ['failed', 'cancelled'].includes(campaign.status);
+        return ['failed', 'canceled'].includes(campaign.status);
       default:
         return true;
     }
@@ -86,21 +86,26 @@ const V2Campaigns: React.FC = () => {
 
   const getStatusColor = (status: CampaignStatus) => {
     switch (status) {
-      case 'setup':
+      case 'draft':
       case 'brand_selected':
-      case 'design_in_progress':
+      case 'designing':
         return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
       case 'review':
       case 'payment_pending':
         return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-      case 'processing':
-      case 'sending':
+      case 'paid':
+      case 'pending_review':
+      case 'approved':
+      case 'scheduled':
+      case 'printing':
         return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
       case 'sent':
-      case 'complete':
+      case 'delivered':
+      case 'completed':
         return 'bg-green-500/20 text-green-400 border-green-500/30';
       case 'failed':
-      case 'cancelled':
+      case 'canceled':
+      case 'paused':
         return 'bg-red-500/20 text-red-400 border-red-500/30';
       default:
         return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
@@ -109,17 +114,22 @@ const V2Campaigns: React.FC = () => {
 
   const getStatusText = (status: CampaignStatus) => {
     switch (status) {
-      case 'setup': return 'Setting Up';
+      case 'draft': return 'Draft';
       case 'brand_selected': return 'Brand Selected';
-      case 'design_in_progress': return 'Creating Designs';
+      case 'designing': return 'Creating Designs';
       case 'review': return 'Ready for Review';
       case 'payment_pending': return 'Payment Pending';
-      case 'processing': return 'Processing';
-      case 'sending': return 'Sending';
+      case 'paid': return 'Paid';
+      case 'pending_review': return 'Pending Review';
+      case 'approved': return 'Approved';
+      case 'scheduled': return 'Scheduled';
+      case 'printing': return 'Printing';
       case 'sent': return 'Sent';
-      case 'complete': return 'Complete';
+      case 'delivered': return 'Delivered';
+      case 'completed': return 'Complete';
+      case 'paused': return 'Paused';
       case 'failed': return 'Failed';
-      case 'cancelled': return 'Cancelled';
+      case 'canceled': return 'Cancelled';
       default: return status;
     }
   };
@@ -131,13 +141,13 @@ const V2Campaigns: React.FC = () => {
   const handleCampaignClick = (campaign: V2Campaign) => {
     // Navigate to appropriate step based on status
     switch (campaign.status) {
-      case 'setup':
+      case 'draft':
         router.push(`/v2/build/${campaign.id}/leads`);
         break;
       case 'brand_selected':
         router.push(`/v2/build/${campaign.id}/design`);
         break;
-      case 'design_in_progress':
+      case 'designing':
         router.push(`/v2/build/${campaign.id}/design`);
         break;
       case 'review':
@@ -218,13 +228,13 @@ const V2Campaigns: React.FC = () => {
         </div>
         <div className="text-center">
           <div className="text-2xl font-bold text-yellow-400">
-            {campaigns.filter(c => ['setup', 'brand_selected', 'design_in_progress', 'review', 'payment_pending', 'processing', 'sending'].includes(c.status)).length}
+            {campaigns.filter(c => ['draft', 'brand_selected', 'designing', 'review', 'payment_pending', 'paid', 'pending_review', 'approved', 'scheduled', 'printing'].includes(c.status)).length}
           </div>
           <div className="text-sm text-gray-400">Active</div>
         </div>
         <div className="text-center">
           <div className="text-2xl font-bold text-green-400">
-            {campaigns.filter(c => ['sent', 'complete'].includes(c.status)).length}
+            {campaigns.filter(c => ['sent', 'delivered', 'completed'].includes(c.status)).length}
           </div>
           <div className="text-sm text-gray-400">Completed</div>
         </div>
@@ -301,10 +311,10 @@ const V2Campaigns: React.FC = () => {
                   <span className="text-white">{formatDate(campaign.createdAt)}</span>
                 </div>
 
-                {campaign.payment?.totalCost && (
+                {campaign.payment?.finalAmount && (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-400">Cost:</span>
-                    <span className="text-white">${campaign.payment.totalCost.toFixed(2)}</span>
+                    <span className="text-white">${campaign.payment.finalAmount.toFixed(2)}</span>
                   </div>
                 )}
               </div>
@@ -326,7 +336,7 @@ const V2Campaigns: React.FC = () => {
               {/* Action hint */}
               <div className="mt-3 pt-2 border-t border-gray-700/50">
                 <p className="text-xs text-gray-500 text-center">
-                  Click to {campaign.status === 'complete' ? 'view details' : 'continue'}
+                  Click to {campaign.status === 'completed' ? 'view details' : 'continue'}
                 </p>
               </div>
             </div>

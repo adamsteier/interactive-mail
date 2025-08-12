@@ -3,7 +3,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getUserBrands, BrandSummary } from '@/v2/services/brandService';
+import { getUserBrands } from '@/v2/services/brandService';
+import { BrandSummary } from '@/v2/types/brand';
 import BrandCreator from '@/v2/components/brand/BrandCreator';
 import { Timestamp } from 'firebase/firestore';
 
@@ -97,7 +98,7 @@ const V2Brands: React.FC = () => {
         </div>
         
         <BrandCreator
-          onBrandCreated={handleBrandCreated}
+          onSuccess={handleBrandCreated}
           onCancel={() => setShowBrandCreator(false)}
         />
       </div>
