@@ -1,7 +1,7 @@
 // src/components/dashboard/V2Leads.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { 
@@ -10,8 +10,7 @@ import {
   getDocs, 
   orderBy, 
   where,
-  Timestamp,
-  collectionGroup
+  Timestamp
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { V2Lead } from '@/v2/types/campaign';
@@ -31,16 +30,7 @@ const V2Leads: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'pending' | 'sent' | 'delivered' | 'failed'>('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    if (!user) {
-      setIsLoading(false);
-      return;
-    }
-
-    fetchLeads();
-  }, [user]);
-
-  const fetchLeads = async () => {
+  const fetchLeads = useCallback(async () => {
     if (!user) return;
 
     setIsLoading(true);
@@ -99,7 +89,16 @@ const V2Leads: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+
+    fetchLeads();
+  }, [user, fetchLeads]);
 
   const filteredLeads = leads.filter(lead => {
     // Filter by status

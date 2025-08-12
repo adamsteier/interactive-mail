@@ -7,7 +7,6 @@ import { useRouter } from 'next/navigation';
 import { 
   collection, 
   query, 
-  getDocs, 
   orderBy, 
   where,
   Timestamp,

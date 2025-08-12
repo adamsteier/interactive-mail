@@ -1,7 +1,7 @@
 // src/components/dashboard/V2Brands.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getUserBrands, BrandSummary } from '@/v2/services/brandService';
 import BrandCreator from '@/v2/components/brand/BrandCreator';
@@ -15,16 +15,7 @@ const V2Brands: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showBrandCreator, setShowBrandCreator] = useState(false);
 
-  useEffect(() => {
-    if (!user) {
-      setIsLoading(false);
-      return;
-    }
-
-    fetchBrands();
-  }, [user]);
-
-  const fetchBrands = async () => {
+  const fetchBrands = useCallback(async () => {
     if (!user) return;
 
     setIsLoading(true);
@@ -39,9 +30,18 @@ const V2Brands: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user]);
 
-  const handleBrandCreated = (brandId: string) => {
+  useEffect(() => {
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+
+    fetchBrands();
+  }, [user, fetchBrands]);
+
+  const handleBrandCreated = () => {
     setShowBrandCreator(false);
     // Refresh brands list
     fetchBrands();
