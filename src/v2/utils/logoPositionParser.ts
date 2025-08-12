@@ -52,7 +52,7 @@ const BLEED = 0.125; // inches
 export function parseLogoPositionFromBrief(briefText: string): LogoPositionData | null {
   try {
     // Look for the LOGO POSITION DATA section
-    const logoDataMatch = briefText.match(/LOGO POSITION DATA \(for client overlay\):(.*?)(?=\n\n|\n1\.)/s);
+    const logoDataMatch = briefText.match(/LOGO POSITION DATA \(for client overlay\):([\s\S]*?)(?=\n\n|\n1\.)/);
     
     if (!logoDataMatch) {
       console.warn('No LOGO POSITION DATA section found in brief');
