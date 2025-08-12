@@ -31,7 +31,6 @@ import {
 } from '@/v2/services/designAssignmentService';
 import SimpleDesignForm from '@/v2/components/design/SimpleDesignForm';
 import DesignAssignment from '@/v2/components/design/DesignAssignment';
-import CreativeBriefSelector from '@/v2/components/design/CreativeBriefSelector';
 import CampaignProgress from '@/v2/components/CampaignProgress';
 
 type Params = Promise<{ campaignId: string }>;
@@ -131,7 +130,7 @@ export default function DesignPage({ params }: { params: Params }) {
   const [allBusinessTypes, setAllBusinessTypes] = useState<BusinessTypeWithCount[]>([]);
   
   // Flow state
-  const [currentStep, setCurrentStep] = useState<'assignment' | 'forms' | 'briefs' | 'generating' | 'complete'>('assignment');
+  const [currentStep, setCurrentStep] = useState<'assignment' | 'forms' | 'generating' | 'complete'>('assignment');
   const [assignments, setAssignments] = useState<DesignAssignmentType[]>([]);
   const [currentDesignIndex, setCurrentDesignIndex] = useState(0);
   const [generationJobs, setGenerationJobs] = useState<Record<string, string>>({}); // designId -> jobId
@@ -377,7 +376,7 @@ export default function DesignPage({ params }: { params: Params }) {
     }
   };
 
-  // Handle design form submission (now goes to creative brief generation)
+  // Handle design form submission (now auto-processes both briefs)
   const handleDesignSubmit = async (request: SimpleDesignRequest) => {
     if (!brandData || !campaignData) return;
 
@@ -399,76 +398,96 @@ export default function DesignPage({ params }: { params: Params }) {
         businessTypes: businessTypeData
       };
       
-      setBriefGenerationRequest(briefRequest);
-      setCurrentStep('briefs');
+      // Generate both briefs automatically
+      await handleAutoBriefGeneration(briefRequest);
 
     } catch (err) {
-      console.error('Error preparing brief generation:', err);
-      setError(err instanceof Error ? err.message : 'Failed to prepare brief generation');
+      console.error('Error processing design:', err);
+      setError(err instanceof Error ? err.message : 'Failed to process design');
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle creative brief selection
-  const handleBriefSelected = async (brief: CreativeBrief) => {
-    if (!brandData || !campaignData) return;
+  // Auto-generate briefs and process both for image generation
+  const handleAutoBriefGeneration = async (briefRequest: BriefGenerationRequest) => {
+    if (!brandData || !user) return;
 
     try {
       setIsGenerating(true);
       
+      // Generate the 2 creative briefs
+      const token = await user.getIdToken();
+      const response = await fetch('/api/v2/generate-creative-briefs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(briefRequest)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to generate briefs');
+      }
+
+      const result = await response.json();
+      
+      if (!result.success || !result.briefs || result.briefs.length < 2) {
+        throw new Error('Failed to generate both creative briefs');
+      }
+
+      // Get the 2 generated briefs
+      const [brief1, brief2] = result.briefs;
+      
       const currentAssignment = assignments[currentDesignIndex];
       
-      // Convert creative brief to design request (use the brief as the prompt)
-      const designRequest: SimpleDesignRequest = {
-        brandId: brief.brandId,
-        voice: brief.context.voice as 'professional' | 'friendly' | 'casual' | 'authoritative' | 'creative',
-        goal: `[CREATIVE_BRIEF_ID:${brief.id}]\n\n${brief.briefText}`, // Add marker and use the entire brief as the goal/prompt
-        industry: brief.context.industry,
-        audience: brief.context.targetAudience,
-        businessDescription: brief.context.businessDescription,
-        briefId: brief.id // Programmatic identifier
-      };
+      // Create design request with both briefs
+      const designRequest = {
+        brandId: brandData.id!,
+        voice: briefRequest.formData.voice as 'professional' | 'friendly' | 'casual' | 'authoritative' | 'creative',
+        goal: briefRequest.formData.goal,
+        industry: briefRequest.formData.industry,
+        audience: briefRequest.formData.audience,
+        businessDescription: briefRequest.formData.businessDescription,
+        brief1: brief1,
+        brief2: brief2
+      } as SimpleDesignRequest & { brief1: any; brief2: any };
       
-      // Queue generation with the creative brief
-      const result = await queueDesignGeneration(
+      // Queue generation with both briefs
+      const generationResult = await queueDesignGeneration(
         campaignId,
         currentAssignment.designId,
         designRequest,
         brandData
       );
 
-      if (result.success && result.jobId) {
+      if (generationResult.success && generationResult.jobId) {
         setGenerationJobs(prev => ({
           ...prev,
-          [currentAssignment.designId]: result.jobId!
+          [currentAssignment.designId]: generationResult.jobId!
         }));
 
         // Move to next design or complete
         if (currentDesignIndex < assignments.length - 1) {
           setCurrentDesignIndex(currentDesignIndex + 1);
-          // Reset for next design
-          setBriefGenerationRequest(null);
           setCurrentStep('forms');
         } else {
           setCurrentStep('generating');
         }
       } else {
-        throw new Error(result.error || 'Failed to start generation');
+        throw new Error(generationResult.error || 'Failed to start generation');
       }
 
     } catch (err) {
-      console.error('Error submitting design:', err);
-      setError(err instanceof Error ? err.message : 'Failed to submit design');
+      console.error('Error in auto brief generation:', err);
+      setError(err instanceof Error ? err.message : 'Failed to generate designs');
       setIsGenerating(false);
     }
   };
 
-  // Handle going back from brief selection
-  const handleBackFromBriefs = () => {
-    setCurrentStep('forms');
-    setBriefGenerationRequest(null);
-  };
+  // Brief selection functions removed - now auto-processes both briefs
 
   // Handle completion and navigation
   const handleComplete = async () => {
@@ -519,7 +538,7 @@ export default function DesignPage({ params }: { params: Params }) {
           <p className="text-[#00F0FF] text-lg font-medium">
             {currentStep === 'assignment' ? 'Loading campaign data...' :
              currentStep === 'forms' ? 'Preparing design forms...' :
-             currentStep === 'briefs' ? 'Loading creative brief selector...' :
+             currentStep === 'generating' ? 'Generating designs...' :
              'Processing...'}
           </p>
         </motion.div>
@@ -741,22 +760,7 @@ export default function DesignPage({ params }: { params: Params }) {
             </motion.div>
           )}
 
-          {currentStep === 'briefs' && briefGenerationRequest && (
-            <motion.div
-              key="briefs"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-            >
-              <CreativeBriefSelector
-                campaignId={campaignId}
-                brandId={brandData.id!}
-                generationRequest={briefGenerationRequest}
-                onBriefSelected={handleBriefSelected}
-                onBack={handleBackFromBriefs}
-              />
-            </motion.div>
-          )}
+          {/* Brief selection step removed - now auto-processes both briefs */}
 
           {currentStep === 'generating' && (
             <motion.div

@@ -88,32 +88,51 @@ export const processAIDesignJob = onDocumentCreated(
       // Update progress
       await db.collection("aiJobs").doc(jobId).update({ progress: 20 });
 
-      // Create enhanced prompt using existing logic
-      const prompt = createV2PostcardPrompt(jobData.requestData, brandData, jobData.logoSpace);
-
-      logger.info(`Generated prompt for job ${jobId}: ${prompt.substring(0, 200)}...`);
-
-      // Update progress
+      // NEW APPROACH: Generate images from 2 different creative briefs
+      // Extract the 2 briefs from the request data
+      const brief1 = jobData.requestData?.brief1;
+      const brief2 = jobData.requestData?.brief2;
+      
+      if (!brief1 || !brief2) {
+        throw new Error("Both brief1 and brief2 are required for dual brief generation");
+      }
+      
+      // Create prompts from each brief
+      const prompt1 = createV2PostcardPrompt({
+        ...jobData.requestData,
+        goal: brief1.briefText
+      }, brandData, jobData.logoSpace);
+      
+      const prompt2 = createV2PostcardPrompt({
+        ...jobData.requestData,
+        goal: brief2.briefText
+      }, brandData, jobData.logoSpace);
+      
+      logger.info(`Generated prompt 1 for job ${jobId}: ${prompt1.substring(0, 200)}...`);
+      logger.info(`Generated prompt 2 for job ${jobId}: ${prompt2.substring(0, 200)}...`);
+      
+      // Update progress with both prompts
       await db.collection("aiJobs").doc(jobId).update({ 
         progress: 30,
-        prompt: prompt 
+        prompt1: prompt1,
+        prompt2: prompt2
       });
-
-      // Generate two OpenAI variants with slightly different approaches
-      const [openaiResult1, openaiResult2] = await Promise.allSettled([
-        generateWithOpenAI(prompt + "\n\nApproach: Create a modern, bold design with strong visual impact."),
-        generateWithOpenAI(prompt + "\n\nApproach: Create a clean, professional design with classic appeal."),
+      
+      // Generate images from both briefs simultaneously for maximum speed
+      const [brief1Result, brief2Result] = await Promise.allSettled([
+        generateWithOpenAI(prompt1),
+        generateWithOpenAI(prompt2),
       ]);
 
       // Log the results for debugging
-      logger.info(`OpenAI result 1 status: ${openaiResult1.status}`);
-      if (openaiResult1.status === "rejected") {
-        logger.error(`OpenAI error 1: ${openaiResult1.reason}`);
+      logger.info(`Brief 1 result status: ${brief1Result.status}`);
+      if (brief1Result.status === "rejected") {
+        logger.error(`Brief 1 error: ${brief1Result.reason}`);
       }
       
-      logger.info(`OpenAI result 2 status: ${openaiResult2.status}`);
-      if (openaiResult2.status === "rejected") {
-        logger.error(`OpenAI error 2: ${openaiResult2.reason}`);
+      logger.info(`Brief 2 result status: ${brief2Result.status}`);
+      if (brief2Result.status === "rejected") {
+        logger.error(`Brief 2 error: ${brief2Result.reason}`);
       }
 
       // Update progress
@@ -129,86 +148,107 @@ export const processAIDesignJob = onDocumentCreated(
         }
       };
 
-      // Process OpenAI result 1 (Modern/Bold)
-      if (openaiResult1.status === "fulfilled") {
+      // Process Brief 1 Result
+      if (brief1Result.status === "fulfilled") {
         try {
           // Download and store the image
           const storedImageUrl = await downloadAndStoreImage(
-            openaiResult1.value.imageUrl,
+            brief1Result.value.imageUrl,
             jobData.campaignId,
             jobData.designId,
-            "openai",
+            "brief1",
             jobData.userId,
-            jobData.requestData?.briefId
+            brief1.id
           );
           
-          results.openai = {
+          results.brief1 = {
             frontImageUrl: storedImageUrl,
-            prompt: prompt + "\n\nApproach: Create a modern, bold design with strong visual impact.",
-            model: "gpt-image-1",
-            executionTime: openaiResult1.value.executionTime,
+            prompt: prompt1,
+            model: brief1.model || "gpt-5",
+            temperature: brief1.temperature || 0.2,
+            reasoning: brief1.reasoning || "minimal",
+            briefId: brief1.id,
+            briefText: brief1.briefText,
+            executionTime: brief1Result.value.executionTime,
           };
         } catch (storageError) {
-          logger.error("Failed to store OpenAI image 1:", storageError);
+          logger.error("Failed to store Brief 1 image:", storageError);
           // Fall back to original URL if storage fails
-          results.openai = {
-            frontImageUrl: openaiResult1.value.imageUrl,
-            prompt: prompt + "\n\nApproach: Create a modern, bold design with strong visual impact.",
-            model: "gpt-image-1",
-            executionTime: openaiResult1.value.executionTime,
+          results.brief1 = {
+            frontImageUrl: brief1Result.value.imageUrl,
+            prompt: prompt1,
+            model: brief1.model || "gpt-5",
+            temperature: brief1.temperature || 0.2,
+            reasoning: brief1.reasoning || "minimal",
+            briefId: brief1.id,
+            briefText: brief1.briefText,
+            executionTime: brief1Result.value.executionTime,
             storageError: "Failed to store image permanently",
           };
         }
       } else {
-        results.openai = {
+        results.brief1 = {
           frontImageUrl: "",
-          prompt: prompt + "\n\nApproach: Create a modern, bold design with strong visual impact.",
-          model: "gpt-image-1",
+          prompt: prompt1,
+          model: brief1.model || "gpt-5",
+          temperature: brief1.temperature || 0.2,
+          reasoning: brief1.reasoning || "minimal",
+          briefId: brief1.id,
+          briefText: brief1.briefText,
           executionTime: 0,
-          error: String(openaiResult1.reason?.message || "OpenAI generation failed"),
+          error: String(brief1Result.reason?.message || "Brief 1 generation failed"),
         };
       }
 
-      // Process OpenAI result 2 (Clean/Professional) - store as ideogram for compatibility
-      if (openaiResult2.status === "fulfilled") {
+      // Process Brief 2 Result
+      if (brief2Result.status === "fulfilled") {
         try {
           // Download and store the image
           const storedImageUrl = await downloadAndStoreImage(
-            openaiResult2.value.imageUrl,
+            brief2Result.value.imageUrl,
             jobData.campaignId,
             jobData.designId,
-            "openai2",
+            "brief2",
             jobData.userId,
-            jobData.requestData?.briefId
+            brief2.id
           );
           
-          results.ideogram = {
+          results.brief2 = {
             frontImageUrl: storedImageUrl,
-            prompt: prompt + "\n\nApproach: Create a clean, professional design with classic appeal.",
-            styleType: "GENERAL",
-            renderingSpeed: "DEFAULT",
-            executionTime: openaiResult2.value.executionTime,
+            prompt: prompt2,
+            model: brief2.model || "gpt-5",
+            temperature: brief2.temperature || 0.8,
+            reasoning: brief2.reasoning || "medium",
+            briefId: brief2.id,
+            briefText: brief2.briefText,
+            executionTime: brief2Result.value.executionTime,
           };
         } catch (storageError) {
-          logger.error("Failed to store OpenAI image 2:", storageError);
+          logger.error("Failed to store Brief 2 image:", storageError);
           // Fall back to original URL if storage fails
-          results.ideogram = {
-            frontImageUrl: openaiResult2.value.imageUrl,
-            prompt: prompt + "\n\nApproach: Create a clean, professional design with classic appeal.",
-            styleType: "GENERAL",
-            renderingSpeed: "DEFAULT",
-            executionTime: openaiResult2.value.executionTime,
+          results.brief2 = {
+            frontImageUrl: brief2Result.value.imageUrl,
+            prompt: prompt2,
+            model: brief2.model || "gpt-5",
+            temperature: brief2.temperature || 0.8,
+            reasoning: brief2.reasoning || "medium",
+            briefId: brief2.id,
+            briefText: brief2.briefText,
+            executionTime: brief2Result.value.executionTime,
             storageError: "Failed to store image permanently",
           };
         }
       } else {
-        results.ideogram = {
+        results.brief2 = {
           frontImageUrl: "",
-          prompt: prompt + "\n\nApproach: Create a clean, professional design with classic appeal.",
-          styleType: "GENERAL",
-          renderingSpeed: "DEFAULT",
+          prompt: prompt2,
+          model: brief2.model || "gpt-5",
+          temperature: brief2.temperature || 0.8,
+          reasoning: brief2.reasoning || "medium",
+          briefId: brief2.id,
+          briefText: brief2.briefText,
           executionTime: 0,
-          error: String(openaiResult2.reason?.message || "OpenAI generation 2 failed"),
+          error: String(brief2Result.reason?.message || "Brief 2 generation failed"),
         };
       }
 

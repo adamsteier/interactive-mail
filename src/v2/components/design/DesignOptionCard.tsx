@@ -64,6 +64,23 @@ const DesignOptionCard = ({
   const [cardDimensions, setCardDimensions] = useState({ width: 0, height: 0 });
   const cardRef = useRef<HTMLDivElement>(null);
   
+  // Create default logo position if none exists but brand has logo
+  const defaultLogoPosition = logoPosition || (brand.logo?.variants?.length > 0 ? {
+    position: { x: 'bottom-right', y: 'bottom-right' } as const,
+    dimensions: { width: 1, height: 0.75 }, // inches
+    backgroundRequirement: 'any' as const,
+    pixels: {
+      position: { x: 400, y: 300 }, // Default position in pixels
+      dimensions: { width: 144, height: 108 }, // Default size in pixels (1" x 0.75" at 144 DPI)
+      safeZone: {
+        minX: 36, // 0.25" margin
+        minY: 36,
+        maxX: 828, // 6" - 0.25" margin at 144 DPI
+        maxY: 540  // 4" - 0.25" margin at 144 DPI
+      }
+    }
+  } : null);
+
   // Logo position management
   const {
     logoPosition: currentLogoPosition,
@@ -74,11 +91,11 @@ const DesignOptionCard = ({
     resetToDefault,
     hasChanges
   } = useLogoPosition({
-    logoAnalysis: logoPosition ? {
-      width: logoPosition.dimensions.width,
-      height: logoPosition.dimensions.height,
-      position: logoPosition.position,
-      backgroundRequirement: logoPosition.backgroundRequirement,
+    logoAnalysis: defaultLogoPosition ? {
+      width: defaultLogoPosition.dimensions.width,
+      height: defaultLogoPosition.dimensions.height,
+      position: defaultLogoPosition.position,
+      backgroundRequirement: defaultLogoPosition.backgroundRequirement,
       promptInstructions: '' // Not needed for this use case
     } : undefined,
     onPositionChange: onLogoPositionChange,
@@ -176,7 +193,7 @@ const DesignOptionCard = ({
               {/* Hover overlay */}
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200 rounded-lg flex items-center justify-center">
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/80 text-white px-3 py-2 rounded text-sm">
-                  Click to customize logo position
+                  {hasLogo ? 'Click to customize logo position' : 'Click to add logo'}
                 </div>
               </div>
             </div>
@@ -239,6 +256,24 @@ const DesignOptionCard = ({
                     Customize
                   </button>
                 </div>
+              </div>
+            </div>
+          )}
+          
+          {/* No Logo Available */}
+          {!hasLogo && (
+            <div className="mt-3 pt-3 border-t border-[#2F2F2F]">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[#EAEAEA]/60">No logo available</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(`/v2/build/${campaignId}/brand`, '_blank');
+                  }}
+                  className="text-[#00F0FF] hover:text-[#00F0FF]/80 transition-colors"
+                >
+                  Add Logo
+                </button>
               </div>
             </div>
           )}
