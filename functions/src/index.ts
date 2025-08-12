@@ -307,56 +307,56 @@ function createV2PostcardPrompt(requestData: any, brandData: any, logoSpace: any
     prompt += `\nBrand colors: ${colors.join(", ")}`;
   }
 
-  if (brandData.styleComponents?.primaryColor) {
-    prompt += `\nPrimary brand color: ${brandData.styleComponents.primaryColor}`;
+  if (brandData.styleComponents?.primaryColor?.trim()) {
+    prompt += `\nPrimary brand color: ${brandData.styleComponents.primaryColor.trim()}`;
   }
-  if (brandData.styleComponents?.secondaryColor) {
-    prompt += `\nSecondary brand color: ${brandData.styleComponents.secondaryColor}`;
+  if (brandData.styleComponents?.secondaryColor?.trim()) {
+    prompt += `\nSecondary brand color: ${brandData.styleComponents.secondaryColor.trim()}`;
   }
 
   // Add brand identity information
-  if (brandData.identity?.tagline) {
-    prompt += `\nTagline: ${brandData.identity.tagline}`;
+  if (brandData.identity?.tagline?.trim()) {
+    prompt += `\nTagline: ${brandData.identity.tagline.trim()}`;
   }
-  if (brandData.identity?.voice) {
-    prompt += `\nBrand voice: ${brandData.identity.voice}`;
+  if (brandData.identity?.voice?.trim()) {
+    prompt += `\nBrand voice: ${brandData.identity.voice.trim()}`;
   }
-  if (brandData.identity?.valueProposition) {
-    prompt += `\nValue proposition: ${brandData.identity.valueProposition}`;
+  if (brandData.identity?.valueProposition?.trim()) {
+    prompt += `\nValue proposition: ${brandData.identity.valueProposition.trim()}`;
   }
 
   // Add all contact information
-  if (brandData.businessInfo?.phone) {
-    prompt += `\nPhone: ${brandData.businessInfo.phone}`;
+  if (brandData.businessInfo?.phone?.trim()) {
+    prompt += `\nPhone: ${brandData.businessInfo.phone.trim()}`;
   }
-  if (brandData.businessInfo?.email) {
-    prompt += `\nEmail: ${brandData.businessInfo.email}`;
+  if (brandData.businessInfo?.email?.trim()) {
+    prompt += `\nEmail: ${brandData.businessInfo.email.trim()}`;
   }
-  if (brandData.businessInfo?.website) {
-    prompt += `\nWebsite: ${brandData.businessInfo.website}`;
+  if (brandData.businessInfo?.website?.trim()) {
+    prompt += `\nWebsite: ${brandData.businessInfo.website.trim()}`;
   }
-  if (brandData.businessInfo?.address) {
-    prompt += `\nAddress: ${brandData.businessInfo.address}`;
+  if (brandData.businessInfo?.address?.trim()) {
+    prompt += `\nAddress: ${brandData.businessInfo.address.trim()}`;
   }
 
   // Add all social media information
-  if (brandData.socialMedia?.instagram) {
-    prompt += `\nInstagram: ${brandData.socialMedia.instagram}`;
+  if (brandData.socialMedia?.instagram?.trim()) {
+    prompt += `\nInstagram: ${brandData.socialMedia.instagram.trim()}`;
   }
-  if (brandData.socialMedia?.facebook) {
-    prompt += `\nFacebook: ${brandData.socialMedia.facebook}`;
+  if (brandData.socialMedia?.facebook?.trim()) {
+    prompt += `\nFacebook: ${brandData.socialMedia.facebook.trim()}`;
   }
-  if (brandData.socialMedia?.linkedin) {
-    prompt += `\nLinkedIn: ${brandData.socialMedia.linkedin}`;
+  if (brandData.socialMedia?.linkedin?.trim()) {
+    prompt += `\nLinkedIn: ${brandData.socialMedia.linkedin.trim()}`;
   }
-  if (brandData.socialMedia?.twitter) {
-    prompt += `\nTwitter/X: ${brandData.socialMedia.twitter}`;
+  if (brandData.socialMedia?.twitter?.trim()) {
+    prompt += `\nTwitter/X: ${brandData.socialMedia.twitter.trim()}`;
   }
-  if (brandData.socialMedia?.tiktok) {
-    prompt += `\nTikTok: ${brandData.socialMedia.tiktok}`;
+  if (brandData.socialMedia?.tiktok?.trim()) {
+    prompt += `\nTikTok: ${brandData.socialMedia.tiktok.trim()}`;
   }
-  if (brandData.socialMedia?.youtube) {
-    prompt += `\nYouTube: ${brandData.socialMedia.youtube}`;
+  if (brandData.socialMedia?.youtube?.trim()) {
+    prompt += `\nYouTube: ${brandData.socialMedia.youtube.trim()}`;
   }
 
   prompt += `\nTone: ${voice}
