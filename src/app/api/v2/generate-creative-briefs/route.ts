@@ -87,6 +87,16 @@ interface OpenAIResponse {
   }>;
 }
 
+// GPT-5 Responses API interface  
+// Based on official OpenAI documentation
+interface GPT5Response {
+  response: {
+    text: {
+      content: string;
+    };
+  };
+}
+
 async function verifyAuth(request: NextRequest) {
   // Initialize Firebase Admin before using it
   initializeFirebaseAdmin();
@@ -269,6 +279,20 @@ Design appropriate icons for each contact method and social platform that comple
 
 async function generateBriefWithChatGPT(
   context: BriefGenerationContext, 
+  model: 'gpt-4.1' | 'gpt-4o' | 'gpt-5', 
+  temperature: number,
+  reasoning?: 'low' | 'medium'
+): Promise<string> {
+  // Route to appropriate function based on model type
+  if (model === 'gpt-5') {
+    return generateBriefWithGPT5(context, model, temperature, reasoning || 'medium');
+  }
+  
+  return generateBriefWithGPT4(context, model, temperature);
+}
+
+async function generateBriefWithGPT4(
+  context: BriefGenerationContext, 
   model: 'gpt-4.1' | 'gpt-4o', 
   temperature: number
 ): Promise<string> {
@@ -317,6 +341,68 @@ async function generateBriefWithChatGPT(
   }
 
   return result.choices[0].message.content;
+}
+
+async function generateBriefWithGPT5(
+  context: BriefGenerationContext, 
+  model: 'gpt-5', 
+  temperature: number,
+  reasoning: 'low' | 'medium'
+): Promise<string> {
+  const openaiApiKey = process.env.OPENAI_API_KEY;
+  if (!openaiApiKey) {
+    throw new Error('OpenAI API key not configured');
+  }
+
+  const prompt = generatePrompt(context);
+  const systemMessage = 'You are an expert creative director specializing in postcard marketing design. Create detailed, actionable creative briefs that AI image generators can follow precisely.';
+  
+  // Construct the input message
+  const input = `${systemMessage}\n\n${prompt}`;
+  
+  // Configure reasoning and verbosity based on model
+  const requestBody: {
+    model: string;
+    input: string;
+    text: { verbosity: string };
+    reasoning?: { effort: string };
+  } = {
+    model: model,
+    input: input,
+    text: {
+      verbosity: "medium"
+    }
+  };
+  
+  // Add reasoning configuration based on parameter
+  requestBody.reasoning = {
+    effort: reasoning
+  };
+  
+  // Note: GPT-5 doesn't use temperature in the same way as Chat Completions
+  // The temperature is controlled through reasoning effort and verbosity
+  
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openaiApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    throw new Error(`OpenAI GPT-5 API error: ${response.status} - ${errorData}`);
+  }
+
+  const result: GPT5Response = await response.json();
+  
+  if (!result.response?.text?.content) {
+    throw new Error('No response content from GPT-5');
+  }
+
+  return result.response.text.content;
 }
 
 export async function POST(request: NextRequest) {
@@ -406,7 +492,8 @@ export async function POST(request: NextRequest) {
         const briefText = await generateBriefWithChatGPT(
           context,
           config.model,
-          config.temperature
+          config.temperature,
+          'reasoning' in config ? config.reasoning : undefined
         );
 
         // Auto-generate tags from context
