@@ -446,6 +446,18 @@ export async function POST(request: NextRequest) {
 
     const brand = brandSnap.data() as V2Brand;
     
+    // Debug: Log the brand data to see what we're working with
+    console.log('Brand data loaded for brief generation:', {
+      brandName: brand.name,
+      businessInfo: brand.businessInfo,
+      socialMedia: brand.socialMedia,
+      hasBusinessInfo: !!brand.businessInfo,
+      hasBusinessInfoPhone: !!brand.businessInfo?.phone,
+      hasBusinessInfoEmail: !!brand.businessInfo?.email,
+      hasSocialMedia: !!brand.socialMedia,
+      hasSocialInstagram: !!brand.socialMedia?.instagram
+    });
+    
     // Calculate logo space
     const logoAnalysis = calculateLogoSpace(brand);
     
@@ -455,6 +467,14 @@ export async function POST(request: NextRequest) {
 
     // Format contact and social data
     const { contactInfo, socialMedia } = formatContactAndSocialForBrief(brand);
+    
+    // Debug: Log the formatted data to see what's being passed to the prompt
+    console.log('Formatted contact and social data:', {
+      contactInfo,
+      socialMedia,
+      contactInfoKeys: Object.keys(contactInfo),
+      socialMediaKeys: Object.keys(socialMedia)
+    });
     
     // Create generation context - explicitly handle all optional fields
     const context: BriefGenerationContext = {
