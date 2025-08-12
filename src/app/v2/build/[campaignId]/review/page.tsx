@@ -45,13 +45,23 @@ interface DesignAssignmentType {
   leadCount: number;
   selectedOption?: 'A' | 'B'; // User's A/B choice
   generationResult?: {
-    openai?: {
+    brief1?: {
       frontImageUrl?: string;
       executionTime?: number;
+      briefText?: string;
+      model?: string;
+      temperature?: number;
+      reasoning?: string;
+      briefId?: string;
     };
-    ideogram?: {
+    brief2?: {
       frontImageUrl?: string;
       executionTime?: number;
+      briefText?: string;
+      model?: string;
+      temperature?: number;
+      reasoning?: string;
+      briefId?: string;
     };
   };
   creativeBrief?: {
@@ -211,13 +221,15 @@ export default function ReviewPage({ params }: { params: Params }) {
   const getSelectedDesigns = () => {
     return campaignData?.designAssignments?.map(assignment => {
       const selectedResult = assignment.selectedOption === 'A' 
-        ? assignment.generationResult?.openai
-        : assignment.generationResult?.ideogram;
+        ? assignment.generationResult?.brief1
+        : assignment.generationResult?.brief2;
       
       return {
         ...assignment,
         selectedImageUrl: selectedResult?.frontImageUrl,
-        selectedProvider: assignment.selectedOption === 'A' ? 'OpenAI gpt-image-1' : 'Ideogram 3.0',
+        selectedProvider: assignment.selectedOption === 'A' 
+          ? `${selectedResult?.model || 'GPT-5'} (${selectedResult?.reasoning || 'minimal'})` 
+          : `${selectedResult?.model || 'GPT-5'} (${selectedResult?.reasoning || 'medium'})`,
         generationTime: selectedResult?.executionTime
       };
     }) || [];

@@ -143,20 +143,20 @@ const DesignReviewSection = ({
       
       {/* Design Options */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Option A */}
-        {assignment.generationResult.openai?.frontImageUrl && (
+        {/* Brief 1 */}
+        {assignment.generationResult.brief1?.frontImageUrl && (
           <DesignOptionCard
-            imageUrl={assignment.generationResult.openai.frontImageUrl}
-            optionLabel="A"
+            imageUrl={assignment.generationResult.brief1.frontImageUrl}
+            optionLabel="Brief 1"
             isSelected={assignment.selectedOption === 'A'}
-            executionTime={assignment.generationResult.openai.executionTime}
+            executionTime={assignment.generationResult.brief1.executionTime}
             brand={brand}
             logoPosition={effectiveLogoPosition}
-            creativeBrief={assignment.creativeBrief?.briefText}
+            creativeBrief={assignment.generationResult.brief1.briefText || assignment.creativeBrief?.briefText}
             prompt={assignment.prompt}
             campaignId={assignment.campaignId}
             designId={assignment.designId}
-            aiProvider="openai"
+            aiProvider={`${assignment.generationResult.brief1.model || 'gpt-5'} (${assignment.generationResult.brief1.reasoning || 'minimal'})`}
             userId={brand.ownerUid}
             onSelect={() => onOptionSelect(assignment.designId, 'A')}
             onLogoPositionChange={(position) => handleLogoPositionChange('A', position)}
@@ -166,20 +166,20 @@ const DesignReviewSection = ({
           />
         )}
         
-        {/* Option B */}
-        {assignment.generationResult.ideogram?.frontImageUrl && (
+        {/* Brief 2 */}
+        {assignment.generationResult.brief2?.frontImageUrl && (
           <DesignOptionCard
-            imageUrl={assignment.generationResult.ideogram.frontImageUrl}
-            optionLabel="B"
+            imageUrl={assignment.generationResult.brief2.frontImageUrl}
+            optionLabel="Brief 2"
             isSelected={assignment.selectedOption === 'B'}
-            executionTime={assignment.generationResult.ideogram.executionTime}
+            executionTime={assignment.generationResult.brief2.executionTime}
             brand={brand}
             logoPosition={effectiveLogoPosition}
-            creativeBrief={assignment.creativeBrief?.briefText}
+            creativeBrief={assignment.generationResult.brief2.briefText || assignment.creativeBrief?.briefText}
             prompt={assignment.prompt}
             campaignId={assignment.campaignId}
             designId={assignment.designId}
-            aiProvider="ideogram"
+            aiProvider={`${assignment.generationResult.brief2.model || 'gpt-5'} (${assignment.generationResult.brief2.reasoning || 'medium'})`}
             userId={brand.ownerUid}
             onSelect={() => onOptionSelect(assignment.designId, 'B')}
             onLogoPositionChange={(position) => handleLogoPositionChange('B', position)}
@@ -222,7 +222,7 @@ const DesignReviewSection = ({
       )}
       
       {/* Error States */}
-      {!assignment.generationResult.openai?.frontImageUrl && !assignment.generationResult.ideogram?.frontImageUrl && (
+      {!assignment.generationResult.brief1?.frontImageUrl && !assignment.generationResult.brief2?.frontImageUrl && (
         <div className="text-center py-8">
           <div className="text-[#FF00B8] mb-2">
             <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -231,7 +231,7 @@ const DesignReviewSection = ({
           </div>
           <h4 className="text-lg font-semibold text-[#EAEAEA] mb-1">Generation Failed</h4>
           <p className="text-[#EAEAEA]/60 text-sm">
-            Both design options failed to generate. Please try regenerating this design.
+            Both creative briefs failed to generate designs. Please try regenerating this design.
           </p>
         </div>
       )}
