@@ -76,7 +76,7 @@ export async function compositeLogoOnImage(
       }
     };
     
-    const handleError = (error: Event) => {
+    const handleError = () => {
       reject(new Error('Failed to load image'));
     };
     

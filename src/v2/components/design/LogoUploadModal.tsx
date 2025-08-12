@@ -4,7 +4,7 @@ import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDropzone } from 'react-dropzone';
 import { processLogoUpload } from '../../services/brandService';
-import { LogoVariant, ColorAnalysis } from '../../types/brand';
+import { ColorAnalysis } from '../../types/brand';
 
 interface LogoUploadModalProps {
   isOpen: boolean;
@@ -281,7 +281,7 @@ const LogoUploadModal = ({
           <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
             <p className="text-blue-400 text-xs">
               <strong>Note:</strong> This logo will only be used for this specific design. 
-              Your brand's main logo remains unchanged.
+              Your brand&apos;s main logo remains unchanged.
             </p>
           </div>
         </motion.div>

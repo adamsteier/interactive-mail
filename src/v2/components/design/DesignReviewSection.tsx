@@ -41,11 +41,13 @@ const DesignReviewSection = ({
   onOptionSelect,
   savingChanges = false
 }: DesignReviewSectionProps) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [logoPositions, setLogoPositions] = useState<{
     A?: { x: number; y: number };
     B?: { x: number; y: number };
   }>({});
   
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [logoSizes, setLogoSizes] = useState<{
     A?: { width: number; height: number };
     B?: { width: number; height: number };

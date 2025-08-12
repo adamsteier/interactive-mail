@@ -226,7 +226,7 @@ export async function getUserTemplates(
   } = {}
 ): Promise<DesignTemplate[]> {
   try {
-    let q = collection(db, 'users', userId, 'templates');
+    const q = collection(db, 'users', userId, 'templates');
     
     const constraints = [];
     
