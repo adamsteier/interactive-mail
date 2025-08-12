@@ -66,9 +66,15 @@ const DesignOptionCard = ({
   
   // Create default logo position if none exists but brand has logo
   const defaultLogoPosition = logoPosition || (brand.logo?.variants?.length > 0 ? {
-    position: { x: 'bottom-right', y: 'bottom-right' } as const,
+    position: { x: 4.5, y: 3.0 }, // Bottom-right area in inches (6" x 4" postcard)
     dimensions: { width: 1, height: 0.75 }, // inches
-    backgroundRequirement: 'any' as const,
+    backgroundRequirement: 'light' as const, // Changed from 'any' to valid type
+    safeZone: {
+      minX: 0.125,
+      minY: 0.125,
+      maxX: 5.875,
+      maxY: 3.875
+    },
     pixels: {
       position: { x: 400, y: 300 }, // Default position in pixels
       dimensions: { width: 144, height: 108 }, // Default size in pixels (1" x 0.75" at 144 DPI)
