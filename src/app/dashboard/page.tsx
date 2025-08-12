@@ -3,17 +3,17 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext'; // Assuming you have an AuthContext
-// Import dashboard components once they are created
-import DashboardSummary from '@/components/dashboard/DashboardSummary';
-import BrandProfileManager from '@/components/dashboard/BrandProfileManager';
-// import CampaignLeadViewer from '@/components/dashboard/CampaignLeadViewer';
-import PostcardDesigns from '@/components/dashboard/PostcardDesigns';
-import CampaignHistory from '@/components/dashboard/CampaignHistory';
+// V2 Dashboard Components
+import V2Overview from '@/components/dashboard/V2Overview';
+import V2Brands from '@/components/dashboard/V2Brands';
+import V2Leads from '@/components/dashboard/V2Leads';
+import V2Campaigns from '@/components/dashboard/V2Campaigns';
+import UserTemplates from '@/components/dashboard/UserTemplates';
 import UserSettings from '@/components/dashboard/UserSettings';
 // import CampaignHistory from '@/components/dashboard/CampaignHistory';
 // import UserSettings from '@/components/dashboard/UserSettings';
 
-type DashboardTab = 'overview' | 'brands' | 'leads' | 'designs' | 'history' | 'settings';
+type DashboardTab = 'overview' | 'brands' | 'leads' | 'campaigns' | 'templates' | 'settings';
 
 const DashboardPage: React.FC = () => {
   const { user, loading } = useAuth();
@@ -32,16 +32,15 @@ const DashboardPage: React.FC = () => {
   const renderTabContent = () => {
     switch (activeTab) {
       case 'overview':
-        return <DashboardSummary />;
+        return <V2Overview />;
       case 'brands':
-        return <BrandProfileManager />;
+        return <V2Brands />;
       case 'leads':
-        // return <CampaignLeadViewer />; // Or LeadSummary depending on final structure
-        return <p>Lead Management Content (Component coming soon)</p>;
-      case 'designs':
-        return <PostcardDesigns />;
-      case 'history':
-        return <CampaignHistory />;
+        return <V2Leads />;
+      case 'campaigns':
+        return <V2Campaigns />;
+      case 'templates':
+        return <UserTemplates />;
       case 'settings':
         return <UserSettings />;
       default:
@@ -74,10 +73,10 @@ const DashboardPage: React.FC = () => {
       {/* Tab Navigation Container - Adjusted border and added scrollbar styling */} 
       <div className="mb-6 border-b border-electric-teal/20 flex space-x-1 overflow-x-auto pb-0 scrollbar-thin scrollbar-thumb-electric-teal/30 scrollbar-track-transparent">
          <TabButton tabId="overview" label="Overview" />
+         <TabButton tabId="campaigns" label="Campaigns" />
          <TabButton tabId="brands" label="Brands" />
-         <TabButton tabId="designs" label="Designs" />
-         <TabButton tabId="history" label="Campaigns" />
          <TabButton tabId="leads" label="Leads" />
+         <TabButton tabId="templates" label="Templates" />
          <TabButton tabId="settings" label="Settings" />
          {/* Add more tabs as needed */}
       </div>
