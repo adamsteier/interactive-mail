@@ -69,7 +69,7 @@ Important:
     let analysis;
     try {
       analysis = JSON.parse(content);
-    } catch (parseError) {
+    } catch {
       console.error('Failed to parse OpenAI response:', content);
       throw new Error('Invalid response format from AI');
     }
@@ -80,7 +80,7 @@ Important:
     }
 
     // Ensure all business types are included in the response
-    const responseTypes = analysis.businessTargets.map((target: any) => target.type);
+    const responseTypes = analysis.businessTargets.map((target: { type: string }) => target.type);
     const missingTypes = businessTypes.filter(type => !responseTypes.includes(type));
     
     if (missingTypes.length > 0) {

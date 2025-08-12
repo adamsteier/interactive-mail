@@ -148,7 +148,7 @@ const AddBusinessTypesModal = ({ isOpen, onClose, onAdd, existingTypes }: AddBus
             {/* Content */}
             <div className="p-6">
               <p className="text-electric-teal/80 text-sm mb-4">
-                Add specific business types you'd like to target with direct mail.
+                Add specific business types you&apos;d like to target with direct mail.
               </p>
 
               {/* Business Type Input Fields */}
