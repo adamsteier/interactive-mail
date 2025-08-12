@@ -221,6 +221,8 @@ function generatePrompt(context: BriefGenerationContext): string {
 
   return `You are creating a detailed creative brief for an AI image generator to design the PRINTED CONTENT of a direct mail postcard.
 
+CRITICAL RESTRICTION: You must ONLY use the contact information and social media handles that are explicitly provided in the BRAND ASSETS section below. DO NOT invent, assume, or add any contact details (phone, email, website, address) or social media handles that are not specifically listed. If no contact information or social media is provided, do not include any in the design.
+
 CONTEXT:
 - Industry: ${context.industry} 
 - Targeting: ${context.businessTypes.join(', ')} businesses (${leadCountsDisplay})
@@ -270,8 +272,8 @@ LOGO POSITION DATA (for client overlay):
 
 4. CONTENT HIERARCHY & PLACEMENT:
    - Headline placement and style (avoid logo area)
-   - Contact information layout (with designed icons)
-   - Social media integration (with platform-appropriate icons)
+   - Contact information layout: Use ONLY the contact details listed above${contactSection ? ' (with designed icons)' : ' (NONE PROVIDED - do not include any contact information)'}
+   - Social media integration: Use ONLY the social handles listed above${socialSection ? ' (with platform-appropriate icons)' : ' (NONE PROVIDED - do not include any social media)'}
    - Call-to-action positioning
    - Logo placement: ${context.logoAnalysis.backgroundRequirement} background area at specified coordinates
 
