@@ -16,7 +16,6 @@ import {
 import { db } from '@/lib/firebase';
 import { V2Campaign } from '@/v2/types/campaign';
 import { getUserBrands, BrandSummary } from '@/v2/services/brandService';
-import { getUserTemplates, DesignTemplate } from '@/v2/services/templateService';
 
 interface DashboardStats {
   totalCampaigns: number;
@@ -68,8 +67,7 @@ const V2Overview: React.FC = () => {
       // Fetch brands
       const brands = await getUserBrands(user.uid);
 
-      // Fetch templates
-      const templates = await getUserTemplates(user.uid, { limit: 5 });
+      // Templates count will be fetched separately if needed
 
       // Calculate stats
       const allCampaignsQuery = query(
@@ -96,7 +94,7 @@ const V2Overview: React.FC = () => {
         totalCampaigns: allCampaigns.length,
         activeCampaigns,
         totalBrands: brands.length,
-        totalTemplates: templates.length,
+        totalTemplates: 0, // Templates count can be added later if needed
         totalLeadsSent,
         avgResponseRate
       });
