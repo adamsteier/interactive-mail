@@ -375,24 +375,27 @@ const LogoOverlay = ({
   if (!isVisible) return null;
   
   return (
-    <div className={`absolute inset-0 pointer-events-none z-[50] ${className}`}>
-      {/* Safe zone visualization (optional) */}
-      {showControls && (
-        <div
-          className="absolute border border-blue-400/30 bg-blue-400/5"
-          style={{
-            left: safeZone.minX,
-            top: safeZone.minY,
-            width: safeZone.maxX - safeZone.minX,
-            height: safeZone.maxY - safeZone.minY
-          }}
-        />
-      )}
+    <>
+      {/* Container for non-interactive elements */}
+      <div className={`absolute inset-0 pointer-events-none z-[50] ${className}`}>
+        {/* Safe zone visualization (optional) */}
+        {showControls && (
+          <div
+            className="absolute border border-blue-400/30 bg-blue-400/5"
+            style={{
+              left: safeZone.minX,
+              top: safeZone.minY,
+              width: safeZone.maxX - safeZone.minX,
+              height: safeZone.maxY - safeZone.minY
+            }}
+          />
+        )}
+      </div>
       
-      {/* Logo */}
+      {/* Logo - Outside of pointer-events-none container */}
       <motion.div
         ref={logoRef}
-        className={`absolute pointer-events-auto ${isDraggable ? 'cursor-move' : ''} ${
+        className={`absolute ${isDraggable ? 'cursor-move' : ''} ${
           dragState.isDragging ? 'z-[9999]' : 'z-[100]'
         } ${isKeyboardFocused ? 'outline-none' : ''}`}
         style={{
@@ -454,9 +457,9 @@ const LogoOverlay = ({
         )}
       </motion.div>
       
-      {/* Controls panel */}
+      {/* Controls panel - Outside of pointer-events-none container */}
       {showControls && (
-        <div className="absolute bottom-2 right-2 bg-black/80 backdrop-blur-sm rounded-lg p-2 space-y-2 pointer-events-auto z-[200]">
+        <div className="absolute bottom-2 right-2 bg-black/80 backdrop-blur-sm rounded-lg p-2 space-y-2 z-[200]">
           <button
             onClick={() => onVisibilityToggle?.(false)}
             className="w-full px-3 py-1 text-xs text-white bg-red-600 hover:bg-red-700 rounded transition-colors"
@@ -517,7 +520,7 @@ const LogoOverlay = ({
           designId={designId}
         />
       )}
-    </div>
+    </>
   );
 };
 
