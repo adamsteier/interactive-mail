@@ -1,7 +1,7 @@
 // src/components/dashboard/V2Overview.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { 
@@ -42,20 +42,10 @@ const V2Overview: React.FC = () => {
   
   const [recentCampaigns, setRecentCampaigns] = useState<V2Campaign[]>([]);
   const [recentBrands, setRecentBrands] = useState<BrandSummary[]>([]);
-  const [recentTemplates, setRecentTemplates] = useState<DesignTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!user) {
-      setIsLoading(false);
-      return;
-    }
-
-    fetchDashboardData();
-  }, [user]);
-
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     if (!user) return;
 
     setIsLoading(true);
@@ -113,7 +103,6 @@ const V2Overview: React.FC = () => {
 
       setRecentCampaigns(campaigns);
       setRecentBrands(brands.slice(0, 3));
-      setRecentTemplates(templates);
 
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
@@ -121,7 +110,16 @@ const V2Overview: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+
+    fetchDashboardData();
+  }, [user, fetchDashboardData]);
 
   const formatDate = (timestamp: Timestamp | Date | undefined) => {
     if (!timestamp) return 'N/A';
