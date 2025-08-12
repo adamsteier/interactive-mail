@@ -242,7 +242,7 @@ CRITICAL DESIGN REQUIREMENTS:
 - NO table surfaces, backgrounds, or environmental context showing the postcard as an object
 - The design must FILL THE ENTIRE FRAME with no visible borders or edges
 - Create the actual postcard CONTENT for direct mail printing, not a picture of a postcard
-- Logo space: ${context.logoAnalysis.promptInstructions}
+- Logo space: ${context.logoAnalysis.promptInstructions} CRITICAL: Leave this space completely EMPTY - no text, no words, no placeholder text like "logo" or "company name"
 - CONTACT INFORMATION RESTRICTION: Use ONLY the contact information explicitly provided above${contactSection ? '' : ' (NO contact information available - do not include any phone, email, address, or website)'}
 - SOCIAL MEDIA RESTRICTION: Use ONLY the social media handles explicitly provided above${socialSection ? '' : ' (NO social media available - do not include any social media handles or icons)'}
 - Design icons that complement the overall aesthetic and color scheme
@@ -268,7 +268,7 @@ LOGO POSITION DATA (for client overlay):
    - NO postcard frames, borders, or 3D effects
    - NO images showing the postcard as a physical object on surfaces
    - Design the actual printed surface content, not a representation of a postcard
-   - Keep logo area (${context.logoAnalysis.position.x}", ${context.logoAnalysis.position.y}" - ${context.logoAnalysis.width}" × ${context.logoAnalysis.height}") clear with ${context.logoAnalysis.backgroundRequirement} background
+   - Keep logo area (${context.logoAnalysis.position.x}", ${context.logoAnalysis.position.y}" - ${context.logoAnalysis.width}" × ${context.logoAnalysis.height}") clear with ${context.logoAnalysis.backgroundRequirement} background - NO TEXT OR WORDS in this area
 
 4. CONTENT HIERARCHY & PLACEMENT:
    - Headline placement and style (avoid logo area)

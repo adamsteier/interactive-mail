@@ -940,7 +940,7 @@ function calculateLogoSpace(brandData: any): { promptInstructions: string } {
   
   let instructions = `Reserve a ${logoWidth} x ${logoHeight} inch ${backgroundRequirement} space ` +
     "in the top-left corner for logo placement. Ensure this area has minimal visual elements " +
-    "and excellent contrast for logo visibility.";
+    "and excellent contrast for logo visibility. CRITICAL: Keep this space completely EMPTY - no text, no words, no placeholder text like \"logo\" or \"company name\".";
   
   // Add color avoidance if we have brand colors
   if (brandData.colors?.primary || brandData.colors?.secondary) {

@@ -195,7 +195,7 @@ export function calculateLogoSpace(
   }
 
   // Generate prompt instructions
-  const promptInstructions = `Leave a ${logoWidth.toFixed(1)} x ${logoHeight.toFixed(1)} inch ${backgroundRequirement === 'light' ? 'light colored or white' : 'dark colored'} space in the top-left corner for logo placement. Ensure this area has minimal visual elements and good contrast for logo visibility.`;
+  const promptInstructions = `Leave a ${logoWidth.toFixed(1)} x ${logoHeight.toFixed(1)} inch ${backgroundRequirement === 'light' ? 'light colored or white' : 'dark colored'} space in the top-left corner for logo placement. Ensure this area has minimal visual elements and good contrast for logo visibility. CRITICAL: Keep this space completely EMPTY - no text, no words, no placeholder text like "logo" or "company name".`;
 
   if (logoColors?.extracted?.palette) {
     const colorsToAvoid = logoColors.extracted.palette.slice(0, 3).join(', ');
@@ -250,7 +250,7 @@ REQUIREMENTS:
 - Eye-catching visuals relevant to ${request.industry}
 - Include compelling headline and call-to-action text
 - Ensure excellent readability
-- Leave clear space for logo as specified
+- Leave clear space for logo as specified - NO TEXT OR WORDS in the logo area
 - Use high-quality, professional imagery
 - Optimize for print at 300 DPI
 - Landscape orientation (6x4 inches)
