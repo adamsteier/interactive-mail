@@ -52,7 +52,7 @@ const ProgressiveAnalysisLoader = () => {
   }, [currentStepIndex, currentStep.duration]);
 
   return (
-    <div className="w-full rounded-lg border-2 border-electric-teal bg-charcoal/80 px-4 md:px-6 py-6 shadow-glow backdrop-blur-sm">
+    <div className="w-full rounded-lg border-2 border-electric-teal bg-charcoal/80 px-4 md:px-6 py-6 shadow-glow backdrop-blur-sm overflow-x-hidden">
       {/* Overall Progress */}
       <div className="mb-6">
         <div className="flex justify-between items-center mb-2">
@@ -84,7 +84,7 @@ const ProgressiveAnalysisLoader = () => {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="flex items-center space-x-3"
+          className="flex items-center space-x-3 min-h-12 overflow-x-hidden"
         >
           {/* Animated Icon */}
           <div className="flex space-x-1">
@@ -141,12 +141,12 @@ const ProgressiveAnalysisLoader = () => {
       </div>
 
       {/* Completed Steps List */}
-      <div className="mt-4 max-h-32 overflow-y-hidden">
+      <div className="mt-4 h-32 overflow-y-auto overflow-x-hidden pr-1">
         {analysisSteps.slice(0, currentStepIndex).map((step, index) => (
           <motion.div
             key={index}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 0.5, x: 0 }}
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 0.5, scale: 1 }}
             className="flex items-center text-xs text-electric-teal/40 py-1"
           >
             <span className="mr-2">✓</span>
