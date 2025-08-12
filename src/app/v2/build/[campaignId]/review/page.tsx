@@ -192,11 +192,6 @@ export default function ReviewPage({ params }: { params: Params }) {
     }
   };
 
-  const handleTemplateSaved = (templateId: string) => {
-    console.log('Template saved with ID:', templateId);
-    // Could show a success message or update UI
-  };
-
   const handleProceedToPayment = () => {
     if (!campaignData) return;
     

@@ -286,6 +286,21 @@ function createV2PostcardPrompt(requestData: any, brandData: any, logoSpace: any
     `LOGO SPACE: ${logoSpace.promptInstructions}\n\n` +
     "BRAND GUIDELINES:";
 
+  // Add brand name
+  if (brandData.name?.trim()) {
+    prompt += `\nBrand name: ${brandData.name.trim()}`;
+  }
+
+  // Add brand description if available
+  if (brandData.description?.trim()) {
+    prompt += `\nBrand description: ${brandData.description.trim()}`;
+  }
+
+  // Add business type if available
+  if (brandData.businessInfo?.type?.trim()) {
+    prompt += `\nBusiness type: ${brandData.businessInfo.type.trim()}`;
+  }
+
   // Add brand colors from V2 brand structure
   if (brandData.logo?.colors?.extracted?.palette) {
     const colors = brandData.logo.colors.extracted.palette.slice(0, 3);
@@ -299,16 +314,58 @@ function createV2PostcardPrompt(requestData: any, brandData: any, logoSpace: any
     prompt += `\nSecondary brand color: ${brandData.styleComponents.secondaryColor}`;
   }
 
+  // Add brand identity information
+  if (brandData.identity?.tagline) {
+    prompt += `\nTagline: ${brandData.identity.tagline}`;
+  }
+  if (brandData.identity?.voice) {
+    prompt += `\nBrand voice: ${brandData.identity.voice}`;
+  }
+  if (brandData.identity?.valueProposition) {
+    prompt += `\nValue proposition: ${brandData.identity.valueProposition}`;
+  }
+
+  // Add all contact information
+  if (brandData.businessInfo?.phone) {
+    prompt += `\nPhone: ${brandData.businessInfo.phone}`;
+  }
+  if (brandData.businessInfo?.email) {
+    prompt += `\nEmail: ${brandData.businessInfo.email}`;
+  }
+  if (brandData.businessInfo?.website) {
+    prompt += `\nWebsite: ${brandData.businessInfo.website}`;
+  }
+  if (brandData.businessInfo?.address) {
+    prompt += `\nAddress: ${brandData.businessInfo.address}`;
+  }
+
+  // Add all social media information
+  if (brandData.socialMedia?.instagram) {
+    prompt += `\nInstagram: ${brandData.socialMedia.instagram}`;
+  }
+  if (brandData.socialMedia?.facebook) {
+    prompt += `\nFacebook: ${brandData.socialMedia.facebook}`;
+  }
+  if (brandData.socialMedia?.linkedin) {
+    prompt += `\nLinkedIn: ${brandData.socialMedia.linkedin}`;
+  }
+  if (brandData.socialMedia?.twitter) {
+    prompt += `\nTwitter/X: ${brandData.socialMedia.twitter}`;
+  }
+  if (brandData.socialMedia?.tiktok) {
+    prompt += `\nTikTok: ${brandData.socialMedia.tiktok}`;
+  }
+  if (brandData.socialMedia?.youtube) {
+    prompt += `\nYouTube: ${brandData.socialMedia.youtube}`;
+  }
+
   prompt += `\nTone: ${voice}
 Target audience: ${audience}`;
 
-  // Check if this is a creative brief using multiple methods for reliability
-  const isFullBrief = 
-    // Method 1: Check for briefId field (most reliable)
+  // Always use creative brief style - check if this is a structured creative brief or simple goal
+  const isStructuredBrief = 
     (requestData.briefId && requestData.briefId.length > 0) ||
-    // Method 2: Check for our marker in the goal text (backup)
     (goal && goal.includes("[CREATIVE_BRIEF_ID:")) ||
-    // Method 3: Fallback to heuristic detection (for older briefs)
     (goal && goal.length > 100 && (
       goal.includes("postcard") || 
       goal.includes("design") || 
@@ -317,116 +374,43 @@ Target audience: ${audience}`;
       goal.includes("CTA")
     ));
 
-  if (isFullBrief) {
+  if (isStructuredBrief) {
     // Log detection method for debugging
     const detectionMethod = requestData.briefId ? "briefId field" : 
       (goal && goal.includes("[CREATIVE_BRIEF_ID:")) ? "text marker" : "heuristic";
     const briefInfo = requestData.briefId ? ` (ID: ${requestData.briefId})` : "";
-    logger.info(`Creative brief detected using: ${detectionMethod}${briefInfo}`);
+    logger.info(`Structured creative brief detected using: ${detectionMethod}${briefInfo}`);
     
     // Use the full creative brief as the primary directive
     prompt += `\n\nCREATIVE BRIEF:\n${goal}`;
-    
-    if (businessDescription) {
-      prompt += `\n\nBusiness context: ${businessDescription}`;
-    }
-    
-    prompt += "\n\nADDITIONAL TECHNICAL REQUIREMENTS:";
   } else {
-    // Treat as a simple campaign goal
-    prompt += `\nCampaign goal: ${goal}`;
-    
-    if (businessDescription) {
-      prompt += `\nBusiness context: ${businessDescription}`;
-    }
-    
-    prompt += "\n\nCONTENT REQUIREMENTS:";
+    // Convert simple goal to creative brief format
+    prompt += `\n\nCREATIVE BRIEF:\n${goal}`;
   }
+  
+  if (businessDescription) {
+    prompt += `\n\nBusiness context: ${businessDescription}`;
+  }
+  
+  prompt += "\n\nADDITIONAL TECHNICAL REQUIREMENTS:";
 
-  // Handle headline - adjust based on whether we have a full brief
+  // Handle headline - only add if custom headline provided
   if (customHeadline) {
     prompt += `\nHeadline: "${customHeadline}"`;
-  } else if (!isFullBrief) {
-    prompt += `\nGenerate an attention-grabbing headline that appeals to ${audience} and promotes the ${goal}`;
   }
 
-  // Handle CTA - adjust based on whether we have a full brief
+  // Handle CTA - only add if custom CTA provided
   if (customCTA) {
     prompt += `\nCall-to-action: "${customCTA}"`;
-  } else if (!isFullBrief) {
-    prompt += "\nGenerate a compelling call-to-action button/text that encourages " +
-      "immediate response (examples: \"Call Now\", \"Visit Today\", \"Book Online\", \"Get Started\", \"Save Now\")";
   }
 
-  // Contact information requirement - only add if not covered in full brief
-  if (!isFullBrief) {
-    // Add actual brand contact info if available
-    let contactPrompt = "\nContact info: ";
-    const hasContactInfo = brandData.businessInfo && (
-      brandData.businessInfo.phone || 
-      brandData.businessInfo.email || 
-      brandData.businessInfo.website || 
-      brandData.businessInfo.address
-    );
-    
-    if (hasContactInfo) {
-      contactPrompt += "Include the following contact information in an attractive, readable layout:\n";
-      if (brandData.businessInfo.phone) {
-        contactPrompt += `- Phone: ${brandData.businessInfo.phone}\n`;
-      }
-      if (brandData.businessInfo.email) {
-        contactPrompt += `- Email: ${brandData.businessInfo.email}\n`;
-      }
-      if (brandData.businessInfo.website) {
-        contactPrompt += `- Website: ${brandData.businessInfo.website}\n`;
-      }
-      if (brandData.businessInfo.address) {
-        contactPrompt += `- Address: ${brandData.businessInfo.address}\n`;
-      }
-    } else {
-      contactPrompt += "Include placeholder areas for phone number, website, " +
-        "and address in an attractive, readable layout";
-    }
-    
-    prompt += contactPrompt;
-    
-    // Add social media if available
-    const hasSocialMedia = brandData.socialMedia && (
-      brandData.socialMedia.instagram || 
-      brandData.socialMedia.facebook || 
-      brandData.socialMedia.linkedin || 
-      brandData.socialMedia.twitter ||
-      brandData.socialMedia.tiktok ||
-      brandData.socialMedia.youtube
-    );
-    
-    if (hasSocialMedia) {
-      prompt += "\nSocial Media: Include these social media handles with appropriate platform icons:\n";
-      if (brandData.socialMedia.instagram) {
-        prompt += `- Instagram: ${brandData.socialMedia.instagram}\n`;
-      }
-      if (brandData.socialMedia.facebook) {
-        prompt += `- Facebook: ${brandData.socialMedia.facebook}\n`;
-      }
-      if (brandData.socialMedia.linkedin) {
-        prompt += `- LinkedIn: ${brandData.socialMedia.linkedin}\n`;
-      }
-      if (brandData.socialMedia.twitter) {
-        prompt += `- Twitter/X: ${brandData.socialMedia.twitter}\n`;
-      }
-      if (brandData.socialMedia.tiktok) {
-        prompt += `- TikTok: ${brandData.socialMedia.tiktok}\n`;
-      }
-      if (brandData.socialMedia.youtube) {
-        prompt += `- YouTube: ${brandData.socialMedia.youtube}\n`;
-      }
-    }
-  }
+  // Contact information and social media are now included in BRAND GUIDELINES section above
+  // No need to duplicate them here since all brand info is already included
 
-  // Image requirements - only add generic ones if not a full brief
+  // Image requirements
   if (imageDescription) {
     prompt += `\nImagery: ${imageDescription}`;
-  } else if (!isFullBrief) {
+  } else if (!isStructuredBrief) {
     prompt += `\nImagery: High-quality, professional images relevant to ${industry} that appeal to ${audience}`;
   }
 
