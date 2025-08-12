@@ -59,8 +59,10 @@ const AuthOverlay = ({ isOpen, onClose, className = '' }: AuthOverlayProps) => {
     google: false
   });
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
   
-  const { signIn, signUp, signInWithGoogle } = useAuth();
+  const { signIn, signUp, signInWithGoogle, resetPassword } = useAuth();
 
   // Check which auth methods are enabled
   useEffect(() => {
@@ -164,6 +166,33 @@ const AuthOverlay = ({ isOpen, onClose, className = '' }: AuthOverlayProps) => {
         setError(err.message);
       } else {
         setError('Failed to sign up');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (isLoading || !email) {
+      if (!email) {
+        setError('Please enter your email address first');
+      }
+      return;
+    }
+    
+    setError('');
+    setIsLoading(true);
+    
+    try {
+      await resetPassword(email);
+      setResetEmailSent(true);
+      setShowForgotPassword(false);
+    } catch (err: unknown) {
+      console.error('Password reset error:', err);
+      if (err instanceof FirebaseError) {
+        setError(getFirebaseErrorMessage(err));
+      } else {
+        setError('Failed to send password reset email');
       }
     } finally {
       setIsLoading(false);
@@ -317,6 +346,23 @@ const AuthOverlay = ({ isOpen, onClose, className = '' }: AuthOverlayProps) => {
                     Click here to sign in
                   </button>
                 )}
+              </div>
+            )}
+            
+            {/* Password reset success message */}
+            {resetEmailSent && (
+              <div className="mb-4 p-3 rounded-md bg-electric-teal/10 border border-electric-teal text-electric-teal text-sm">
+                <div className="flex items-center">
+                  <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <div>
+                    <p className="font-medium">Password reset email sent!</p>
+                    <p className="text-xs mt-1 text-electric-teal/80">
+                      Check your email for instructions to reset your password.
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
             
@@ -481,6 +527,19 @@ const AuthOverlay = ({ isOpen, onClose, className = '' }: AuthOverlayProps) => {
                   )}
                 </button>
                 
+                {/* Forgot Password Link - Only show for sign in mode */}
+                {mode === 'signin' && (
+                  <div className="text-center mt-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotPassword(true)}
+                      className="text-sm text-electric-teal/70 hover:text-electric-teal underline transition-colors"
+                    >
+                      Forgot your password?
+                    </button>
+                  </div>
+                )}
+                
                 {/* Or Divider - Only show if both methods are available */}
                 {enabledAuthMethods.google && enabledAuthMethods.emailPassword && (
                   <div className="relative flex items-center py-2">
@@ -537,6 +596,52 @@ const AuthOverlay = ({ isOpen, onClose, className = '' }: AuthOverlayProps) => {
               </button>
             )}
           </>
+        )}
+        
+        {/* Forgot Password Modal */}
+        {showForgotPassword && (
+          <div className="absolute inset-0 bg-charcoal/80 backdrop-blur-sm flex items-center justify-center z-10">
+            <div className="bg-charcoal/95 border border-electric-teal/30 rounded-lg p-6 w-full max-w-sm mx-4">
+              <div className="text-center mb-4">
+                <h3 className="text-lg font-semibold text-electric-teal mb-2">Reset Password</h3>
+                <p className="text-sm text-electric-teal/70">
+                  Enter your email address and we&apos;ll send you a link to reset your password.
+                </p>
+              </div>
+              
+              <div className="mb-4">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email address"
+                  className="w-full p-3 rounded-md bg-charcoal-light border border-electric-teal/50 text-white 
+                    focus:border-electric-teal focus:outline-none focus:ring-1 focus:ring-electric-teal"
+                />
+              </div>
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => {
+                    setShowForgotPassword(false);
+                    setError('');
+                  }}
+                  className="flex-1 px-4 py-2 border border-electric-teal/30 text-electric-teal rounded-md 
+                    hover:bg-electric-teal/10 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleForgotPassword}
+                  disabled={isLoading || !email}
+                  className="flex-1 px-4 py-2 bg-electric-teal text-charcoal rounded-md font-medium
+                    hover:bg-electric-teal/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isLoading ? 'Sending...' : 'Send Reset Email'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
         
         {/* Background Hint Text - to show that things are loading behind */}

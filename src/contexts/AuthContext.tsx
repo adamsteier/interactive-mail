@@ -15,7 +15,8 @@ import {
   linkWithCredential,
   EmailAuthProvider,
   linkWithPopup,
-  AuthCredential
+  AuthCredential,
+  sendPasswordResetEmail
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { getSessionId, updateSessionStatus, updateSessionAnonymousUserId, getSession } from '@/lib/sessionService';
@@ -35,6 +36,7 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<UserCredential>;
   signInAnonymously: () => Promise<UserCredential>;
   linkAnonymousAccount: (credential: AuthCredential) => Promise<UserCredential>;
+  resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUserData: () => Promise<void>;
 }
@@ -50,6 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [showAuthOverlay, setShowAuthOverlay] = useState(false);
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [anonymousAuthFailed, setAnonymousAuthFailed] = useState(false);
+  const [isSigningIn, setIsSigningIn] = useState(false);
   
   // Get store actions for business operations
   const { 
@@ -111,7 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let retryTimeout: NodeJS.Timeout;
     
     const initializeAnonymousAuth = async () => {
-      if (!loading && !user) {
+      if (!loading && !user && !isSigningIn) {
         try {
           console.log('No user detected, signing in anonymously...');
           const result = await signInAnonymouslyHandler();
@@ -174,7 +177,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearTimeout(retryTimeout);
       }
     };
-  }, [loading, user]);
+      }, [loading, user, isSigningIn]);
 
   // Helper function to convert anonymous session after authentication
   const handlePostAuthentication = async (user: User, firstName?: string, lastName?: string) => {
@@ -242,6 +245,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async (email: string, password: string) => {
     // If user is anonymous, we need to handle this carefully
     if (user && isAnonymous) {
+      // Set signing in flag to prevent anonymous auth from interfering
+      setIsSigningIn(true);
+      
       try {
         // First, try to sign in to the existing account to verify credentials
         // We'll temporarily sign out of anonymous account, sign in normally, then transfer data
@@ -249,37 +255,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         // Sign out of anonymous account
         await signOut(auth);
-        
+      
+      let credential: UserCredential;
+      try {
         // Sign in to the existing account
-        const credential = await signInWithEmailAndPassword(auth, email, password);
+        credential = await signInWithEmailAndPassword(auth, email, password);
         
-        // Transfer any anonymous data to the signed-in account
-        try {
-          const sessionId = getSessionId();
-          if (sessionId) {
-            const sessionData = await getSession();
-            if (sessionData?.anonymousUserId && sessionData.anonymousUserId === anonymousUserId) {
-              console.log('Transferring data from anonymous user to signed-in account:', anonymousUserId);
-              await transferAnonymousData(anonymousUserId, credential.user.uid);
-            }
-          }
-        } catch (transferError) {
-          console.error('Failed to transfer anonymous data during sign-in:', transferError);
-          // Don't fail the sign-in if transfer fails
-        }
-        
-        await handlePostAuthentication(credential.user);
+        // Set anonymous to false immediately after successful sign-in
         setIsAnonymous(false);
-        return credential;
-      } catch (error) {
-        // If sign-in fails, restore anonymous session
+      } catch (signInError) {
+        // If sign-in fails, restore the anonymous session
+        console.error('Sign-in failed, restoring anonymous session:', signInError);
         try {
           await signInAnonymously(auth);
           setIsAnonymous(true);
         } catch (restoreError) {
           console.error('Failed to restore anonymous session after sign-in failure:', restoreError);
+        } finally {
+          setIsSigningIn(false);
         }
-        throw error;
+        throw signInError;
+      }
+      
+      // At this point, sign-in was successful. Handle post-authentication tasks
+      // but don't restore anonymous session if these fail
+      try {
+        await handlePostAuthentication(credential.user);
+      } catch (postAuthError) {
+        console.error('Failed to handle post-authentication tasks:', postAuthError);
+        // Don't restore anonymous session if post-auth fails - the user is successfully signed in
+        // Just log the error and continue
+      }
+      
+      // Transfer any anonymous data to the signed-in account (after successful auth)
+      try {
+        const sessionId = getSessionId();
+        if (sessionId) {
+          const sessionData = await getSession();
+          if (sessionData?.anonymousUserId && sessionData.anonymousUserId === anonymousUserId) {
+            console.log('Transferring data from anonymous user to signed-in account:', anonymousUserId);
+            await transferAnonymousData(anonymousUserId, credential.user.uid);
+          }
+        }
+      } catch (transferError) {
+        console.error('Failed to transfer anonymous data during sign-in:', transferError);
+        // Don't fail the sign-in if transfer fails
+      }
+      
+        return credential;
+      } finally {
+        // Clear the signing in flag
+        setIsSigningIn(false);
       }
     }
     
@@ -341,6 +367,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return credential;
   };
 
+  const resetPassword = async (email: string) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      console.log('Password reset email sent to:', email);
+    } catch (error) {
+      console.error('Failed to send password reset email:', error);
+      throw error;
+    }
+  };
+
   const logout = async () => {
     // Before signing out, mark any active session as anonymous or abandoned
     try {
@@ -370,6 +406,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signInWithGoogle,
     signInAnonymously: signInAnonymouslyHandler,
     linkAnonymousAccount,
+    resetPassword,
     logout,
     refreshUserData
   };
