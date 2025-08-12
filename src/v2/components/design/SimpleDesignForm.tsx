@@ -68,7 +68,6 @@ const SimpleDesignForm = ({
   availableBusinessTypes,
   // campaignId,
   onSubmit,
-  onToggleAdvanced,
   loading = false,
   initialData,
   initialIndustry,

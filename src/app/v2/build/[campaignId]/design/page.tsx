@@ -731,7 +731,6 @@ export default function DesignPage({ params }: { params: Params }) {
                   availableBusinessTypes={allBusinessTypes}
                   campaignId={campaignId}
                   onSubmit={handleDesignSubmit}
-                  onToggleAdvanced={() => {}} // TODO: Implement advanced mode
                   loading={isGenerating}
                   initialIndustry={campaignData.businessData?.industry}
                   initialDescription={campaignData.businessData?.description}

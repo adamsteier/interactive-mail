@@ -18,8 +18,8 @@ import {
   AuthCredential
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { getSessionId, updateSessionStatus, updateSessionAnonymousUserId } from '@/lib/sessionService';
-import { createOrUpdateUser, UserData } from '@/lib/userService';
+import { getSessionId, updateSessionStatus, updateSessionAnonymousUserId, getSession } from '@/lib/sessionService';
+import { createOrUpdateUser, UserData, transferAnonymousData } from '@/lib/userService';
 import { useMarketingStore } from '@/store/marketingStore';
 
 interface AuthContextType {
@@ -240,15 +240,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
-    // If user is anonymous, link the account instead of signing in
+    // If user is anonymous, we need to handle this carefully
     if (user && isAnonymous) {
-      const credential = EmailAuthProvider.credential(email, password);
-      const linkedCredential = await linkAnonymousAccount(credential);
-      await handlePostAuthentication(linkedCredential.user);
-      return linkedCredential;
+      try {
+        // First, try to sign in to the existing account to verify credentials
+        // We'll temporarily sign out of anonymous account, sign in normally, then transfer data
+        const anonymousUserId = user.uid;
+        
+        // Sign out of anonymous account
+        await signOut(auth);
+        
+        // Sign in to the existing account
+        const credential = await signInWithEmailAndPassword(auth, email, password);
+        
+        // Transfer any anonymous data to the signed-in account
+        try {
+          const sessionId = getSessionId();
+          if (sessionId) {
+            const sessionData = await getSession();
+            if (sessionData?.anonymousUserId && sessionData.anonymousUserId === anonymousUserId) {
+              console.log('Transferring data from anonymous user to signed-in account:', anonymousUserId);
+              await transferAnonymousData(anonymousUserId, credential.user.uid);
+            }
+          }
+        } catch (transferError) {
+          console.error('Failed to transfer anonymous data during sign-in:', transferError);
+          // Don't fail the sign-in if transfer fails
+        }
+        
+        await handlePostAuthentication(credential.user);
+        setIsAnonymous(false);
+        return credential;
+      } catch (error) {
+        // If sign-in fails, restore anonymous session
+        try {
+          await signInAnonymously(auth);
+          setIsAnonymous(true);
+        } catch (restoreError) {
+          console.error('Failed to restore anonymous session after sign-in failure:', restoreError);
+        }
+        throw error;
+      }
     }
     
-    // Regular sign in
+    // Regular sign in for non-anonymous users
     const credential = await signInWithEmailAndPassword(auth, email, password);
     await handlePostAuthentication(credential.user);
     return credential;

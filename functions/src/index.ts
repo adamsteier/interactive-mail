@@ -276,9 +276,11 @@ function createV2PostcardPrompt(requestData: any, brandData: any, logoSpace: any
   } = requestData;
 
   // Build comprehensive postcard prompt
-  let prompt = "Create a professional direct mail promotional postcard design " +
+  let prompt = "Create the PRINTED CONTENT for a professional direct mail postcard " +
     "(6x4 inch landscape) that will be mailed to potential customers.\n\n" +
-    "POSTCARD CONTEXT: This is a promotional postcard that recipients " +
+    "CRITICAL: This is NOT an image OF a postcard sitting on a surface. " +
+    "This IS the actual postcard content that will be printed and mailed.\n\n" +
+    "POSTCARD CONTEXT: This is promotional content that recipients " +
     `will receive in their mailbox to promote a ${industry} business. ` +
     "It must grab attention and drive action.\n\n" +
     `LOGO SPACE: ${logoSpace.promptInstructions}\n\n` +
@@ -441,18 +443,30 @@ Target audience: ${audience}`;
 
 TECHNICAL REQUIREMENTS:
 - 6x4 inch landscape orientation optimized for print
-- 300 DPI quality
+- 300 DPI quality with 0.125" bleed on all sides
+- Full-bleed design that extends to all edges of the print area
 - Modern typography that's readable when printed
 - Professional layout with proper hierarchy
 - Ensure all text is large enough to read in mail format
 - Use the latest image generation capabilities for sharp, clear text
 
-DESIGN PRINCIPLES:
+CRITICAL DESIGN PRINCIPLES:
 - This postcard will be physically mailed, so it must stand out in a mailbox
+- Create the actual postcard CONTENT, not an image of a postcard object
+- NO borders, frames, or postcard-like edges in the design
+- NO table surfaces, shadows, or environmental backgrounds
+- The design IS the postcard - it fills the entire frame
 - Include enough white space for readability
 - Make the most important information (headline, CTA) most prominent
 - Ensure contact information is clearly visible but not overwhelming
-- Create visual appeal that makes recipients want to keep the postcard`;
+- Create visual appeal that makes recipients want to keep the postcard
+
+AVOID COMPLETELY:
+- Images showing postcards as physical objects
+- Postcard frames, borders, or 3D effects
+- Table surfaces or environmental contexts
+- Drop shadows around the entire design
+- Any representation of the postcard as an item sitting on something`;
 
   // Elements to exclude
   if (elementsToExclude && elementsToExclude.length > 0) {
@@ -883,18 +897,30 @@ CONTENT REQUIREMENTS:`;
 
 TECHNICAL REQUIREMENTS:
 - 6x4 inch landscape orientation optimized for print
-- 300 DPI quality
+- 300 DPI quality with 0.125" bleed on all sides
+- Full-bleed design that extends to all edges of the print area
 - Modern typography that's readable when printed
 - Professional layout with proper hierarchy
 - Ensure all text is large enough to read in mail format
 - Use the latest image generation capabilities for sharp, clear text
 
-DESIGN PRINCIPLES:
+CRITICAL DESIGN PRINCIPLES:
 - This postcard will be physically mailed, so it must stand out in a mailbox
+- Create the actual postcard CONTENT, not an image of a postcard object
+- NO borders, frames, or postcard-like edges in the design
+- NO table surfaces, shadows, or environmental backgrounds
+- The design IS the postcard - it fills the entire frame
 - Include enough white space for readability
 - Make the most important information (headline, CTA) most prominent
 - Ensure contact information is clearly visible but not overwhelming
-- Create visual appeal that makes recipients want to keep the postcard`;
+- Create visual appeal that makes recipients want to keep the postcard
+
+AVOID COMPLETELY:
+- Images showing postcards as physical objects
+- Postcard frames, borders, or 3D effects
+- Table surfaces or environmental contexts
+- Drop shadows around the entire design
+- Any representation of the postcard as an item sitting on something`;
 
   // Elements to exclude
   if (elementsToExclude && elementsToExclude.length > 0) {

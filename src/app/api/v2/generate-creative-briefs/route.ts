@@ -219,7 +219,7 @@ function generatePrompt(context: BriefGenerationContext): string {
     ? `\nIMAGERY INSTRUCTIONS:\n${context.imageryInstructions}`
     : '';
 
-  return `You are creating a detailed creative brief for an AI image generator to design ONE SIDE of a postcard.
+  return `You are creating a detailed creative brief for an AI image generator to design the PRINTED CONTENT of a direct mail postcard.
 
 CONTEXT:
 - Industry: ${context.industry} 
@@ -233,8 +233,13 @@ BRAND ASSETS:
 - Colors: ${context.brandColors.join(', ')}
 - Logo: ${context.logoAnalysis.promptInstructions}${contactSection}${socialSection}${businessContext}${imageryContext}
 
-REQUIREMENTS:
-- Format: ${POSTCARD_SPECS.width}×${POSTCARD_SPECS.height}" landscape postcard, ${POSTCARD_SPECS.bleed}" bleed
+CRITICAL DESIGN REQUIREMENTS:
+- Format: ${POSTCARD_SPECS.width}×${POSTCARD_SPECS.height}" landscape postcard with ${POSTCARD_SPECS.bleed}" bleed - FULL-BLEED DESIGN that extends to all edges
+- This is NOT an image OF a postcard, but the actual postcard CONTENT that fills the entire frame
+- NO borders, margins, or postcard-like frames - the design IS the postcard
+- NO table surfaces, backgrounds, or environmental context showing the postcard as an object
+- The design must FILL THE ENTIRE FRAME with no visible borders or edges
+- Create the actual postcard CONTENT for direct mail printing, not a picture of a postcard
 - Logo space: ${context.logoAnalysis.promptInstructions}
 - Include relevant contact information with appropriate, well-designed icons
 - Include relevant social media handles with recognizable platform icons
@@ -242,21 +247,33 @@ REQUIREMENTS:
 
 Create a detailed creative brief that an AI can follow to generate this postcard design. Include:
 
+LOGO POSITION DATA (for client overlay):
+- Position: ${context.logoAnalysis.position.x}" from left, ${context.logoAnalysis.position.y}" from top
+- Dimensions: ${context.logoAnalysis.width}" × ${context.logoAnalysis.height}"
+- Background: ${context.logoAnalysis.backgroundRequirement} colored area required
+- Safe zone: Within 0.125" bleed area (5.75" × 3.75" safe area)
+
 1. LAYOUT & GRID APPROACH:
    [Specify: no columns/2-column/3-column/asymmetrical - choose what works best for this industry and content]
+   - Logo space: Reserve ${context.logoAnalysis.width}" × ${context.logoAnalysis.height}" area at ${context.logoAnalysis.position.x}", ${context.logoAnalysis.position.y}" (from top-left) with ${context.logoAnalysis.backgroundRequirement} background
 
 2. COLOR STRATEGY:
    [How to use brand colors: ${context.brandColors.join(', ')} - be specific about application]
 
 3. IMAGERY STYLE & COMPOSITION:
    [AI-generated imagery direction, style, subjects that resonate with ${context.industry} businesses]
+   - CRITICAL: Create full-bleed background imagery that extends to all edges
+   - NO postcard frames, borders, or 3D effects
+   - NO images showing the postcard as a physical object on surfaces
+   - Design the actual printed surface content, not a representation of a postcard
+   - Keep logo area (${context.logoAnalysis.position.x}", ${context.logoAnalysis.position.y}" - ${context.logoAnalysis.width}" × ${context.logoAnalysis.height}") clear with ${context.logoAnalysis.backgroundRequirement} background
 
 4. CONTENT HIERARCHY & PLACEMENT:
-   - Headline placement and style
+   - Headline placement and style (avoid logo area)
    - Contact information layout (with designed icons)
    - Social media integration (with platform-appropriate icons)
    - Call-to-action positioning
-   - Logo placement: ${context.logoAnalysis.backgroundRequirement} background area
+   - Logo placement: ${context.logoAnalysis.backgroundRequirement} background area at specified coordinates
 
 5. VISUAL ELEMENTS:
    - Icon style that matches overall design (modern, minimal, bold, etc.)
@@ -358,7 +375,7 @@ async function generateBriefWithGPT5(
     input: prompt,                      // replaces chat 'user' message
     reasoning: { effort: reasoning },   // GPT-5 control
     text: { verbosity: 'medium' },      // GPT-5 control
-    max_output_tokens: 1200,            // Responses API name (not max_tokens)
+    max_output_tokens: 5000,            // Increased for reasoning models that need more tokens
     // seed: 42,                        // optional: determinism across runs
   };
 

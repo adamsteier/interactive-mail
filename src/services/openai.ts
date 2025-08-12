@@ -30,9 +30,13 @@ export const generateImagePrompt = (
   const brandAesthetic = stylePreferences.length > 0 ? 
     stylePreferences.join(', ') : 'professional, modern';
   
-  return `Create a high-quality ${styleString} image to be used as a background element within a postcard design for ${brandName}${industry ? ' in the ' + industry + ' industry' : ''}. 
+  return `Create a high-quality ${styleString} background image for direct mail postcard printing for ${brandName}${industry ? ' in the ' + industry + ' industry' : ''}. 
 
-This is creating a FULL-FRAME BACKGROUND IMAGE for a postcard based on these parameters:
+This is creating POSTCARD CONTENT - the actual printed surface, NOT an image of a postcard object.
+
+CRITICAL: This is NOT an image OF a postcard sitting on a table or surface. This IS the postcard content that will be printed.
+
+CONTENT PARAMETERS:
 - The image must feature ${imagePrimarySubject || 'a smiling person'} as the primary subject
 - The image should appeal to ${targetDescription || 'business professionals'}
 - Use a color palette that complements ${colors.primary} and ${colors.accent}
@@ -49,7 +53,15 @@ CRITICAL REQUIREMENTS:
 - The subject should be clearly visible and well-composed within the frame
 - The image should work as a versatile background that can accommodate different text placements
 - Avoid overly busy patterns that would make text difficult to read
-- Ensure the image has proper depth and doesn't look flat or like clip art`;
+- Ensure the image has proper depth and doesn't look flat or like clip art
+
+AVOID COMPLETELY:
+- Postcard frames, borders, or 3D postcard effects
+- Images showing postcards as physical objects
+- Table surfaces or environmental backgrounds
+- Drop shadows around the entire image
+- Any representation of the postcard as an item sitting on something
+- White borders or margins around the design`;
 };
 
 /**
