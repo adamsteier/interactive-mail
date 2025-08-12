@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import PlacesLeadsCollection from '@/components/PlacesLeadsCollection';
 import { createDraftCampaign } from '@/services/campaignService';
 import { showAuthOverlay } from '@/lib/auth';
+import AddBusinessTypesModal from '@/components/AddBusinessTypesModal';
 
 interface MarketingResultsProps {
   strategy: MarketingStrategy;
@@ -23,6 +24,7 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'business' | 'database'>('business');
   const [interestedInDatabase, setInterestedInDatabase] = useState(false);
+  const [showAddBusinessTypesModal, setShowAddBusinessTypesModal] = useState(false);
   
   const { user, isAnonymous, anonymousAuthFailed } = useAuth();
   
@@ -36,6 +38,8 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
     setSelectedBusinessTypes: setStoreSelectedBusinessTypes,
     setCurrentCampaign,
     businessInfo,
+    addCustomBusinessTypes,
+    marketingStrategy,
   } = useMarketingStore();
 
   // Mock values for the UI for the estimated reach if not present in the strategy object
@@ -63,6 +67,19 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
       }
     }
   }, [strategy, setMarketingStrategy]);
+
+  const handleAddBusinessTypes = async (businessTypes: string[]) => {
+    try {
+      await addCustomBusinessTypes(businessTypes);
+      // The strategy will be automatically updated in the store
+    } catch (error) {
+      console.error('Failed to add business types:', error);
+      throw error; // Re-throw so the modal can handle the error
+    }
+  };
+
+  // Get current business types for duplicate checking
+  const currentBusinessTypes = marketingStrategy?.method1Analysis?.businessTargets?.map(target => target.type) || [];
 
   const handleGetData = async () => {
     if (selectedBusinessTypes.size > 0) {
@@ -248,9 +265,20 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
             {/* Business Targets - Show when active tab is business or method2 is not available */}
             {(activeTab === 'business' || !hasMethod2) && (
               <div className="mb-8">
-                <h3 className="mb-4 text-lg font-medium text-electric-teal/80">
-                  Which business types would you like to target?
-                </h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium text-electric-teal/80">
+                    Which business types would you like to target?
+                  </h3>
+                  <button
+                    onClick={() => setShowAddBusinessTypesModal(true)}
+                    className="flex items-center space-x-2 px-4 py-2 bg-electric-teal/10 border border-electric-teal/30 rounded-lg text-electric-teal hover:bg-electric-teal/20 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    <span>Add Business Types</span>
+                  </button>
+                </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {strategy.method1Analysis.businessTargets.map((target: BusinessTarget) => (
                     <div 
@@ -390,6 +418,14 @@ const MarketingResults = ({ strategy, boundingBox, onClose }: MarketingResultsPr
           </div>
         </div>
       )}
+      
+      {/* Add Business Types Modal */}
+      <AddBusinessTypesModal
+        isOpen={showAddBusinessTypesModal}
+        onClose={() => setShowAddBusinessTypesModal(false)}
+        onAdd={handleAddBusinessTypes}
+        existingTypes={currentBusinessTypes}
+      />
       
       {/* Auth overlay removed - PlacesLeadsCollection handles account prompts */}
     </>

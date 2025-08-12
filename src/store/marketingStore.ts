@@ -138,6 +138,7 @@ interface MarketingState {
   }) => void;
   fetchMarketingStrategy: () => Promise<void>;
   handleGoogleSearch: () => Promise<void>;
+  addCustomBusinessTypes: (businessTypes: string[]) => Promise<void>;
 
   // Database actions
   saveBusinessToDatabase: (userId: string) => Promise<string>;
@@ -732,6 +733,60 @@ const createMarketingStore = () => {
       console.error('Error:', error);
     } finally {
       state.setIsLoadingStrategy(false);
+    }
+  },
+
+  addCustomBusinessTypes: async (businessTypes: string[]) => {
+    const state = get();
+    try {
+      // Call the analyze business types API
+      const response = await fetch('/api/analyze-business-types', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          businessTypes,
+          targetArea: state.businessInfo.targetArea,
+          businessName: state.businessInfo.businessName,
+          industry: state.businessInfo.businessAnalysis?.industry,
+          description: state.businessInfo.businessAnalysis?.description,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to analyze business types');
+      }
+
+      const data = await response.json();
+      
+      // Merge the new business targets with existing ones
+      const currentStrategy = state.marketingStrategy;
+      if (currentStrategy && data.analysis.businessTargets) {
+        const updatedStrategy = {
+          ...currentStrategy,
+          method1Analysis: {
+            ...currentStrategy.method1Analysis,
+            businessTargets: [
+              ...data.analysis.businessTargets, // New types at the top
+              ...currentStrategy.method1Analysis.businessTargets
+            ]
+          }
+        };
+        
+        // Update the strategy in the store
+        state.setMarketingStrategy(updatedStrategy);
+        
+        // Also save to session
+        try {
+          await updateSessionMarketingStrategy(updatedStrategy);
+        } catch (error) {
+          console.error('Failed to update session with new business types:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Error adding custom business types:', error);
+      throw error;
     }
   },
 
