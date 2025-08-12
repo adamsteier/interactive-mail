@@ -263,12 +263,12 @@ export const transferAnonymousData = async (
     const campaignIds: string[] = [];
     
     // Handle V1 campaigns
-    v1CampaignSnap.forEach((doc) => {
-      const campaignId = doc.id;
+    v1CampaignSnap.forEach((campaignDoc) => {
+      const campaignId = campaignDoc.id;
       campaignIds.push(campaignId);
       
       // Update campaign ownership (V1 structure)
-      const campaignRef = doc.ref;
+      const campaignRef = campaignDoc.ref;
       batch.update(campaignRef, {
         userId: authenticatedUserId,
         updatedAt: serverTimestamp(),
@@ -280,12 +280,12 @@ export const transferAnonymousData = async (
     });
     
     // Handle V2 campaigns
-    v2CampaignSnap.forEach((doc) => {
-      const campaignId = doc.id;
+    v2CampaignSnap.forEach((campaignDoc) => {
+      const campaignId = campaignDoc.id;
       campaignIds.push(campaignId);
       
       // Update campaign ownership (V2 structure)
-      const campaignRef = doc.ref;
+      const campaignRef = campaignDoc.ref;
       batch.update(campaignRef, {
         ownerUid: authenticatedUserId,
         updatedAt: serverTimestamp(),
@@ -312,9 +312,9 @@ export const transferAnonymousData = async (
     ]);
     
     // Transfer V2 brands
-    v2BrandsSnap.forEach((doc) => {
-      const brandData = doc.data();
-      const brandId = doc.id;
+    v2BrandsSnap.forEach((brandDoc) => {
+      const brandData = brandDoc.data();
+      const brandId = brandDoc.id;
       
       // Create brand in authenticated user's collection
       const newBrandRef = doc(db, 'users', authenticatedUserId, 'brands', brandId);
@@ -330,9 +330,9 @@ export const transferAnonymousData = async (
     });
     
     // Transfer old branding data
-    oldBrandingSnap.forEach((doc) => {
-      const oldBrandData = doc.data();
-      const brandId = doc.id;
+    oldBrandingSnap.forEach((brandingDoc) => {
+      const oldBrandData = brandingDoc.data();
+      const brandId = brandingDoc.id;
       
       // Create brand in authenticated user's brandingData collection (keep structure)
       const newBrandingRef = doc(db, 'users', authenticatedUserId, 'brandingData', brandId);
