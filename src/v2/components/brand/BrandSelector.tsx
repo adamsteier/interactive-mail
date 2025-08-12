@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBrandSelection } from '../../hooks/useBrands';
 import { BrandSummary } from '../../types/brand';
@@ -23,7 +23,6 @@ const BrandSelector = ({
     brands, 
     selectedBrand, 
     hasNoBrands, 
-    shouldAutoProceed, 
     loading,
     actions 
   } = useBrandSelection();

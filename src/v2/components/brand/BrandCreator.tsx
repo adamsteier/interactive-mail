@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import Image from 'next/image';
 import LogoUploader from './LogoUploader';
 import { useBrands } from '../../hooks/useBrands';
 import { LogoVariant, ColorAnalysis, CreateBrandRequest } from '../../types/brand';
@@ -873,9 +874,11 @@ const BrandCreator = ({
                     {/* Logo */}
                     {formData.logo.variants[0]?.url && (
                       <div className="flex-shrink-0">
-                        <img
+                        <Image
                           src={formData.logo.variants[0].url}
                           alt="Brand logo"
+                          width={64}
+                          height={64}
                           className="w-16 h-16 object-contain rounded-lg border border-[#2F2F2F]"
                         />
                       </div>
