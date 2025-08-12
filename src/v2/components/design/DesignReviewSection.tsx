@@ -72,9 +72,15 @@ const DesignReviewSection = ({
   
   // Create default logo position if none exists but brand has logo
   const defaultLogoPosition = {
-    position: { x: 'bottom-right', y: 'bottom-right' } as const,
+    position: { x: 4.5, y: 3.0 }, // Bottom-right area in inches (6" x 4" postcard)
     dimensions: { width: 1, height: 0.75 }, // inches
-    backgroundRequirement: 'any' as const,
+    backgroundRequirement: 'light' as const, // Changed from 'any' to valid type
+    safeZone: {
+      minX: 0.125,
+      minY: 0.125,
+      maxX: 5.875,
+      maxY: 3.875
+    },
     pixels: {
       position: { x: 400, y: 300 }, // Default position in pixels
       dimensions: { width: 144, height: 108 }, // Default size in pixels (1" x 0.75" at 144 DPI)
@@ -148,7 +154,7 @@ const DesignReviewSection = ({
         {assignment.generationResult.brief1?.frontImageUrl && (
           <DesignOptionCard
             imageUrl={assignment.generationResult.brief1.frontImageUrl}
-            optionLabel="Brief 1"
+            optionLabel="A"
             isSelected={assignment.selectedOption === 'A'}
             executionTime={assignment.generationResult.brief1.executionTime}
             brand={brand}
@@ -157,7 +163,7 @@ const DesignReviewSection = ({
             prompt={assignment.prompt}
             campaignId={assignment.campaignId}
             designId={assignment.designId}
-            aiProvider={`${assignment.generationResult.brief1.model || 'gpt-5'} (${assignment.generationResult.brief1.reasoning || 'minimal'})`}
+            aiProvider="openai"
             userId={brand.ownerUid}
             onSelect={() => onOptionSelect(assignment.designId, 'A')}
             onLogoPositionChange={(position) => handleLogoPositionChange('A', position)}
@@ -171,7 +177,7 @@ const DesignReviewSection = ({
         {assignment.generationResult.brief2?.frontImageUrl && (
           <DesignOptionCard
             imageUrl={assignment.generationResult.brief2.frontImageUrl}
-            optionLabel="Brief 2"
+            optionLabel="B"
             isSelected={assignment.selectedOption === 'B'}
             executionTime={assignment.generationResult.brief2.executionTime}
             brand={brand}
@@ -180,7 +186,7 @@ const DesignReviewSection = ({
             prompt={assignment.prompt}
             campaignId={assignment.campaignId}
             designId={assignment.designId}
-            aiProvider={`${assignment.generationResult.brief2.model || 'gpt-5'} (${assignment.generationResult.brief2.reasoning || 'medium'})`}
+            aiProvider="openai"
             userId={brand.ownerUid}
             onSelect={() => onOptionSelect(assignment.designId, 'B')}
             onLogoPositionChange={(position) => handleLogoPositionChange('B', position)}
