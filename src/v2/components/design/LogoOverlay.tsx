@@ -409,10 +409,7 @@ const LogoOverlay = ({
         tabIndex={isDraggable ? 0 : -1}
         onFocus={() => setIsKeyboardFocused(true)}
         onBlur={() => setIsKeyboardFocused(false)}
-        animate={{
-          scale: dragState.isDragging ? 1.05 : 1
-        }}
-        transition={{ duration: 0.1 }}
+
       >
         <img
           src={currentLogoUrl}

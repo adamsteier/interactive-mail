@@ -19,6 +19,8 @@ interface DesignOptionCardProps {
   // Brand data for logo
   brand: V2Brand;
   logoPosition: LogoPositionData | null;
+  savedLogoPosition?: { x: number; y: number };
+  savedLogoSize?: { width: number; height: number };
   
   // Template saving data
   creativeBrief?: string;
@@ -46,6 +48,8 @@ const DesignOptionCard = ({
   executionTime,
   brand,
   logoPosition,
+  savedLogoPosition,
+  savedLogoSize,
   creativeBrief,
   prompt,
   campaignId,
@@ -66,9 +70,9 @@ const DesignOptionCard = ({
   
   // Create default logo position if none exists but brand has logo
   const defaultLogoPosition = logoPosition || (brand.logo?.variants?.length > 0 ? {
-    position: { x: 4.5, y: 3.0 }, // Bottom-right area in inches (6" x 4" postcard)
-    dimensions: { width: 1, height: 0.75 }, // inches
-    backgroundRequirement: 'light' as const, // Changed from 'any' to valid type
+    position: savedLogoPosition || { x: 4.5, y: 3.0 }, // Use saved position or default
+    dimensions: savedLogoSize || { width: 1, height: 0.75 }, // Use saved size or default
+    backgroundRequirement: 'light' as const,
     safeZone: {
       minX: 0.125,
       minY: 0.125,
@@ -76,13 +80,17 @@ const DesignOptionCard = ({
       maxY: 3.875
     },
     pixels: {
-      position: { x: 400, y: 300 }, // Default position in pixels
-      dimensions: { width: 144, height: 108 }, // Default size in pixels (1" x 0.75" at 144 DPI)
+      position: savedLogoPosition 
+        ? { x: Math.round(savedLogoPosition.x * 300), y: Math.round(savedLogoPosition.y * 300) }
+        : { x: 400, y: 300 },
+      dimensions: savedLogoSize
+        ? { width: Math.round(savedLogoSize.width * 300), height: Math.round(savedLogoSize.height * 300) }
+        : { width: 144, height: 108 },
       safeZone: {
-        minX: 36, // 0.25" margin
+        minX: 36,
         minY: 36,
-        maxX: 828, // 6" - 0.25" margin at 144 DPI
-        maxY: 540  // 4" - 0.25" margin at 144 DPI
+        maxX: 828,
+        maxY: 540
       }
     }
   } : null);

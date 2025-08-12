@@ -53,13 +53,11 @@ const DesignReviewSection = ({
   onOptionSelect,
   savingChanges = false
 }: DesignReviewSectionProps) => {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [logoPositions, setLogoPositions] = useState<{
     A?: { x: number; y: number };
     B?: { x: number; y: number };
   }>({});
   
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [logoSizes, setLogoSizes] = useState<{
     A?: { width: number; height: number };
     B?: { width: number; height: number };
@@ -159,6 +157,8 @@ const DesignReviewSection = ({
             executionTime={assignment.generationResult.brief1.executionTime}
             brand={brand}
             logoPosition={effectiveLogoPosition}
+            savedLogoPosition={logoPositions.A}
+            savedLogoSize={logoSizes.A}
             creativeBrief={assignment.generationResult.brief1.briefText || assignment.creativeBrief?.briefText}
             prompt={assignment.prompt}
             campaignId={assignment.campaignId}
@@ -182,6 +182,8 @@ const DesignReviewSection = ({
             executionTime={assignment.generationResult.brief2.executionTime}
             brand={brand}
             logoPosition={effectiveLogoPosition}
+            savedLogoPosition={logoPositions.B}
+            savedLogoSize={logoSizes.B}
             creativeBrief={assignment.generationResult.brief2.briefText || assignment.creativeBrief?.briefText}
             prompt={assignment.prompt}
             campaignId={assignment.campaignId}
