@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { DesignAssignment as DesignAssignmentType } from '../../services/designAssignmentService';
+
 
 interface GenerationStep {
   id: string;
@@ -68,7 +68,7 @@ interface EnhancedGenerationLoaderProps {
     businessTypes: string[];
     leadCount: number;
     designName?: string;
-    createdAt?: any;
+    createdAt?: unknown;
   }>;
 }
 
