@@ -135,8 +135,7 @@ export default function DesignPage({ params }: { params: Params }) {
   const [currentDesignIndex, setCurrentDesignIndex] = useState(0);
   const [generationJobs, setGenerationJobs] = useState<Record<string, string>>({}); // designId -> jobId
   const [generationStatus, setGenerationStatus] = useState<Record<string, DesignGenerationJob>>({});
-  // const [selectedBrief] = useState<CreativeBrief | null>(null);
-  const [briefGenerationRequest, setBriefGenerationRequest] = useState<BriefGenerationRequest | null>(null);
+  // Brief generation state removed - now auto-processing both briefs
   
   // Existing briefs state
   const [existingBriefs, setExistingBriefs] = useState<CreativeBrief[]>([]);
@@ -453,7 +452,7 @@ export default function DesignPage({ params }: { params: Params }) {
         businessDescription: briefRequest.formData.businessDescription,
         brief1: brief1,
         brief2: brief2
-      } as SimpleDesignRequest & { brief1: any; brief2: any };
+      } as SimpleDesignRequest & { brief1: CreativeBrief; brief2: CreativeBrief };
       
       // Queue generation with both briefs
       const generationResult = await queueDesignGeneration(
