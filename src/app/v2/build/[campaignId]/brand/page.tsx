@@ -29,6 +29,7 @@ export default function BrandSelectionPage({ params }: { params: Params }) {
   const [error, setError] = useState<string | null>(null);
   const [campaignId, setCampaignId] = useState<string | null>(null);
   const [showBrandCreator, setShowBrandCreator] = useState(false);
+  const [currentBrandId, setCurrentBrandId] = useState<string | null>(null);
 
   // Load campaign data once params are resolved
   useEffect(() => {
@@ -69,9 +70,9 @@ export default function BrandSelectionPage({ params }: { params: Params }) {
           ownerUid: data.ownerUid
         });
 
-        // If brand is already selected, redirect to design step
+        // Store current brand selection if exists
         if (data.brandId) {
-          router.push(`/v2/build/${id}/design`);
+          setCurrentBrandId(data.brandId);
         }
 
       } catch (err) {
@@ -268,6 +269,38 @@ export default function BrandSelectionPage({ params }: { params: Params }) {
         <CampaignProgress currentStep={2} campaignId={campaignId} />
       )}
 
+      {/* Current brand selection notice */}
+      {currentBrandId && !showBrandCreator && (
+        <motion.div
+          className="max-w-4xl mx-auto px-6 mt-6"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <div className="p-4 bg-[#2F2F2F]/80 rounded-lg border border-[#00F0FF]/30 backdrop-blur-sm">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[#00F0FF]/20 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-[#00F0FF]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm text-[#EAEAEA]/60">Current Selection</p>
+                  <p className="text-[#00F0FF] font-medium">You already have a brand selected for this campaign</p>
+                </div>
+              </div>
+              <button
+                onClick={() => router.push(`/v2/build/${campaignId}/design`)}
+                className="px-4 py-2 bg-[#00F0FF] text-[#0A0A0A] rounded-lg font-medium hover:bg-[#00F0FF]/90 transition-colors shadow-[0_0_20px_rgba(0,240,255,0.3)]"
+              >
+                Continue to Design
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       {/* Main content */}
       <motion.div
         className="relative z-10"
@@ -283,12 +316,24 @@ export default function BrandSelectionPage({ params }: { params: Params }) {
             mode="page"
           />
         ) : (
-          <BrandSelector
-            leadCount={campaignData.totalLeadCount}
-            businessTypes={campaignData.businessTypes}
-            onBrandSelected={handleBrandSelected}
-            onCreateNew={handleCreateNewBrand}
-          />
+          <div className="max-w-4xl mx-auto px-6 py-8">
+            <h2 className="text-2xl font-bold text-[#EAEAEA] mb-2">
+              {currentBrandId ? 'Change Your Brand' : 'Select Your Brand'}
+            </h2>
+            <p className="text-[#EAEAEA]/60 mb-8">
+              {currentBrandId 
+                ? 'Select a different brand or create a new one'
+                : 'Choose which brand identity to use for this campaign'
+              }
+            </p>
+            
+            <BrandSelector
+              leadCount={campaignData.totalLeadCount}
+              businessTypes={campaignData.businessTypes}
+              onBrandSelected={handleBrandSelected}
+              onCreateNew={handleCreateNewBrand}
+            />
+          </div>
         )}
       </motion.div>
     </div>

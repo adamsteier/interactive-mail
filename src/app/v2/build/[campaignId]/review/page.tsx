@@ -479,25 +479,34 @@ export default function ReviewPage({ params }: { params: Params }) {
                           </div>
                           
                           {assignment.generationResult.openai?.frontImageUrl ? (
-                            <div className="relative group mb-4">
-                              <img
-                                src={assignment.generationResult.openai.frontImageUrl}
-                                alt="Option A Design"
-                                className="w-full h-40 object-cover rounded-lg"
-                              />
-                              {assignment.selectedOption === 'A' && (
-                                <div className="absolute inset-0 bg-[#00F0FF]/10 rounded-lg flex items-center justify-center">
-                                  <div className="w-8 h-8 bg-[#00F0FF] rounded-full flex items-center justify-center">
-                                    <svg className="w-5 h-5 text-[#1A1A1A]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                    </svg>
+                            <div className="relative group mb-4 cursor-pointer" onClick={() => window.open(assignment.generationResult.openai.frontImageUrl, '_blank')}>
+                              <div className="relative w-full" style={{ paddingBottom: '66.67%' /* 2:3 ratio = 66.67% */ }}>
+                                <img
+                                  src={assignment.generationResult.openai.frontImageUrl}
+                                  alt="Option A Design"
+                                  className="absolute inset-0 w-full h-full object-contain bg-[#2F2F2F] rounded-lg"
+                                />
+                                {assignment.selectedOption === 'A' && (
+                                  <div className="absolute inset-0 bg-[#00F0FF]/10 rounded-lg flex items-center justify-center">
+                                    <div className="w-8 h-8 bg-[#00F0FF] rounded-full flex items-center justify-center">
+                                      <svg className="w-5 h-5 text-[#1A1A1A]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                      </svg>
+                                    </div>
+                                  </div>
+                                )}
+                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <div className="bg-black/80 text-white px-2 py-1 rounded text-xs">
+                                    Click to view full size
                                   </div>
                                 </div>
-                              )}
+                              </div>
                             </div>
                           ) : (
-                            <div className="w-full h-40 bg-[#2F2F2F] rounded-lg border border-[#FF00B8]/40 flex items-center justify-center mb-4">
-                              <span className="text-[#FF00B8] text-sm">Generation Failed</span>
+                            <div className="w-full" style={{ paddingBottom: '66.67%' }}>
+                              <div className="absolute inset-0 bg-[#2F2F2F] rounded-lg border border-[#FF00B8]/40 flex items-center justify-center">
+                                <span className="text-[#FF00B8] text-sm">Generation Failed</span>
+                              </div>
                             </div>
                           )}
 
@@ -535,25 +544,34 @@ export default function ReviewPage({ params }: { params: Params }) {
                           </div>
                           
                           {assignment.generationResult.ideogram?.frontImageUrl ? (
-                            <div className="relative group mb-4">
-                              <img
-                                src={assignment.generationResult.ideogram.frontImageUrl}
-                                alt="Option B Design"
-                                className="w-full h-40 object-cover rounded-lg"
-                              />
-                              {assignment.selectedOption === 'B' && (
-                                <div className="absolute inset-0 bg-[#FF00B8]/10 rounded-lg flex items-center justify-center">
-                                  <div className="w-8 h-8 bg-[#FF00B8] rounded-full flex items-center justify-center">
-                                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                    </svg>
+                            <div className="relative group mb-4 cursor-pointer" onClick={() => window.open(assignment.generationResult.ideogram.frontImageUrl, '_blank')}>
+                              <div className="relative w-full" style={{ paddingBottom: '66.67%' /* 2:3 ratio = 66.67% */ }}>
+                                <img
+                                  src={assignment.generationResult.ideogram.frontImageUrl}
+                                  alt="Option B Design"
+                                  className="absolute inset-0 w-full h-full object-contain bg-[#2F2F2F] rounded-lg"
+                                />
+                                {assignment.selectedOption === 'B' && (
+                                  <div className="absolute inset-0 bg-[#FF00B8]/10 rounded-lg flex items-center justify-center">
+                                    <div className="w-8 h-8 bg-[#FF00B8] rounded-full flex items-center justify-center">
+                                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                      </svg>
+                                    </div>
+                                  </div>
+                                )}
+                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <div className="bg-black/80 text-white px-2 py-1 rounded text-xs">
+                                    Click to view full size
                                   </div>
                                 </div>
-                              )}
+                              </div>
                             </div>
                           ) : (
-                            <div className="w-full h-40 bg-[#2F2F2F] rounded-lg border border-[#FF00B8]/40 flex items-center justify-center mb-4">
-                              <span className="text-[#FF00B8] text-sm">Generation Failed</span>
+                            <div className="w-full" style={{ paddingBottom: '66.67%' }}>
+                              <div className="absolute inset-0 bg-[#2F2F2F] rounded-lg border border-[#FF00B8]/40 flex items-center justify-center">
+                                <span className="text-[#FF00B8] text-sm">Generation Failed</span>
+                              </div>
                             </div>
                           )}
 

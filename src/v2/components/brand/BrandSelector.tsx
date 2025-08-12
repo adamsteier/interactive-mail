@@ -31,6 +31,8 @@ const BrandSelector = ({
   const { formatted } = usePricing(leadCount);
 
   // Auto-proceed if user has only one brand
+  // Disabled for now to allow users to change their brand selection
+  /*
   useEffect(() => {
     if (shouldAutoProceed && selectedBrand) {
       // Small delay for better UX
@@ -40,6 +42,7 @@ const BrandSelector = ({
       return () => clearTimeout(timer);
     }
   }, [shouldAutoProceed, selectedBrand, onBrandSelected]);
+  */
 
   const handleBrandSelect = (brandId: string) => {
     actions.select(brandId);
@@ -61,30 +64,8 @@ const BrandSelector = ({
     );
   }
 
-  if (shouldAutoProceed && selectedBrand) {
-    return (
-      <div className="min-h-screen bg-charcoal flex items-center justify-center">
-        <motion.div 
-          className="text-center"
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.5 }}
-        >
-          <div className="w-16 h-16 rounded-full bg-electric-teal/20 flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-electric-teal" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-semibold text-electric-teal mb-2">
-            Using {selectedBrand.name}
-          </h2>
-          <p className="text-electric-teal/60">
-            Proceeding to design creation...
-          </p>
-        </motion.div>
-      </div>
-    );
-  }
+  // Removed auto-proceed UI to allow brand changes
+  // Even if user has only one brand, show selection UI
 
   return (
     <div className="min-h-screen bg-[#1A1A1A]">

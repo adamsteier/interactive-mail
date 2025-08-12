@@ -358,8 +358,67 @@ Target audience: ${audience}`;
 
   // Contact information requirement - only add if not covered in full brief
   if (!isFullBrief) {
-    prompt += "\nContact info: Include placeholder areas for phone number, website, " +
-      "and address in an attractive, readable layout";
+    // Add actual brand contact info if available
+    let contactPrompt = "\nContact info: ";
+    const hasContactInfo = brandData.businessInfo && (
+      brandData.businessInfo.phone || 
+      brandData.businessInfo.email || 
+      brandData.businessInfo.website || 
+      brandData.businessInfo.address
+    );
+    
+    if (hasContactInfo) {
+      contactPrompt += "Include the following contact information in an attractive, readable layout:\n";
+      if (brandData.businessInfo.phone) {
+        contactPrompt += `- Phone: ${brandData.businessInfo.phone}\n`;
+      }
+      if (brandData.businessInfo.email) {
+        contactPrompt += `- Email: ${brandData.businessInfo.email}\n`;
+      }
+      if (brandData.businessInfo.website) {
+        contactPrompt += `- Website: ${brandData.businessInfo.website}\n`;
+      }
+      if (brandData.businessInfo.address) {
+        contactPrompt += `- Address: ${brandData.businessInfo.address}\n`;
+      }
+    } else {
+      contactPrompt += "Include placeholder areas for phone number, website, " +
+        "and address in an attractive, readable layout";
+    }
+    
+    prompt += contactPrompt;
+    
+    // Add social media if available
+    const hasSocialMedia = brandData.socialMedia && (
+      brandData.socialMedia.instagram || 
+      brandData.socialMedia.facebook || 
+      brandData.socialMedia.linkedin || 
+      brandData.socialMedia.twitter ||
+      brandData.socialMedia.tiktok ||
+      brandData.socialMedia.youtube
+    );
+    
+    if (hasSocialMedia) {
+      prompt += "\nSocial Media: Include these social media handles with appropriate platform icons:\n";
+      if (brandData.socialMedia.instagram) {
+        prompt += `- Instagram: ${brandData.socialMedia.instagram}\n`;
+      }
+      if (brandData.socialMedia.facebook) {
+        prompt += `- Facebook: ${brandData.socialMedia.facebook}\n`;
+      }
+      if (brandData.socialMedia.linkedin) {
+        prompt += `- LinkedIn: ${brandData.socialMedia.linkedin}\n`;
+      }
+      if (brandData.socialMedia.twitter) {
+        prompt += `- Twitter/X: ${brandData.socialMedia.twitter}\n`;
+      }
+      if (brandData.socialMedia.tiktok) {
+        prompt += `- TikTok: ${brandData.socialMedia.tiktok}\n`;
+      }
+      if (brandData.socialMedia.youtube) {
+        prompt += `- YouTube: ${brandData.socialMedia.youtube}\n`;
+      }
+    }
   }
 
   // Image requirements - only add generic ones if not a full brief
