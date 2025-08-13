@@ -1,9 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import DesignOptionCard from './DesignOptionCard';
 import { parseLogoPositionFromBrief } from '../../utils/logoPositionParser';
 import { V2Brand } from '../../types/brand';
+import { doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 interface DesignAssignment {
   designId: string;
@@ -63,6 +65,48 @@ const DesignReviewSection = ({
     B?: { width: number; height: number };
   }>({});
   
+  // Load saved logo positions from Firebase
+  useEffect(() => {
+    const loadSavedPositions = async () => {
+      if (assignment.campaignId && assignment.designId) {
+        try {
+          const campaignRef = doc(db, 'campaigns', assignment.campaignId);
+          const campaignSnap = await getDoc(campaignRef);
+          
+          if (campaignSnap.exists()) {
+            const data = campaignSnap.data();
+            
+            // Load saved positions
+            if (data.logoPositions?.[assignment.designId]) {
+              const savedPositions = data.logoPositions[assignment.designId];
+              if (savedPositions.A) {
+                setLogoPositions(prev => ({ ...prev, A: { x: savedPositions.A.x, y: savedPositions.A.y } }));
+              }
+              if (savedPositions.B) {
+                setLogoPositions(prev => ({ ...prev, B: { x: savedPositions.B.x, y: savedPositions.B.y } }));
+              }
+            }
+            
+            // Load saved sizes
+            if (data.logoSizes?.[assignment.designId]) {
+              const savedSizes = data.logoSizes[assignment.designId];
+              if (savedSizes.A) {
+                setLogoSizes(prev => ({ ...prev, A: { width: savedSizes.A.width, height: savedSizes.A.height } }));
+              }
+              if (savedSizes.B) {
+                setLogoSizes(prev => ({ ...prev, B: { width: savedSizes.B.width, height: savedSizes.B.height } }));
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error loading saved logo positions:', error);
+        }
+      }
+    };
+    
+    loadSavedPositions();
+  }, [assignment.campaignId, assignment.designId]);
+  
   // Parse logo position from creative brief, with fallback to default position
   const logoPosition = assignment.creativeBrief?.briefText 
     ? parseLogoPositionFromBrief(assignment.creativeBrief.briefText)
@@ -98,24 +142,54 @@ const DesignReviewSection = ({
   const effectiveLogoPosition = logoPosition || (hasLogo ? defaultLogoPosition : null);
   
   // Handle logo position changes
-  const handleLogoPositionChange = (option: 'A' | 'B', position: { x: number; y: number }) => {
+  const handleLogoPositionChange = async (option: 'A' | 'B', position: { x: number; y: number }) => {
     setLogoPositions(prev => ({
       ...prev,
       [option]: position
     }));
     
-    // TODO: Save to database or parent component
-    console.log(`Logo position changed for Option ${option}:`, position);
+    // Save to Firebase
+    if (assignment.campaignId && assignment.designId) {
+      try {
+        const campaignRef = doc(db, 'campaigns', assignment.campaignId);
+        await updateDoc(campaignRef, {
+          [`logoPositions.${assignment.designId}.${option}`]: {
+            x: position.x,
+            y: position.y,
+            updatedAt: serverTimestamp()
+          },
+          updatedAt: serverTimestamp()
+        });
+        console.log(`Logo position saved for Design ${assignment.designId}, Option ${option}:`, position);
+      } catch (error) {
+        console.error('Error saving logo position:', error);
+      }
+    }
   };
   
-  const handleLogoSizeChange = (option: 'A' | 'B', dimensions: { width: number; height: number }) => {
+  const handleLogoSizeChange = async (option: 'A' | 'B', dimensions: { width: number; height: number }) => {
     setLogoSizes(prev => ({
       ...prev,
       [option]: dimensions
     }));
     
-    // TODO: Save to database or parent component
-    console.log(`Logo size changed for Option ${option}:`, dimensions);
+    // Save to Firebase
+    if (assignment.campaignId && assignment.designId) {
+      try {
+        const campaignRef = doc(db, 'campaigns', assignment.campaignId);
+        await updateDoc(campaignRef, {
+          [`logoSizes.${assignment.designId}.${option}`]: {
+            width: dimensions.width,
+            height: dimensions.height,
+            updatedAt: serverTimestamp()
+          },
+          updatedAt: serverTimestamp()
+        });
+        console.log(`Logo size saved for Design ${assignment.designId}, Option ${option}:`, dimensions);
+      } catch (error) {
+        console.error('Error saving logo size:', error);
+      }
+    }
   };
   
   return (
