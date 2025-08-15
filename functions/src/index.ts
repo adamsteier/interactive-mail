@@ -252,6 +252,42 @@ export const processAIDesignJob = onDocumentCreated(
         };
       }
 
+      // Attempt Brief 3: One-shot with embedded logo using OpenAI Responses API (high input fidelity)
+      try {
+        const pxX = Math.round(((jobData.logoSpace?.position?.x ?? 0.25) as number) * 300);
+        const pxY = Math.round(((jobData.logoSpace?.position?.y ?? 0.25) as number) * 300);
+        const pxW = Math.round(((jobData.logoSpace?.width ?? 1.5) as number) * 300);
+        const pxH = Math.round(((jobData.logoSpace?.height ?? 1.0) as number) * 300);
+        const logoUrl: string | undefined = brandData?.logo?.variants?.[0]?.url;
+
+        if (process.env.OPENAI_API_KEY && logoUrl) {
+          const oneShotInstruction =
+            `Canvas 1536x1024 px. Full-bleed marketing postcard content. ` +
+            `Place the provided logo exactly within the box at (${pxX}, ${pxY}) with size ${pxW}x${pxH} px (top-left anchored). ` +
+            `Preserve the logo's exact colors and proportions; do not stylize, warp, or alter it. ` +
+            `Ensure the overall design follows the creative direction, typography, and color strategy implied by the campaign context. ` +
+            `Ignore any instruction to leave the logo area empty.`;
+
+          const oneShot = await generateOneShotEmbeddedLogo(logoUrl, oneShotInstruction);
+          if (oneShot?.imageBase64) {
+            // Store Brief 3 image to Firebase Storage
+            const storedUrl = await storeBase64Image(
+              oneShot.imageBase64,
+              jobData.campaignId,
+              jobData.designId,
+              jobData.userId,
+              "brief3"
+            );
+            results.brief3 = {
+              frontImageUrl: storedUrl,
+              executionTime: oneShot.executionTime,
+            };
+          }
+        }
+      } catch (oneShotError) {
+        logger.error("Brief 3 (one-shot) generation failed:", oneShotError);
+      }
+
       // Log the results structure for debugging
       logger.info("Results structure before save:", JSON.stringify(results, null, 2));
       
@@ -297,6 +333,87 @@ export const processAIDesignJob = onDocumentCreated(
     }
   }
 );
+
+// Helper: One-shot with embedded logo via Responses API
+async function generateOneShotEmbeddedLogo(
+  logoUrl: string,
+  instruction: string
+): Promise<{ imageBase64: string; executionTime: number } | null> {
+  try {
+    if (!process.env.OPENAI_API_KEY) return null;
+    const start = Date.now();
+    const body = {
+      model: "gpt-4.1",
+      input: [
+        {
+          role: "user",
+          content: [
+            { type: "input_text", text: instruction },
+            { type: "input_image", image_url: logoUrl },
+          ],
+        },
+      ],
+      tools: [
+        {
+          type: "image_generation",
+          input_fidelity: "high",
+          size: "1536x1024",
+          quality: "high",
+          format: "jpeg",
+        },
+      ],
+    };
+    const resp = await axios.post("https://api.openai.com/v1/responses", body, {
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+    });
+    const data = resp.data;
+    let imageBase64: string | undefined;
+    if (Array.isArray(data.output)) {
+      const call = data.output.find((o: { type?: string; result?: string }) => o?.type === "image_generation_call");
+      imageBase64 = call?.result;
+    } else if (typeof data.output_text === "string") {
+      imageBase64 = data.output_text;
+    }
+    if (!imageBase64) return null;
+    return { imageBase64, executionTime: Date.now() - start };
+  } catch (e) {
+    logger.error("One-shot embedded logo API error:", e);
+    return null;
+  }
+}
+
+// Helper: Store base64 image in Firebase Storage and return URL
+async function storeBase64Image(
+  base64: string,
+  campaignId: string,
+  designId: string,
+  userId: string,
+  provider: "brief3"
+): Promise<string> {
+  const bucket = storage.bucket();
+  const timestamp = Date.now();
+  const filename = `v2/${userId}/campaigns/${campaignId}/previews/${provider}_${designId}_${timestamp}.jpg`;
+  const file = bucket.file(filename);
+  const buffer = Buffer.from(base64, "base64");
+  await file.save(buffer, {
+    metadata: {
+      contentType: "image/jpeg",
+      metadata: {
+        campaignId,
+        designId,
+        userId,
+        provider,
+        generatedAt: new Date().toISOString(),
+      },
+    },
+  });
+  const encoded = encodeURIComponent(filename);
+  const bucketName = bucket.name || `${process.env.GCLOUD_PROJECT || "post-timely-94681"}.appspot.com`;
+  return `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encoded}?alt=media`;
+}
 
 // V2 Enhanced Postcard Prompt Generation
 function createV2PostcardPrompt(requestData: any, brandData: any, logoSpace: any): string {
