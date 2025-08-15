@@ -469,13 +469,8 @@ export default function DesignPage({ params }: { params: Params }) {
           [currentAssignment.designId]: generationResult.jobId!
         }));
 
-        // Move to next design or complete
-        if (currentDesignIndex < assignments.length - 1) {
-          setCurrentDesignIndex(currentDesignIndex + 1);
-          setCurrentStep('forms');
-        } else {
-          setCurrentStep('generating');
-        }
+        // Always show the enhanced generation loader immediately
+        setCurrentStep('generating');
       } else {
         throw new Error(generationResult.error || 'Failed to start generation');
       }
@@ -510,6 +505,22 @@ export default function DesignPage({ params }: { params: Params }) {
 
 
   if (loading) {
+    // Show the enhanced loader immediately during generation instead of interim text
+    if (isGenerating) {
+      return (
+        <motion.div
+          key="generating-loading"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50"
+        >
+          <EnhancedGenerationLoader assignments={assignments} />
+        </motion.div>
+      );
+    }
+
+    // Default minimal loader for non-generating loading states
     return (
       <div className="min-h-screen bg-[#1A1A1A] flex items-center justify-center">
         <motion.div 
@@ -536,10 +547,7 @@ export default function DesignPage({ params }: { params: Params }) {
             ))}
           </div>
           <p className="text-[#00F0FF] text-lg font-medium">
-            {currentStep === 'assignment' ? 'Loading campaign data...' :
-             currentStep === 'forms' ? 'Preparing design forms...' :
-             currentStep === 'generating' ? 'Generating designs...' :
-             'Processing...'}
+            {currentStep === 'assignment' ? 'Loading campaign data...' : 'Loading...'}
           </p>
         </motion.div>
       </div>

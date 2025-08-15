@@ -261,12 +261,24 @@ export const processAIDesignJob = onDocumentCreated(
         const logoUrl: string | undefined = brandData?.logo?.variants?.[0]?.url;
 
         if (process.env.OPENAI_API_KEY && logoUrl) {
-          const oneShotInstruction =
-            `Canvas 1536x1024 px. Full-bleed marketing postcard content. ` +
-            `Place the provided logo exactly within the box at (${pxX}, ${pxY}) with size ${pxW}x${pxH} px (top-left anchored). ` +
-            `Preserve the logo's exact colors and proportions; do not stylize, warp, or alter it. ` +
-            `Ensure the overall design follows the creative direction, typography, and color strategy implied by the campaign context. ` +
-            `Ignore any instruction to leave the logo area empty.`;
+          const placeLine =
+            "Place the provided logo exactly within the box at (" +
+            pxX +
+            ", " +
+            pxY +
+            ") with size " +
+            pxW +
+            "x" +
+            pxH +
+            " px (top-left anchored).";
+          const oneShotInstruction = [
+            "Canvas 1536x1024 px. Full-bleed marketing postcard content.",
+            placeLine,
+            "Preserve the logo's exact colors and proportions; do not stylize, warp, or alter it.",
+            "Ensure the overall design follows the creative direction, typography, and color strategy implied by the",
+            "campaign context.",
+            "Ignore any instruction to leave the logo area empty."
+          ].join(" ");
 
           const oneShot = await generateOneShotEmbeddedLogo(logoUrl, oneShotInstruction);
           if (oneShot?.imageBase64) {
@@ -289,7 +301,8 @@ export const processAIDesignJob = onDocumentCreated(
       }
 
       // Log the results structure for debugging
-      logger.info("Results structure before save:", JSON.stringify(results, null, 2));
+      const resultsPreview = JSON.stringify(results, null, 2);
+      logger.info("Results structure before save:", resultsPreview);
       
       // Final update - mark as complete
       await db.collection("aiJobs").doc(jobId).update({
