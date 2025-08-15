@@ -307,11 +307,9 @@ export function generateAdvancedDesignPrompt(
  */
 async function generateOneShotWithLogo({
   brand,
-  prompt,
   logoSpace
 }: {
   brand: V2Brand;
-  prompt: string;
   logoSpace: LogoSpaceCalculation;
 }): Promise<{ imageDataUrl: string; executionTime: number } | null> {
   try {
@@ -356,7 +354,7 @@ async function generateOneShotWithLogo({
     if (!resp.ok) return null;
     const data = await resp.json();
     const imageBase64 = Array.isArray(data.output)
-      ? (data.output.find((o: any) => o?.type === 'image_generation_call')?.result as string | undefined)
+      ? (data.output.find((o: { type?: string; result?: string }) => o?.type === 'image_generation_call')?.result as string | undefined)
       : (data.output_text as string | undefined);
 
     if (!imageBase64) return null;
@@ -699,7 +697,7 @@ export async function processDualProviderGeneration(jobId: string): Promise<{
     const results = await generateDualProviderImages(jobData.requestData, brand);
 
     // One-shot with embedded logo (Brief 3)
-    const oneShot = await generateOneShotWithLogo({ brand, prompt: results.prompt, logoSpace: results.logoSpace });
+    const oneShot = await generateOneShotWithLogo({ brand, logoSpace: results.logoSpace });
 
     // Update progress
     await updateDoc(jobRef, { progress: 80 });
