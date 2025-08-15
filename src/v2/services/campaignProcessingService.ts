@@ -123,10 +123,22 @@ export async function processPaidCampaign(
         // Read any saved custom logo position/size for this design and selected option (in inches)
         let customLogoPosition: { x?: number; y?: number; width?: number; height?: number } | undefined;
         try {
-          const selectedOption: 'A' | 'B' | undefined = (campaign.designAssignments || [])
-            .find(da => da.designId === designId)?.selectedOption;
-          const positions = (campaign as any).logoPositions?.[designId];
-          const sizes = (campaign as any).logoSizes?.[designId];
+          // Determine which option the user selected: read from generationStatus/{designId}
+          let selectedOption: 'A' | 'B' | undefined;
+          try {
+            const genDocRef = doc(db, 'campaigns', campaignId, 'generationStatus', designId);
+            const genDocSnap = await getDoc(genDocRef);
+            if (genDocSnap.exists()) {
+              const genData = genDocSnap.data() as { selectedOption?: 'A' | 'B' };
+              selectedOption = genData.selectedOption;
+            }
+          } catch {
+            // noop
+          }
+
+          // Optional saved logo data (in inches) from the campaign document
+          const positions = (campaign.logoPositions || {})[designId];
+          const sizes = (campaign.logoSizes || {})[designId];
           if (selectedOption && (positions?.[selectedOption] || sizes?.[selectedOption])) {
             customLogoPosition = {
               x: positions?.[selectedOption]?.x,
@@ -135,7 +147,9 @@ export async function processPaidCampaign(
               height: sizes?.[selectedOption]?.height
             };
           }
-        } catch {}
+        } catch {
+          // noop
+        }
 
         // Process the image (upscale + logo) - returns ProcessingResult with front.url
         const processingResult = await processPostcardForPrint(

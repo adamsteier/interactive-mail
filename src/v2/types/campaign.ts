@@ -201,6 +201,10 @@ export interface V2Campaign {
   // User's A/B testing selections (designId -> { openai?: string, ideogram?: string })
   designSelections?: Record<string, { openai?: string; ideogram?: string }>;
   
+  // Saved logo positions and sizes per design and option (in inches)
+  logoPositions?: Record<string, Partial<Record<'A' | 'B', { x: number; y: number; updatedAt?: Timestamp }>>>;
+  logoSizes?: Record<string, Partial<Record<'A' | 'B', { width: number; height: number; updatedAt?: Timestamp }>>>;
+  
   // Lead Information
   totalLeadCount: number;
   businessTypes: string[]; // Extracted from leads
