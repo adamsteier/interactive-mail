@@ -53,7 +53,8 @@ export async function processPostcardForPrint(
   brand: V2Brand,
   userId: string,
   campaignId: string,
-  designId: string
+  designId: string,
+  customLogoPosition?: Partial<LogoPosition> // optional override from saved campaign positions/sizes (in inches)
 ): Promise<ProcessingResult> {
   const startTime = Date.now();
   
@@ -69,7 +70,14 @@ export async function processPostcardForPrint(
     if (brand.logo?.variants?.length > 0) {
       const logoUrl = brand.logo.variants[0].url;
       const logoBuffer = await downloadImage(logoUrl);
-      const logoPosition = calculateLogoPosition(brand);
+      // Use custom position if provided (inches), falling back to calculated defaults
+      const calculated = calculateLogoPosition(brand);
+      const logoPosition: LogoPosition = {
+        x: customLogoPosition?.x ?? calculated.x,
+        y: customLogoPosition?.y ?? calculated.y,
+        width: customLogoPosition?.width ?? calculated.width,
+        height: customLogoPosition?.height ?? calculated.height
+      };
       finalBuffer = await compositeLogoOnImage(upscaledBuffer, logoBuffer, logoPosition);
     }
     

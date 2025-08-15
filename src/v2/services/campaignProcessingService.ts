@@ -120,13 +120,31 @@ export async function processPaidCampaign(
           throw new Error(`No selected image URL for design ${designId}. User may not have completed A/B selection.`);
         }
         
+        // Read any saved custom logo position/size for this design and selected option (in inches)
+        let customLogoPosition: { x?: number; y?: number; width?: number; height?: number } | undefined;
+        try {
+          const selectedOption: 'A' | 'B' | undefined = (campaign.designAssignments || [])
+            .find(da => da.designId === designId)?.selectedOption;
+          const positions = (campaign as any).logoPositions?.[designId];
+          const sizes = (campaign as any).logoSizes?.[designId];
+          if (selectedOption && (positions?.[selectedOption] || sizes?.[selectedOption])) {
+            customLogoPosition = {
+              x: positions?.[selectedOption]?.x,
+              y: positions?.[selectedOption]?.y,
+              width: sizes?.[selectedOption]?.width,
+              height: sizes?.[selectedOption]?.height
+            };
+          }
+        } catch {}
+
         // Process the image (upscale + logo) - returns ProcessingResult with front.url
         const processingResult = await processPostcardForPrint(
           frontImageUrl,
           brand,
           campaign.ownerUid,
           campaignId,
-          designId
+          designId,
+          customLogoPosition
         );
         
         processedDesigns.set(designId, {

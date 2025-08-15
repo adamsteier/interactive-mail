@@ -51,38 +51,29 @@ const BLEED = 0.125; // inches
  */
 export function parseLogoPositionFromBrief(briefText: string): LogoPositionData | null {
   try {
-    // Look for the LOGO POSITION DATA section
-    const logoDataMatch = briefText.match(/LOGO POSITION DATA \(for client overlay\):([\s\S]*?)(?=\n\n|\n1\.)/);
-    
-    if (!logoDataMatch) {
-      console.warn('No LOGO POSITION DATA section found in brief');
-      return null;
+    // 1) Try to extract a dedicated LOGO POSITION DATA section (case/format tolerant)
+    const sectionMatch = briefText.match(/LOGO\s*POSITION\s*DATA[^\n]*:([\s\S]*?)(?=\n\n|\n\d+\.|$)/i);
+    const searchArea = sectionMatch ? sectionMatch[1] : briefText;
+
+    // Tolerant regexes that accept `"`, `in`, or `inches`, and `x` or `×`
+    const positionRegex = /Position\s*[:\-]?\s*([\d.]+)\s*(?:"|in(?:ches)?)?\s*from\s*left\s*,\s*([\d.]+)\s*(?:"|in(?:ches)?)?\s*from\s*top/i;
+    const dimensionsRegex = /Dimensions\s*[:\-]?\s*([\d.]+)\s*(?:"|in(?:ches)?)?\s*[x×]\s*([\d.]+)\s*(?:"|in(?:ches)?)?/i;
+    const backgroundRegex = /Background\s*[:\-]?\s*(light|dark)/i;
+
+    const positionMatch = searchArea.match(positionRegex);
+    const dimensionsMatch = searchArea.match(dimensionsRegex);
+    const backgroundMatch = searchArea.match(backgroundRegex);
+
+    if (!positionMatch || !dimensionsMatch) {
+      throw new Error('Could not parse logo position or dimensions');
     }
-    
-    const logoSection = logoDataMatch[1];
-    
-    // Extract position (x" from left, y" from top)
-    const positionMatch = logoSection.match(/Position: ([\d.]+)" from left, ([\d.]+)" from top/);
-    if (!positionMatch) {
-      throw new Error('Could not parse logo position');
-    }
-    
+
     const x = parseFloat(positionMatch[1]);
     const y = parseFloat(positionMatch[2]);
-    
-    // Extract dimensions (width" × height")
-    const dimensionsMatch = logoSection.match(/Dimensions: ([\d.]+)" × ([\d.]+)"/);
-    if (!dimensionsMatch) {
-      throw new Error('Could not parse logo dimensions');
-    }
-    
     const width = parseFloat(dimensionsMatch[1]);
     const height = parseFloat(dimensionsMatch[2]);
-    
-    // Extract background requirement
-    const backgroundMatch = logoSection.match(/Background: (light|dark) colored area required/);
-    const backgroundRequirement = backgroundMatch ? backgroundMatch[1] as 'light' | 'dark' : 'light';
-    
+    const backgroundRequirement = (backgroundMatch ? backgroundMatch[1] : 'light') as 'light' | 'dark';
+
     // Calculate safe zone
     const safeZone = {
       minX: BLEED,
@@ -90,7 +81,7 @@ export function parseLogoPositionFromBrief(briefText: string): LogoPositionData 
       maxX: POSTCARD_WIDTH - BLEED,
       maxY: POSTCARD_HEIGHT - BLEED
     };
-    
+
     // Convert to pixels for UI
     const pixels = {
       position: {
@@ -108,7 +99,7 @@ export function parseLogoPositionFromBrief(briefText: string): LogoPositionData 
         maxY: Math.round(safeZone.maxY * DPI)
       }
     };
-    
+
     return {
       position: { x, y },
       dimensions: { width, height },
@@ -116,7 +107,6 @@ export function parseLogoPositionFromBrief(briefText: string): LogoPositionData 
       safeZone,
       pixels
     };
-    
   } catch (error) {
     console.error('Error parsing logo position from brief:', error);
     return null;

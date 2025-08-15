@@ -113,10 +113,11 @@ const DesignReviewSection = ({
     : null;
   
   // Create default logo position if none exists but brand has logo
+  // Fallback to top-left safe placement with sensible size at 300 DPI
   const defaultLogoPosition = {
-    position: { x: 4.5, y: 3.0 }, // Bottom-right area in inches (6" x 4" postcard)
-    dimensions: { width: 1, height: 0.75 }, // inches
-    backgroundRequirement: 'light' as const, // Changed from 'any' to valid type
+    position: { x: 0.25, y: 0.25 }, // Top-left safe zone in inches
+    dimensions: { width: 1.5, height: 1.0 }, // inches (adjusted later by aspect as needed elsewhere)
+    backgroundRequirement: 'light' as const,
     safeZone: {
       minX: 0.125,
       minY: 0.125,
@@ -124,13 +125,13 @@ const DesignReviewSection = ({
       maxY: 3.875
     },
     pixels: {
-      position: { x: 400, y: 300 }, // Default position in pixels
-      dimensions: { width: 144, height: 108 }, // Default size in pixels (1" x 0.75" at 144 DPI)
+      position: { x: Math.round(0.25 * 300), y: Math.round(0.25 * 300) },
+      dimensions: { width: Math.round(1.5 * 300), height: Math.round(1.0 * 300) },
       safeZone: {
-        minX: 36, // 0.25" margin
-        minY: 36,
-        maxX: 828, // 6" - 0.25" margin at 144 DPI
-        maxY: 540  // 4" - 0.25" margin at 144 DPI
+        minX: Math.round(0.125 * 300),
+        minY: Math.round(0.125 * 300),
+        maxX: Math.round(5.875 * 300),
+        maxY: Math.round(3.875 * 300)
       }
     }
   };
