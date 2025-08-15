@@ -270,10 +270,14 @@ const AuthOverlay = ({ isOpen, onClose, className = '' }: AuthOverlayProps) => {
   if (!isOpen) return null;
 
   return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center ${className}`}>
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto overscroll-contain ${className}`}
+      style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+    >
       <div className="absolute inset-0 bg-charcoal/70 backdrop-blur-md" />
-      <div className="relative w-full max-w-md rounded-lg border-2 border-electric-teal 
-        bg-charcoal/90 p-8 shadow-glow"
+      <div
+        className="relative w-full max-w-md my-4 rounded-lg border-2 border-electric-teal bg-charcoal/90 p-6 sm:p-8 shadow-glow max-h-[calc(100dvh-2rem)] overflow-y-auto"
+        style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         {/* Close button */}
         <button
@@ -600,8 +604,14 @@ const AuthOverlay = ({ isOpen, onClose, className = '' }: AuthOverlayProps) => {
         
         {/* Forgot Password Modal */}
         {showForgotPassword && (
-          <div className="absolute inset-0 bg-charcoal/80 backdrop-blur-sm flex items-center justify-center z-10">
-            <div className="bg-charcoal/95 border border-electric-teal/30 rounded-lg p-6 w-full max-w-sm mx-4">
+          <div
+            className="absolute inset-0 bg-charcoal/80 backdrop-blur-sm flex items-center justify-center z-10 p-4 overflow-y-auto"
+            style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+          >
+            <div
+              className="bg-charcoal/95 border border-electric-teal/30 rounded-lg p-6 w-full max-w-sm mx-auto my-4 max-h-[calc(100dvh-2rem)] overflow-y-auto"
+              style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+            >
               <div className="text-center mb-4">
                 <h3 className="text-lg font-semibold text-electric-teal mb-2">Reset Password</h3>
                 <p className="text-sm text-electric-teal/70">
