@@ -55,9 +55,9 @@ export function parseLogoPositionFromBrief(briefText: string): LogoPositionData 
     const sectionMatch = briefText.match(/LOGO\s*POSITION\s*DATA[^\n]*:([\s\S]*?)(?=\n\n|\n\d+\.|$)/i);
     const searchArea = sectionMatch ? sectionMatch[1] : briefText;
 
-    // Tolerant regexes that accept `"`, `in`, or `inches`, and `x` or `×`
-    const positionRegex = /Position\s*[:\-]?\s*([\d.]+)\s*(?:"|in(?:ches)?)?\s*from\s*left\s*,\s*([\d.]+)\s*(?:"|in(?:ches)?)?\s*from\s*top/i;
-    const dimensionsRegex = /Dimensions\s*[:\-]?\s*([\d.]+)\s*(?:"|in(?:ches)?)?\s*[x×]\s*([\d.]+)\s*(?:"|in(?:ches)?)?/i;
+    // Tolerant regexes that accept `"`, `in`, `inches`, `px`, `pixels`, and `x` or `×`. Capture units if present.
+    const positionRegex = /Position\s*[:\-]?\s*([\d.]+)\s*("|in(?:ches)?|px|pixels)?\s*from\s*left\s*,\s*([\d.]+)\s*("|in(?:ches)?|px|pixels)?\s*from\s*top/i;
+    const dimensionsRegex = /Dimensions\s*[:\-]?\s*([\d.]+)\s*("|in(?:ches)?|px|pixels)?\s*[x×]\s*([\d.]+)\s*("|in(?:ches)?|px|pixels)?/i;
     const backgroundRegex = /Background\s*[:\-]?\s*(light|dark)/i;
 
     const positionMatch = searchArea.match(positionRegex);
@@ -68,10 +68,26 @@ export function parseLogoPositionFromBrief(briefText: string): LogoPositionData 
       throw new Error('Could not parse logo position or dimensions');
     }
 
-    const x = parseFloat(positionMatch[1]);
-    const y = parseFloat(positionMatch[2]);
-    const width = parseFloat(dimensionsMatch[1]);
-    const height = parseFloat(dimensionsMatch[2]);
+    const xVal = parseFloat(positionMatch[1]);
+    const xUnit = (positionMatch[2] || '').toLowerCase();
+    const yVal = parseFloat(positionMatch[3]);
+    const yUnit = (positionMatch[4] || '').toLowerCase();
+
+    const widthVal = parseFloat(dimensionsMatch[1]);
+    const widthUnit = (dimensionsMatch[2] || '').toLowerCase();
+    const heightVal = parseFloat(dimensionsMatch[3]);
+    const heightUnit = (dimensionsMatch[4] || '').toLowerCase();
+
+    const toInches = (value: number, unit: string): number => {
+      if (unit.includes('px')) return value / DPI;
+      // Default to inches for '"', 'in', 'inches', or empty
+      return value;
+    };
+
+    const x = toInches(xVal, xUnit);
+    const y = toInches(yVal, yUnit);
+    const width = toInches(widthVal, widthUnit);
+    const height = toInches(heightVal, heightUnit);
     const backgroundRequirement = (backgroundMatch ? backgroundMatch[1] : 'light') as 'light' | 'dark';
 
     // Calculate safe zone

@@ -30,6 +30,10 @@ interface DesignAssignment {
       reasoning?: string;
       briefId?: string;
     };
+    brief3?: {
+      frontImageUrl?: string;
+      executionTime?: number;
+    };
   };
   creativeBrief?: {
     briefText: string;
@@ -222,7 +226,7 @@ const DesignReviewSection = ({
       </div>
       
       {/* Design Options */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Brief 1 */}
         {assignment.generationResult.brief1?.frontImageUrl && (
           <DesignOptionCard
@@ -269,6 +273,31 @@ const DesignReviewSection = ({
             onLogoPositionChange={(position) => handleLogoPositionChange('B', position)}
             onLogoSizeChange={(dimensions) => handleLogoSizeChange('B', dimensions)}
             onTemplateSaved={(templateId) => console.log('Template B saved:', templateId)}
+            disabled={savingChanges}
+          />
+        )}
+
+        {/* Brief 3 - One-shot embedded logo */}
+        {assignment.generationResult.brief3?.frontImageUrl && (
+          <DesignOptionCard
+            imageUrl={assignment.generationResult.brief3.frontImageUrl}
+            optionLabel="B"
+            isSelected={false}
+            executionTime={assignment.generationResult.brief3.executionTime}
+            brand={brand}
+            logoPosition={effectiveLogoPosition}
+            savedLogoPosition={undefined}
+            savedLogoSize={undefined}
+            creativeBrief={assignment.creativeBrief?.briefText}
+            prompt={assignment.prompt}
+            campaignId={assignment.campaignId}
+            designId={assignment.designId}
+            aiProvider="openai"
+            userId={brand.ownerUid}
+            onSelect={() => onOptionSelect(assignment.designId, 'B')}
+            onLogoPositionChange={() => {}}
+            onLogoSizeChange={() => {}}
+            onTemplateSaved={(templateId) => console.log('Template C saved:', templateId)}
             disabled={savingChanges}
           />
         )}

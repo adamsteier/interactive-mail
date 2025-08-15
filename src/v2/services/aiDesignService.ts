@@ -302,6 +302,72 @@ export function generateAdvancedDesignPrompt(
 }
 
 /**
+ * Experimental: One-shot generation with embedded logo using OpenAI Responses API
+ * Returns data URL of the generated image if successful
+ */
+async function generateOneShotWithLogo({
+  brand,
+  prompt,
+  logoSpace
+}: {
+  brand: V2Brand;
+  prompt: string;
+  logoSpace: LogoSpaceCalculation;
+}): Promise<{ imageDataUrl: string; executionTime: number } | null> {
+  try {
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    if (!openaiApiKey) return null;
+
+    const logoUrl = brand.logo?.variants?.[0]?.url;
+    if (!logoUrl) return null;
+
+    const startTime = Date.now();
+
+    const body = {
+      model: 'gpt-4.1',
+      input: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'input_text',
+              text: `Canvas 1536x1024 px. Place the provided logo at the top-left inside a reserved box of ${Math.round(
+                logoSpace.width * 300
+              )}x${Math.round(logoSpace.height * 300)} px starting at (${Math.round(
+                logoSpace.position.x * 300
+              )}, ${Math.round(logoSpace.position.y * 300)}). Preserve the logo's exact colors, aspect ratio, and do not stylize or warp it. Keep the rest of the design full-bleed and aligned with the brief.`
+            },
+            { type: 'input_image', image_url: logoUrl }
+          ]
+        }
+      ],
+      tools: [{ type: 'image_generation', input_fidelity: 'high', size: '1536x1024', quality: 'high', format: 'jpeg' }]
+    } as Record<string, unknown>;
+
+    const resp = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const imageBase64 = Array.isArray(data.output)
+      ? (data.output.find((o: any) => o?.type === 'image_generation_call')?.result as string | undefined)
+      : (data.output_text as string | undefined);
+
+    if (!imageBase64) return null;
+    const imageDataUrl = `data:image/jpeg;base64,${imageBase64}`;
+    return { imageDataUrl, executionTime: Date.now() - startTime };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Convert style preference to Ideogram style type
  */
 export function getIdeogramStyleType(stylePreference?: string): IdeogramGenerationParams['styleType'] {
@@ -429,7 +495,7 @@ export async function generateOpenAIImage(prompt: string): Promise<{
         model: 'dall-e-3',
         prompt: prompt,
         n: 1,
-        size: '1792x1024', // Closest to 6:4 aspect ratio
+        size: '1536x1024', // Standardized canvas size (3:2)
         quality: 'hd',
         style: 'natural', // Can be 'natural' or 'vivid'
         response_format: 'url'
@@ -475,6 +541,7 @@ export async function generateDualProviderImages(
   ideogram: Awaited<ReturnType<typeof generateIdeogramImage>>;
   prompt: string;
   logoSpace: LogoSpaceCalculation;
+  oneShot?: { imageDataUrl: string; executionTime: number };
 }> {
   // Calculate logo space
   const logoSpace = calculateLogoSpace(brand);
@@ -631,6 +698,9 @@ export async function processDualProviderGeneration(jobId: string): Promise<{
     // Generate with both providers
     const results = await generateDualProviderImages(jobData.requestData, brand);
 
+    // One-shot with embedded logo (Brief 3)
+    const oneShot = await generateOneShotWithLogo({ brand, prompt: results.prompt, logoSpace: results.logoSpace });
+
     // Update progress
     await updateDoc(jobRef, { progress: 80 });
 
@@ -640,6 +710,7 @@ export async function processDualProviderGeneration(jobId: string): Promise<{
       progress: 100,
       completedAt: serverTimestamp(),
       result: {
+        // Legacy keys
         openai: {
           frontImageUrl: results.openai.imageUrl || '',
           prompt: results.prompt,
@@ -653,6 +724,19 @@ export async function processDualProviderGeneration(jobId: string): Promise<{
           renderingSpeed: 'DEFAULT',
           executionTime: results.ideogram.executionTime
         },
+        // UI-friendly aliases
+        brief1: {
+          frontImageUrl: results.openai.imageUrl || '',
+          executionTime: results.openai.executionTime
+        },
+        brief2: {
+          frontImageUrl: results.ideogram.imageUrl || '',
+          executionTime: results.ideogram.executionTime
+        },
+        brief3: oneShot?.imageDataUrl ? {
+          frontImageUrl: oneShot.imageDataUrl,
+          executionTime: oneShot.executionTime
+        } : undefined,
         logoPosition: {
           x: results.logoSpace.position.x,
           y: results.logoSpace.position.y,

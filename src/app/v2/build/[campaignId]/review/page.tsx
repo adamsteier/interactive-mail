@@ -63,6 +63,10 @@ interface DesignAssignmentType {
       reasoning?: string;
       briefId?: string;
     };
+    brief3?: {
+      frontImageUrl?: string; // one-shot embedded logo image (data URL)
+      executionTime?: number;
+    };
   };
   creativeBrief?: {
     briefText: string;
