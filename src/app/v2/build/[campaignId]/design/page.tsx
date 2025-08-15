@@ -133,7 +133,7 @@ export default function DesignPage({ params }: { params: Params }) {
   // Flow state
   const [currentStep, setCurrentStep] = useState<'assignment' | 'forms' | 'generating' | 'complete'>('assignment');
   const [assignments, setAssignments] = useState<DesignAssignmentType[]>([]);
-  const [currentDesignIndex, setCurrentDesignIndex] = useState(0);
+  const [currentDesignIndex] = useState(0);
   const [generationJobs, setGenerationJobs] = useState<Record<string, string>>({}); // designId -> jobId
   const [generationStatus, setGenerationStatus] = useState<Record<string, DesignGenerationJob>>({});
   // Brief generation state removed - now auto-processing both briefs
